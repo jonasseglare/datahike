@@ -386,6 +386,7 @@
                 [])))))))
 
 (defn filter-as-of-datoms [datoms time-point db]
+  (println "Number of datoms to filter:" (count datoms))
   (let [as-of-pred (fn [^Datom d]
                      (if (date? time-point)
                        (.before ^Date (.-v d) ^Date time-point)
