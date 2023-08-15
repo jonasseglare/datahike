@@ -535,6 +535,23 @@
                (assoc! hash-table key (conj (get hash-table key '()) tuple))))
       (persistent! hash-table))))
 
+(defn rebuild-tuples [[tuples1 keep-attrs1 keep-idxs1 key-fn1]
+                      [tuples2 keep-attrs2 keep-idxs2 key-fn2]]
+  (let [hash       (hash-attrs key-fn1 tuples1)
+        new-tuples (->>
+                    (reduce (fn [acc tuple2]
+                              (let [key (key-fn2 tuple2)]
+                                (if-some [tuples1 (get hash key)]
+                                  (reduce (fn [acc tuple1]
+                                            (conj! acc (join-tuples tuple1 keep-idxs1 tuple2 keep-idxs2)))
+                                          acc tuples1)
+                                  acc)))
+                            (transient []) tuples2)
+                    (persistent!))]
+    (dt/log "b:" (count new-tuples))
+    (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
+               new-tuples)))
+
 (defn hash-join [rel1 rel2]
   (dt/log "hash-join"
           (count (:tuples rel1))
@@ -560,23 +577,28 @@
 
         ;; Functions that identify a tuple based on common attributes
         key-fn1      (tuple-key-fn common-gtrs1)
-        key-fn2      (tuple-key-fn common-gtrs2)]
+        key-fn2      (tuple-key-fn common-gtrs2)
+
+        params1 [tuples1 keep-attrs1 keep-idxs1 key-fn1]
+        params2 [tuples2 keep-attrs2 keep-idxs2 key-fn2]]
     (if (< (count tuples1) (count tuples2))
-      (let [hash       (hash-attrs key-fn1 tuples1)
-            new-tuples (->>
-                        (reduce (fn [acc tuple2]
-                                  (let [key (key-fn2 tuple2)]
-                                    (if-some [tuples1 (get hash key)]
-                                      (reduce (fn [acc tuple1]
-                                                (conj! acc (join-tuples tuple1 keep-idxs1 tuple2 keep-idxs2)))
-                                              acc tuples1)
-                                      acc)))
-                                (transient []) tuples2)
-                        (persistent!))]
-        (dt/log "b true:" (count new-tuples))
-        (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
-                   new-tuples))
-      (let [hash       (hash-attrs key-fn2 tuples2)
+      (rebuild-tuples params1 params2)
+      (rebuild-tuples params2 params1)
+      #_(let [hash       (hash-attrs key-fn1 tuples1)
+              new-tuples (->>
+                          (reduce (fn [acc tuple2]
+                                    (let [key (key-fn2 tuple2)]
+                                      (if-some [tuples1 (get hash key)]
+                                        (reduce (fn [acc tuple1]
+                                                  (conj! acc (join-tuples tuple1 keep-idxs1 tuple2 keep-idxs2)))
+                                                acc tuples1)
+                                        acc)))
+                                  (transient []) tuples2)
+                          (persistent!))]
+          (dt/log "b true:" (count new-tuples))
+          (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
+                     new-tuples))
+      #_(let [hash       (hash-attrs key-fn2 tuples2)
             new-tuples (->>
                         (reduce (fn [acc tuple1]
                                   (let [key (key-fn1 tuple1)]
@@ -1056,8 +1078,22 @@
 (defn disp-vec [v]
   (mapv (fn [x] [x (type x)]) v))
 
+(def max-expanded-constrained-patterns 10)
+
 (defn expand-constrained-patterns [context pattern]
-  [pattern])
+  (let [vars (collect-vars pattern)
+        tuple-count (comp count :tuples)
+        rels-mentioning-var (sort-by
+                             tuple-count
+                             (filter #(some (:attrs %) vars) (:rels context)))
+        tuple-counts (reductions ((comp (map tuple-count)
+                                        (filter #(<= % max-expanded-constrained-patterns)))
+                                  *)
+                                 1 rels-mentioning-var)
+        rels-for-constraints (take (dec (count tuple-counts)) rels-mentioning-var)
+        rel-product (reduce hash-join rels-for-constraints)]
+    (dt/log "vars" vars "tuple-count" (tuple-count rel-product))
+    [pattern]))
 
 (defn -resolve-clause*
   ([context clause]
