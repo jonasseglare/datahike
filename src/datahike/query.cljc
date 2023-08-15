@@ -477,6 +477,7 @@
               (map #(in->rel %1 %2) (:bindings binding) coll)))))
 
 (defn resolve-in [context [binding value]]
+  (dt/log "RESOLVE IN FOR" binding)
   (cond
     (and (instance? BindScalar binding)
          (instance? SrcVar (:variable binding)))
@@ -487,7 +488,7 @@
     (and (instance? BindScalar binding)
          (instance? Variable (:variable binding)))
     (assoc-in context [:consts (get-in binding [:variable :symbol])] value)
-    #_(instance? BindColl binding)                          ;; TODO: later
+    #_(instance? BindColl binding) ;; TODO: later
     :else
     (update context :rels conj (in->rel binding value))))
 
@@ -1055,6 +1056,9 @@
 (defn disp-vec [v]
   (mapv (fn [x] [x (type x)]) v))
 
+(defn expand-constrained-patterns [context pattern]
+  [pattern])
+
 (defn -resolve-clause*
   ([context clause]
    (-resolve-clause* context clause clause))
@@ -1154,17 +1158,22 @@
      '[*] ;; pattern <--------------------------------
      (let [source *implicit-source*
            pattern0 (replace (:consts context) clause)
-           pattern (resolve-pattern-lookup-refs source pattern0)
-           relation (lookup-pattern context source pattern clause)]
-       (dt/log "clause" clause)
-       (dt/log "pattern0" pattern0)
-       (dt/log "pattern" (disp-vec pattern))
-       (dt/log "-resolve-clause*: Got" (count (:tuples relation)) "tuples")
-       (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
-                                  (dynamic-lookup-attrs source pattern)
-                                  *lookup-attrs*)]
-         (cond-> (update context :rels collapse-rels relation)
-           (:stats context) (assoc :tmp-stats {:type :lookup})))))))
+           pattern1 (resolve-pattern-lookup-refs source pattern0)
+           constrained-patterns (expand-constrained-patterns context pattern1)]
+       (reduce (fn [context pattern]
+                 (let [relation (lookup-pattern context source pattern clause)]
+                   (dt/log "clause" clause)
+                   (dt/log "pattern0" pattern0)
+                   (dt/log "pattern" (disp-vec pattern))
+                   (dt/log "-resolve-clause*: Got" (count (:tuples relation)) "tuples")
+                   (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
+                                              (dynamic-lookup-attrs source pattern)
+                                              *lookup-attrs*)]
+                     
+                     (cond-> (update context :rels collapse-rels relation)
+                       (:stats context) (assoc :tmp-stats {:type :lookup})))))
+               context
+               constrained-patterns)))))
 
 (defn -resolve-clause
   ([context clause]

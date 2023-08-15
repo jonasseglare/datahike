@@ -46,7 +46,12 @@
   '{:query
     {:find [?from-id ?id],
      :keys [from_id id],
-     :in [$ %
+
+     
+     ;; Motsvarar det som kommer under args
+     :in [$ ;; Databasen (läggs till i själva frågan, se (into [..]...))
+
+          % ;; Reglerna
 
           [?from-id ...] ;; Alla källobject
           ?relation-type ;; Vilket fält det är
