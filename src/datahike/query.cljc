@@ -1043,6 +1043,9 @@
 #_`(do (println "key:" ~k)
                  ~v)
 
+(defn disp-vec [v]
+  (mapv (fn [x] [x (type x)]) v))
+
 (defn -resolve-clause*
   ([context clause]
    (-resolve-clause* context clause clause))
@@ -1144,7 +1147,9 @@
            pattern0 (replace (:consts context) clause)
            pattern (resolve-pattern-lookup-refs source pattern0)
            relation (lookup-pattern context source pattern clause)]
-       (dt/log "consts:" (:consts context))
+       (dt/log "clause" clause)
+       (dt/log "pattern0" pattern0)
+       (dt/log "pattern" (disp-vec pattern))
        (dt/log "-resolve-clause*: Got" (count (:tuples relation)) "tuples")
        (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
                                   (dynamic-lookup-attrs source pattern)
