@@ -553,10 +553,12 @@
                new-tuples)))
 
 (defn hash-join-tuple-params [rel common-attrs attrs-to-exclude]
+  {:pre [(map? attrs-to-exclude)]}
+  (println "exclude" attrs-to-exclude)
   (let [tuples (:tuples rel)
         attrs (:attrs rel)
         common-gtrs (map #(getter-fn attrs %) common-attrs)
-        keep-attrs (into [] (remove (set attrs-to-exclude)) (keys attrs))
+        keep-attrs (into [] (remove attrs-to-exclude) (keys attrs))
         keep-idx (to-array (map attrs keep-attrs))
         key-fn (tuple-key-fn common-gtrs)]
     {:tuples tuples
@@ -577,6 +579,9 @@
         ;; The keys of common attributes
         common-attrs (vec (intersect-keys (:attrs rel1) (:attrs rel2)))
 
+        params1-map (hash-join-tuple-params rel1 common-attrs {})
+        params2-map (hash-join-tuple-params rel2 common-attrs attrs1)
+
         ;; sequences of functions corresponding to each common attr.
         common-gtrs1 (map #(getter-fn attrs1 %) common-attrs)
         common-gtrs2 (map #(getter-fn attrs2 %) common-attrs)
@@ -594,6 +599,18 @@
 
         params1 [tuples1 keep-attrs1 keep-idxs1 key-fn1]
         params2 [tuples2 keep-attrs2 keep-idxs2 key-fn2]]
+    
+    (assert (= tuples1 (:tuples params1-map)))
+    (assert (= keep-attrs1 (:keep-attrs params1-map)))
+    (assert (= (vec keep-idxs1) (vec (:keep-idx params1-map))))
+
+    (dt/log "Attrs2" keep-attrs2 (:keep-attrs params2-map))
+    (assert (= tuples2 (:tuples params2-map)))
+    (assert (= (set keep-attrs2) (set (:keep-attrs params2-map))))
+    (assert (= (set (vec keep-idxs2)) (set (vec (:keep-idx params2-map)))))
+
+    
+                                        ;(assert (= key-fn1 (:tuples1 params1-map)))
     (if (< (count tuples1) (count tuples2))
       (hash-join-tuples params1 params2)
       (hash-join-tuples params2 params1)
