@@ -548,16 +548,14 @@
                 (fn
                   ([acc] (step acc))
                   ([acc tuple2]
-                   (let [key (key-fn2 tuple2)]
-                     (if-some [tuples1 (get hash key)]
-                       (reduce ((map #(join-tuples
-                                       %
-                                       keep-idxs1
-                                       tuple2
-                                       keep-idxs2)) step)
-                                  acc
-                                  tuples1)
-                       acc)))))        
+                   (reduce ((map #(join-tuples
+                                   %
+                                   keep-idxs1
+                                   tuple2
+                                   keep-idxs2)) step)
+                           acc
+                           (get hash (key-fn2 tuple2)))
+                   acc)))
         new-tuples (into [] xform tuples2)]
     (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
                new-tuples)))
