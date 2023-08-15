@@ -535,20 +535,31 @@
                (assoc! hash-table key (conj (get hash-table key '()) tuple))))
       (persistent! hash-table))))
 
+#_xform0 #_(fn [step]
+             (fn
+               ([acc] (step acc))
+               ([acc tuple2]
+                (let [key (key-fn2 tuple2)]
+                  (if-some [tuples1 (get hash key)]
+                    (reduce (fn [acc tuple1]
+                              (step acc (join-tuples tuple1 keep-idxs1 tuple2 keep-idxs2)))
+                            acc tuples1)
+                    acc)))))
+
 (defn hash-join-tuples [{tuples1 :tuples  keep-attrs1 :keep-attrs keep-idxs1 :keep-idxs key-fn1 :key-fn}
                         {tuples2 :tuples  keep-attrs2 :keep-attrs keep-idxs2 :keep-idxs key-fn2 :key-fn}]
   (let [hash       (hash-attrs key-fn1 tuples1)
-        xform0 (fn [step]
+        xform0 (keep (fn [tuple2]
+                      (if-some [tuples1 (get hash (key-fn2 tuple2))]
+                        [tuples1 tuple2])))
+        xform1 (fn [step]
                  (fn
                    ([acc] (step acc))
-                   ([acc tuple2]
-                    (let [key (key-fn2 tuple2)]
-                      (if-some [tuples1 (get hash key)]
-                        (reduce (fn [acc tuple1]
-                                  (step acc (join-tuples tuple1 keep-idxs1 tuple2 keep-idxs2)))
-                                acc tuples1)
-                        acc)))))
-        new-tuples (into [] xform0 tuples2)]
+                   ([acc [tuples1 tuple2]]
+                    (reduce (fn [acc tuple1]
+                              (step acc (join-tuples tuple1 keep-idxs1 tuple2 keep-idxs2)))
+                            acc tuples1))))
+        new-tuples (into [] (comp xform0 xform1) tuples2)]
     
     (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
                new-tuples)))
