@@ -559,7 +559,14 @@
                     (reduce (fn [acc tuple1]
                               (step acc (join-tuples tuple1 keep-idxs1 tuple2 keep-idxs2)))
                             acc tuples1))))
-        new-tuples (into [] (comp xform0 xform1) tuples2)]
+        new-tuples (into [] (comp xform0 xform1) tuples2)
+
+        a (count tuples1)
+        b (count tuples2)
+        c (count new-tuples)]
+    #_(dt/log "TUPLE COUNTS" a b " - " c)
+    (assert (<= c (* a b)))
+    
     (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
                new-tuples)))
 
