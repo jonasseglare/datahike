@@ -1055,7 +1055,8 @@
                                   *)
                                  1 rels-mentioning-var)
         rels-for-constraints (take (dec (count tuple-counts)) rels-mentioning-var)
-        rel-product (reduce hash-join rels-for-constraints)]
+        rel-product (when (seq rels-for-constraints)
+                      (reduce hash-join rels-for-constraints))]
     (dt/log "vars" vars "tuple-count" (tuple-count rel-product))
     [pattern]))
 
