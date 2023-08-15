@@ -141,22 +141,24 @@
             path [:args]
             db (d/as-of (deref conn) 536870932)
             query (update-in broader-query path (fn [args] (into [db] args)))
-            _ (println "The query")
-            _ (println query)
-            _ (println "----")
             result (binding [tools/debug? true]
                      (d/q query))]
         (assert (= [{:from_id "w6ud_quG_dgh", :id "j7Cq_ZJe_GkT"}] result))
         result))))
 
+
+
 (comment
   
 
-  (:rels dq/debug-context-in)
+  (def x (first (:rels dq/debug-context-in)))
+  (dq/display-rels (:rels dq/debug-context-in))
+
+  (into [] (map #(into {} %)) (:rels dq/debug-context-in))
 
 
-(replace {:b 119} [:a :b :c])
-;; => [:a 119 :c]
+  (replace {:b 119} [:a :b :c])
+  ;; => [:a 119 :c]
 
   )
 

@@ -15,6 +15,7 @@
    [datahike.middleware.utils :as middleware-utils]
    [datalog.parser :refer [parse]]
    [datalog.parser.impl :as dpi]
+   [datahike.datom :as datom]
    [datalog.parser.impl.proto :as dpip]
    [datalog.parser.pull :as dpp]
    [clojure.pprint :as pp]
@@ -31,6 +32,18 @@
                     RulesVar SrcVar Variable]
                    [java.lang.reflect Method]
                    [java.util Date Map])))
+
+(defn disp-context [{:keys [rels]}]
+  (println "Number of rels" (count rels))
+  (doseq [rel rels]
+    (let [{:keys [attrs tuples]} rel]
+      (println "**** REL")
+      (println (format "Attrs (%d):" (count attrs)))
+      (doseq [x (take 10 attrs)]
+        (println x))
+      (println (format "Tuples (%d):" (count tuples)))
+      (doseq [x (take 10 tuples)]
+        (println (vec x))))))
 
 ;; ----------------------------------------------------------------------------
 
@@ -491,10 +504,12 @@
 (defn getter-fn [attrs attr]
   (let [idx (attrs attr)]
     (if (contains? *lookup-attrs* attr)
+
+      ;; tuple kan vara en array eller en datom
       (fn [tuple]
         (let [eid (#?(:cljs da/aget :clj get) tuple idx)]
           (cond
-            (number? eid) eid                               ;; quick path to avoid fn call
+            (number? eid) eid ;; quick path to avoid fn call
             (sequential? eid) (dbu/entid *implicit-source* eid)
             (da/array? eid) (dbu/entid *implicit-source* eid)
             :else eid)))
@@ -519,17 +534,29 @@
       (persistent! hash-table))))
 
 (defn hash-join [rel1 rel2]
+  (dt/log "hash-join"
+          (count (:tuples rel1))
+          (count (:tuples rel2)))
   (let [tuples1      (:tuples rel1)
         tuples2      (:tuples rel2)
         attrs1       (:attrs rel1)
         attrs2       (:attrs rel2)
+
+        ;; The keys of common attributes
         common-attrs (vec (intersect-keys (:attrs rel1) (:attrs rel2)))
+
+        ;; sequences of functions corresponding to each common attr.
         common-gtrs1 (map #(getter-fn attrs1 %) common-attrs)
         common-gtrs2 (map #(getter-fn attrs2 %) common-attrs)
+
+        ;; We are going to a create tuples that are *unions* of the tuples from rel1 and rel2
+        ;; Take all from attrs1 and the additional attrs from attrs2.
         keep-attrs1  (keys attrs1)
         keep-attrs2  (vec (set/difference (set (keys attrs2)) (set (keys attrs1))))
         keep-idxs1   (to-array (map attrs1 keep-attrs1))
         keep-idxs2   (to-array (map attrs2 keep-attrs2))
+
+        ;; Functions that identify a tuple based on common attributes
         key-fn1      (tuple-key-fn common-gtrs1)
         key-fn2      (tuple-key-fn common-gtrs2)]
     (if (< (count tuples1) (count tuples2))
@@ -544,6 +571,7 @@
                                       acc)))
                                 (transient []) tuples2)
                         (persistent!))]
+        (dt/log "b true:" (count new-tuples))
         (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
                    new-tuples))
       (let [hash       (hash-attrs key-fn2 tuples2)
@@ -557,6 +585,7 @@
                                       acc)))
                                 (transient []) tuples1)
                         (persistent!))]
+        (dt/log "b false:" (count new-tuples))
         (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
                    new-tuples)))))
 
@@ -597,6 +626,7 @@
                                   m))
                               {}
                               attr->idx)]
+    (dt/log "lookup-pattern-db returned" (count datoms) "datoms. There are" (count idx->const) "idx->const.")
     (if (empty? idx->const)
       (Relation. attr->prop datoms)
       (Relation. attr->idx (map #(reduce (fn [datom [k v]]
@@ -629,15 +659,40 @@
     :else
     (lookup-pattern-coll source pattern orig-pattern)))
 
+(defn display-rel [{:keys [tuples attrs]}]
+  (println "---> REL:")
+  (println "  * attribs")
+  (doseq [[k v] attrs]
+    (println "    + " k ":" v))
+  (println (format "  * %d tuples" (count tuples)))
+  (doseq [x (take 10 tuples)]
+    (println "    - " (vec (seq x)))))
+
+(defn display-rels [label rels]
+  (println (format "%s - %d rels:" label (count rels)))
+  (doseq [rel rels]
+    (display-rel rel))
+  rels)
+
 (defn collapse-rels [rels new-rel]
+  (display-rels "before" rels)
+  (display-rels "new" [new-rel])
   (loop [rels rels
          new-rel new-rel
          acc []]
+    
+    ;; For every existing relation
     (if-some [rel (first rels)]
       (if (not-empty (intersect-keys (:attrs new-rel) (:attrs rel)))
+
+        ;; If there is overlap, update `new-rel` with the existing relation
         (recur (next rels) (hash-join rel new-rel) acc)
+
+        ;; If there is no overlap, just let it pass through
         (recur (next rels) new-rel (conj acc rel)))
-      (conj acc new-rel))))
+
+      ;; Since we are finished, the final state of new-rel is added.
+      (display-rels "after" (conj acc new-rel)))))
 
 (defn- rel-with-attr [context sym]
   (some #(when (contains? (:attrs %) sym) %) (:rels context)))
@@ -1088,10 +1143,10 @@
                         (replace (:consts context))
                         (resolve-pattern-lookup-refs source))
            relation (lookup-pattern context source pattern clause)]
+       (dt/log "-resolve-clause*: Got" (count (:tuples relation)) "tuples")
        (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
                                   (dynamic-lookup-attrs source pattern)
                                   *lookup-attrs*)]
-         (dt/log "Executed!")
          (cond-> (update context :rels collapse-rels relation)
            (:stats context) (assoc :tmp-stats {:type :lookup})))))))
 
@@ -1104,6 +1159,7 @@
                               (fn [context] (-resolve-clause* context clause orig-clause)))))
 
 (defn resolve-clause [context clause]
+  (println "\n\nresolve-clause" clause)
   (if (rule? context clause)
     (if (source? (first clause))
       (binding [*implicit-source* (get (:sources context) (first clause))]
@@ -1112,10 +1168,16 @@
                                  (fn [context] (solve-rule context clause))))
     (-resolve-clause context clause)))
 
+(defn resolve-clause-top [context clause]
+  (resolve-clause context clause)
+
+  ;(assert false)
+  )
+
 (defn -q [context clauses]
   (binding [*implicit-source* (get (:sources context) '$)]
     (dt/log "-q rels" (:rels context))
-    (reduce resolve-clause context clauses)))
+    (reduce resolve-clause-top context clauses)))
 
 (defn -collect
   ([context symbols]
@@ -1259,10 +1321,7 @@
         find-elements (dpip/find-elements qfind)
         result-arity  (count find-elements)]
     (def debug-context-in context-in)
-    ;(dt/log "context-out" context-out)
-    ;(dt/log "all-vars" all-vars)
-    ;(dt/log "args" args)
-    ;(dt/log "context-in" context-in)
+    (def debug-context-out context-out)
     (dt/log "resultset size" (count resultset))
     (cond->> resultset
       (or offset limit)                             (paginate offset limit)
