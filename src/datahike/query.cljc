@@ -34,16 +34,17 @@
                    [java.util Date Map])))
 
 (defn disp-context [{:keys [rels]}]
-  (println "Number of rels" (count rels))
-  (doseq [rel rels]
-    (let [{:keys [attrs tuples]} rel]
-      (println "**** REL")
-      (println (format "Attrs (%d):" (count attrs)))
-      (doseq [x (take 10 attrs)]
-        (println x))
-      (println (format "Tuples (%d):" (count tuples)))
-      (doseq [x (take 10 tuples)]
-        (println (vec x))))))
+  (when dt/debug?
+    (println "Number of rels" (count rels))
+    (doseq [rel rels]
+      (let [{:keys [attrs tuples]} rel]
+        (println "**** REL")
+        (println (format "Attrs (%d):" (count attrs)))
+        (doseq [x (take 10 attrs)]
+          (println x))
+        (println (format "Tuples (%d):" (count tuples)))
+        (doseq [x (take 10 tuples)]
+          (println (vec x)))))))
 
 ;; ----------------------------------------------------------------------------
 
@@ -1166,7 +1167,7 @@
                               (fn [context] (-resolve-clause* context clause orig-clause)))))
 
 (defn resolve-clause [context clause]
-  (println "\n\nresolve-clause" clause)
+  (dt/log "\n\nresolve-clause" clause)
   (if (rule? context clause)
     (if (source? (first clause))
       (binding [*implicit-source* (get (:sources context) (first clause))]
