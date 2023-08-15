@@ -535,8 +535,14 @@
                (assoc! hash-table key (conj (get hash-table key '()) tuple))))
       (persistent! hash-table))))
 
-(defn hash-join-tuples [[tuples1 keep-attrs1 keep-idxs1 key-fn1]
-                        [tuples2 keep-attrs2 keep-idxs2 key-fn2]]
+(defn hash-join-tuples [{tuples1 :tuples
+                         keep-attrs1 :keep-attrs
+                         keep-idxs1 :keep-idxs
+                         key-fn1 :key-fn}
+                        {tuples2 :tuples
+                         keep-attrs2 :keep-attrs
+                         keep-idxs2 :keep-idxs
+                         key-fn2 :key-fn}]
   (let [hash       (hash-attrs key-fn1 tuples1)
         new-tuples (->>
                     (reduce (fn [acc tuple2]
@@ -559,12 +565,12 @@
         attrs (:attrs rel)
         common-gtrs (map #(getter-fn attrs %) common-attrs)
         keep-attrs (into [] (remove attrs-to-exclude) (keys attrs))
-        keep-idx (to-array (map attrs keep-attrs))
+        keep-idxs (to-array (map attrs keep-attrs))
         key-fn (tuple-key-fn common-gtrs)]
     {:tuples tuples
      :attrs attrs
      :keep-attrs keep-attrs
-     :keep-idx keep-idx
+     :keep-idxs keep-idxs
      :key-fn key-fn}))
 
 (defn hash-join [rel1 rel2]
@@ -597,17 +603,25 @@
         key-fn1      (tuple-key-fn common-gtrs1)
         key-fn2      (tuple-key-fn common-gtrs2)
 
-        params1 [tuples1 keep-attrs1 keep-idxs1 key-fn1]
-        params2 [tuples2 keep-attrs2 keep-idxs2 key-fn2]]
-    
-    (assert (= tuples1 (:tuples params1-map)))
-    (assert (= keep-attrs1 (:keep-attrs params1-map)))
-    (assert (= (vec keep-idxs1) (vec (:keep-idx params1-map))))
+        ;params1 [tuples1 keep-attrs1 keep-idxs1 key-fn1]
+        ;params2 [tuples2 keep-attrs2 keep-idxs2 key-fn2]
 
-    (dt/log "Attrs2" keep-attrs2 (:keep-attrs params2-map))
-    (assert (= tuples2 (:tuples params2-map)))
-    (assert (= (set keep-attrs2) (set (:keep-attrs params2-map))))
-    (assert (= (set (vec keep-idxs2)) (set (vec (:keep-idx params2-map)))))
+        params1 params1-map
+        params2 params2-map
+        ;params1 [(:tuples params1-map) (:keep-attrs params1-map) (:keep-idxs params1-map) (:key-fn params1-map)]
+        ;params2 [(:tuples params2-map) (:keep-attrs params2-map) (:keep-idxs params2-map) (:key-fn params2-map)]
+        ;params2 [(:tuples params1-map) (:keep-attrs params1-map) (:keep-idxs params1-map) (:key-fn1 params1-map)]
+
+        ]
+    
+    ;(assert (= tuples1 (:tuples params1-map)))
+    ;(assert (= keep-attrs1 (:keep-attrs params1-map)))
+    ;(assert (= (vec keep-idxs1) (vec (:keep-idx params1-map))))
+
+    ;(dt/log "Attrs2" keep-attrs2 (:keep-attrs params2-map))
+    ;(assert (= tuples2 (:tuples params2-map)))
+    ;(assert (= (set keep-attrs2) (set (:keep-attrs params2-map))))
+    ;(assert (= (set (vec keep-idxs2)) (set (vec (:keep-idx params2-map)))))
 
     
                                         ;(assert (= key-fn1 (:tuples1 params1-map)))
