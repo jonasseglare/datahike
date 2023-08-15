@@ -551,9 +551,8 @@
     (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
                new-tuples)))
 
-(defn hash-join-tuple-params [rel common-attrs attrs-to-exclude]
+(defn make-hash-join-tuple-params [rel common-attrs attrs-to-exclude]
   {:pre [(map? attrs-to-exclude)]}
-  (println "exclude" attrs-to-exclude)
   (let [tuples (:tuples rel)
         attrs (:attrs rel)
         common-gtrs (map #(getter-fn attrs %) common-attrs)
@@ -572,8 +571,8 @@
         attrs1       (:attrs rel1)
         attrs2       (:attrs rel2)
         common-attrs (vec (intersect-keys attrs1 attrs2))
-        params1 (hash-join-tuple-params rel1 common-attrs {})
-        params2 (hash-join-tuple-params rel2 common-attrs attrs1)]
+        params1 (make-hash-join-tuple-params rel1 common-attrs {})
+        params2 (make-hash-join-tuple-params rel2 common-attrs attrs1)]
     (if (< (count tuples1) (count tuples2))
       (hash-join-tuples params1 params2)
       (hash-join-tuples params2 params1))))
