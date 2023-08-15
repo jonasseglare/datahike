@@ -560,7 +560,6 @@
                               (step acc (join-tuples tuple1 keep-idxs1 tuple2 keep-idxs2)))
                             acc tuples1))))
         new-tuples (into [] (comp xform0 xform1) tuples2)]
-    
     (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
                new-tuples)))
 
