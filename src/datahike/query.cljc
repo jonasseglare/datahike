@@ -671,7 +671,15 @@
   (doseq [x (take 10 tuples)]
     (println "    - " (vec (seq x)))))
 
+(defn check-non-overlapping-attrs [rels]
+  (let [all-attr-keys (into [] (mapcat (comp keys :attrs)) rels)]
+    (assert (= (count all-attr-keys)
+               (count (set all-attr-keys))))
+    (dt/log "Attr count" all-attr-keys)
+    rels))
+
 (defn display-rels [label rels]
+  (check-non-overlapping-attrs rels)
   (println (format "%s - %d rels:" label (count rels)))
   (doseq [rel rels]
     (display-rel rel))
