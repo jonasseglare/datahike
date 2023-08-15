@@ -1,5 +1,7 @@
 (ns datahike.debug-query
   (:require [datahike.api :as d]
+            [datahike.query :as dq]
+            [datahike.tools :as tools]
             [taoensso.nippy :as nippy]))
 
 (def find-tx-datoms
@@ -36,7 +38,7 @@
 ;;;; P A T H   T O   D A T A B A S E
 ;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defonce datoms (nippy/thaw-from-file "/home/jonas/prog/jobtech-taxonomy-d/taxonomy-v20.nippy"))
+(defonce datoms (nippy/thaw-from-file "/home/jonas/prog/jobtech-taxonomy-api/taxonomy-v20.nippy"))
 
 (def db-config {:keep-history? true, :keep-history true, :search-cache-size 10000, :index :datahike.index/persistent-set, :store {:id "in-mem-nippy-data2", :backend :mem}, :name "Nippy testing data", :store-cache-size 1000, :wanderung/type :datahike, :attribute-refs? true, :writer {:backend :self}, :crypto-hash? false, :schema-flexibility :write, :branch :db})
 
@@ -142,5 +144,20 @@
             _ (println "The query")
             _ (println query)
             _ (println "----")
-            result (d/q query)]
+            result (binding [tools/debug? true]
+                     (d/q query))]
+        (assert (= [{:from_id "w6ud_quG_dgh", :id "j7Cq_ZJe_GkT"}] result))
         result))))
+
+(comment
+  
+
+  (:rels dq/debug-context-in)
+
+
+(replace {:b 119} [:a :b :c])
+;; => [:a 119 :c]
+
+  )
+
+

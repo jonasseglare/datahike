@@ -17,6 +17,7 @@
    [datalog.parser.impl :as dpi]
    [datalog.parser.impl.proto :as dpip]
    [datalog.parser.pull :as dpp]
+   [clojure.pprint :as pp]
    #?(:cljs [datalog.parser.type :refer [Aggregate BindColl BindIgnore BindScalar BindTuple Constant
                                          FindColl FindRel FindScalar FindTuple PlainSymbol Pull
                                          RulesVar SrcVar Variable]])
@@ -76,7 +77,7 @@
     (if-let [middleware (when (dbu/db? (first args))
                           (get-in (dbi/-config (first args)) [:middleware :query]))]
       (let [q-with-middleware (middleware-utils/apply-middlewares middleware raw-q)]
-        (q-with-middleware query-map))
+        (q-with-middleware query-map))      
       (raw-q query-map))))
 
 (defn query-stats [query & inputs]
@@ -577,10 +578,12 @@
        (into {})))
 
 (defn lookup-pattern-db [context db pattern orig-pattern]
+  (dt/log "lookup-pattern-db" pattern)
   ;; TODO optimize with bound attrs min/max values here
   (let [attr->prop (var-mapping orig-pattern ["e" "a" "v" "tx" "added"])
         attr->idx (var-mapping orig-pattern (range))
         search-pattern (mapv #(if (symbol? %) nil %) pattern)
+        _ (dt/log "Perform the search on" db)
         datoms  (if (first search-pattern)
                   (if-let [eid (dbu/entid db (first search-pattern))]
                     (dbi/-search db (assoc search-pattern 0 eid))
@@ -589,7 +592,7 @@
         idx->const (reduce-kv (fn [m k v]
                                 (if-let [c (k (:consts context))]
                                   (if (= c (get (first datoms) v)) ;; All datoms have the same format and the same value at position v
-                                    m                              ;; -> avoid unnecessary translations
+                                    m ;; -> avoid unnecessary translations
                                     (assoc m v c))
                                   m))
                               {}
@@ -619,6 +622,7 @@
     (Relation. attr->idx (mapv to-array data))))            ;; FIXME to-array
 
 (defn lookup-pattern [context source pattern orig-pattern]
+  (dt/log "lookup-pattern" pattern)
   (cond
     (dbu/db? source)
     (lookup-pattern-db context source pattern orig-pattern)
@@ -972,24 +976,36 @@
 (defn resolve-context [context clauses]
   (reduce resolve-clause context clauses))
 
+(defmacro condp-debug [pred clause & pairs]
+  `(condp ~pred ~clause
+     ~@(for [[i [k v]] (map-indexed vector (partition 2 pairs))
+             x [k `(do (println  ~(format "Key %d: %s" i (str k)))
+                       ~v)]]
+         x)))
+
+#_`(do (println "key:" ~k)
+                 ~v)
+
 (defn -resolve-clause*
   ([context clause]
    (-resolve-clause* context clause clause))
   ([context clause orig-clause]
-   (condp looks-like? clause
-     [[symbol? '*]]                                       ;; predicate [(pred ?a ?b ?c)]
+   (dt/log "-resolve-clause*")
+   (condp-debug looks-like? clause
+     [[symbol? '*]] ;; predicate [(pred ?a ?b ?c)]
      (do (check-all-bound context (identity (filter free-var? (first clause))) orig-clause)
          (filter-by-pred context clause))
 
-     [[symbol? '*] '_]                                    ;; function [(fn ?a ?b) ?res]
-     (bind-by-fn context clause)
+     [[symbol? '*] '_] ;; function [(fn ?a ?b) ?res]
+     (do (dt/log [symbol? '*])
+         (bind-by-fn context clause))
 
-     [source? '*]                                         ;; source + anything
+     [source? '*] ;; source + anything
      (let [[source-sym & rest] clause]
        (binding [*implicit-source* (get (:sources context) source-sym)]
          (-resolve-clause context rest clause)))
 
-     '[or *]                                              ;; (or ...)
+     '[or *] ;; (or ...)
      (let [[_ & branches] clause
            context' (assoc context :stats [])
            contexts (map #(resolve-clause context' %) branches)
@@ -1000,13 +1016,13 @@
          (:stats context) (assoc :tmp-stats {:type :or
                                              :branches (mapv :stats contexts)})))
 
-     '[or-join [[*] *] *]                                 ;; (or-join [[req-vars] vars] ...)
+     '[or-join [[*] *] *] ;; (or-join [[req-vars] vars] ...)
      (let [[_ [req-vars & vars] & branches] clause]
        (check-all-bound context req-vars orig-clause)
        (recur context (list* 'or-join (concat req-vars vars) branches) clause))
 
-     '[or-join [*] *]                                     ;; (or-join [vars] ...)
-       ;; TODO required vars
+     '[or-join [*] *] ;; (or-join [vars] ...)
+     ;; TODO required vars
      (let [[_ vars & branches] clause
            vars (set vars)
            join-context (-> context
@@ -1023,7 +1039,7 @@
          (:stats context) (assoc :tmp-stats {:type :or-join
                                              :branches (mapv #(-> % :stats first) contexts)})))
 
-     '[and *]                                             ;; (and ...)
+     '[and *] ;; (and ...)
      (let [[_ & clauses] clause]
        (if (:stats context)
          (let [and-context (-> context
@@ -1035,7 +1051,7 @@
                   :stats (:stats context)))
          (resolve-context context clauses)))
 
-     '[not *]                                             ;; (not ...)
+     '[not *] ;; (not ...)
      (let [[_ & clauses] clause
            negation-vars (collect-vars clauses)
            _ (check-some-bound context negation-vars orig-clause)
@@ -1050,7 +1066,7 @@
          (:stats context) (assoc :tmp-stats {:type :not
                                              :branches (:stats negation-context)})))
 
-     '[not-join [*] *]                                    ;; (not-join [vars] ...)
+     '[not-join [*] *] ;; (not-join [vars] ...)
      (let [[_ vars & clauses] clause
            _ (check-all-bound context vars orig-clause)
            join-rel (reduce hash-join (:rels context))
@@ -1066,7 +1082,7 @@
          (:stats context) (assoc :tmp-stats {:type :not
                                              :branches (:stats negation-context)})))
 
-     '[*]                                                 ;; pattern
+     '[*] ;; pattern <--------------------------------
      (let [source *implicit-source*
            pattern (->> clause
                         (replace (:consts context))
@@ -1075,6 +1091,7 @@
        (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
                                   (dynamic-lookup-attrs source pattern)
                                   *lookup-attrs*)]
+         (dt/log "Executed!")
          (cond-> (update context :rels collapse-rels relation)
            (:stats context) (assoc :tmp-stats {:type :lookup})))))))
 
@@ -1082,6 +1099,7 @@
   ([context clause]
    (-resolve-clause context clause clause))
   ([context clause orig-clause]
+   (dt/log "-resolve-clause" clause)
    (dqs/update-ctx-with-stats context orig-clause
                               (fn [context] (-resolve-clause* context clause orig-clause)))))
 
@@ -1096,6 +1114,7 @@
 
 (defn -q [context clauses]
   (binding [*implicit-source* (get (:sources context) '$)]
+    (dt/log "-q rels" (:rels context))
     (reduce resolve-clause context clauses)))
 
 (defn -collect
@@ -1231,10 +1250,20 @@
                           (resolve-ins qin args))
         ;; TODO utilize parser
         all-vars      (concat (dpi/find-vars qfind) (map :symbol qwith))
+
+
+        ;; Här körs själva frågan
         context-out   (-q context-in (:where query))
+        
         resultset     (collect context-out all-vars)
         find-elements (dpip/find-elements qfind)
         result-arity  (count find-elements)]
+    (def debug-context-in context-in)
+    ;(dt/log "context-out" context-out)
+    ;(dt/log "all-vars" all-vars)
+    ;(dt/log "args" args)
+    ;(dt/log "context-in" context-in)
+    (dt/log "resultset size" (count resultset))
     (cond->> resultset
       (or offset limit)                             (paginate offset limit)
       true                                          set

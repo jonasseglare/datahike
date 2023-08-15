@@ -4,6 +4,7 @@
    [clojure.walk :refer [postwalk]]
    #?(:clj [clojure.pprint :as pp])
    [datahike.config :as dc]
+   [datahike.tools :as dt]
    [datahike.constants :as c :refer [ue0 e0 tx0 utx0 emax txmax system-schema]]
    [datahike.datom :as dd :refer [datom datom-tx datom-added]]
    [datahike.db.interface :as dbi]
@@ -190,7 +191,8 @@
 
   dbi/ISearch
   (-search [db pattern]
-           (dbs/search-current-indices db pattern))
+    (dt/log "db -search" pattern)
+    (dbs/search-current-indices db pattern))
 
   dbi/IIndexAccess
   (-datoms [db index-type cs]
@@ -283,7 +285,8 @@
 
   dbi/ISearch
   (-search [db pattern]
-           (filter (.-pred db) (dbi/-search unfiltered-db pattern)))
+    (dt/log "filtered-db -search" pattern)
+    (filter (.-pred db) (dbi/-search unfiltered-db pattern)))
 
   dbi/IIndexAccess
   (-datoms [db index cs]
@@ -347,7 +350,8 @@
 
   dbi/ISearch
   (-search [db pattern]
-           (dbs/temporal-search origin-db pattern))
+    (dt/log "hist -search" pattern)    
+    (dbs/temporal-search origin-db pattern))
 
   dbi/IIndexAccess
   (-datoms [db index-type cs] (dbu/temporal-datoms origin-db index-type cs))
@@ -445,8 +449,9 @@
 
   dbi/ISearch
   (-search [db pattern]
-           (-> (dbs/temporal-search origin-db pattern)
-               (filter-as-of-datoms time-point origin-db)))
+    (dt/log "as-of -search" pattern)
+    (-> (dbs/temporal-search origin-db pattern)
+        (filter-as-of-datoms time-point origin-db)))
 
   dbi/IIndexAccess
   (-datoms [db index-type cs]
@@ -524,8 +529,9 @@
 
   dbi/ISearch
   (-search [db pattern]
-           (-> (dbs/temporal-search origin-db pattern)
-               (filter-since time-point origin-db)))
+    (dt/log "since-db -search" pattern)    
+    (-> (dbs/temporal-search origin-db pattern)
+        (filter-since time-point origin-db)))
 
   dbi/IIndexAccess
   (dbi/-datoms [db index-type cs]

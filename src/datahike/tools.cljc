@@ -6,6 +6,12 @@
   #?(:clj (:import [java.util Properties UUID Date]
                    [java.net InetAddress])))
 
+(def ^:dynamic debug? false)
+
+(defn log [& args]
+  (when debug?
+    (apply println "DEBUG LOG" args)))
+
 (defn combine-hashes [x y]
   #?(:clj  (clojure.lang.Util/hashCombine x y)
      :cljs (hash-combine x y)))
