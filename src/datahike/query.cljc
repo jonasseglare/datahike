@@ -611,6 +611,8 @@
   ;; TODO optimize with bound attrs min/max values here
   (let [attr->prop (var-mapping orig-pattern ["e" "a" "v" "tx" "added"])
         attr->idx (var-mapping orig-pattern (range))
+        _ (dt/log "attr->prop" attr->prop)
+        _ (dt/log "attr->idx" attr->idx)
         search-pattern (mapv #(if (symbol? %) nil %) pattern)
         _ (dt/log "Perform the search on" db)
         datoms  (if (first search-pattern)
@@ -1045,7 +1047,7 @@
   ([context clause]
    (-resolve-clause* context clause clause))
   ([context clause orig-clause]
-   (dt/log "-resolve-clause*")
+   (dt/log "-resolve-clause*" clause " orig:"orig-clause)
    (condp-debug looks-like? clause
      [[symbol? '*]] ;; predicate [(pred ?a ?b ?c)]
      (do (check-all-bound context (identity (filter free-var? (first clause))) orig-clause)
@@ -1139,10 +1141,10 @@
 
      '[*] ;; pattern <--------------------------------
      (let [source *implicit-source*
-           pattern (->> clause
-                        (replace (:consts context))
-                        (resolve-pattern-lookup-refs source))
+           pattern0 (replace (:consts context) clause)
+           pattern (resolve-pattern-lookup-refs source pattern0)
            relation (lookup-pattern context source pattern clause)]
+       (dt/log "consts:" (:consts context))
        (dt/log "-resolve-clause*: Got" (count (:tuples relation)) "tuples")
        (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
                                   (dynamic-lookup-attrs source pattern)
