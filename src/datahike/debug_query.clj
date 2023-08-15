@@ -31,7 +31,11 @@
             (into [[tid :db/txInstant tinst tid true]])))
      txs)))
 
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;
+;;;; P A T H   T O   D A T A B A S E
+;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defonce datoms (nippy/thaw-from-file "/home/jonas/prog/jobtech-taxonomy-d/taxonomy-v20.nippy"))
 
 (def db-config {:keep-history? true, :keep-history true, :search-cache-size 10000, :index :datahike.index/persistent-set, :store {:id "in-mem-nippy-data2", :backend :mem}, :name "Nippy testing data", :store-cache-size 1000, :wanderung/type :datahike, :attribute-refs? true, :writer {:backend :self}, :crypto-hash? false, :schema-flexibility :write, :branch :db})
@@ -110,13 +114,6 @@
      "broader"
      ["occupation-field"]]})
 
-(defn with-example-database [f]
-  (let [db (d/create-database db-config)]
-    (try
-      (f db)
-      (finally
-        (d/delete-database db-config)))))
-
 (defn with-connection [db f]
   (let [conn (d/connect db)]
     (try
@@ -124,21 +121,26 @@
       (finally
         (d/release conn)))))
 
+(defn create-populated-database []
+  (let [db (d/create-database db-config)]
+    (with-connection db
+      (fn [conn]
+        (deref (d/load-entities conn datoms))))
+    (println "Database created and populatd.")
+    db))
+
+(defonce db (create-populated-database))
+
 (defn run-example []
-  (with-example-database
-    (fn [dst]
-      (with-connection dst
-        (fn [conn]
-          (deref (d/load-entities conn datoms))))
-      (with-connection dst
-        (fn [conn]
-          (let [;;_ (def extracted (extract-datahike-data conn))
-                ;;_ (assert (= extracted datoms))
-                path [:args]
-                db (d/as-of (deref conn) 536870932)
-                query (update-in broader-query path (fn [args] (into [db] args)))
-                _ (println "The query")
-                _ (println query)
-                _ (println "----")
-                result (d/q query)]
-            result))))))
+  (with-connection db
+    (fn [conn]
+      (let [;;_ (def extracted (extract-datahike-data conn))
+            ;;_ (assert (= extracted datoms))
+            path [:args]
+            db (d/as-of (deref conn) 536870932)
+            query (update-in broader-query path (fn [args] (into [db] args)))
+            _ (println "The query")
+            _ (println query)
+            _ (println "----")
+            result (d/q query)]
+        result))))
