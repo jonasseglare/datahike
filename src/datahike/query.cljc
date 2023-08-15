@@ -535,8 +535,8 @@
                (assoc! hash-table key (conj (get hash-table key '()) tuple))))
       (persistent! hash-table))))
 
-(defn rebuild-tuples [[tuples1 keep-attrs1 keep-idxs1 key-fn1]
-                      [tuples2 keep-attrs2 keep-idxs2 key-fn2]]
+(defn hash-join-tuples [[tuples1 keep-attrs1 keep-idxs1 key-fn1]
+                        [tuples2 keep-attrs2 keep-idxs2 key-fn2]]
   (let [hash       (hash-attrs key-fn1 tuples1)
         new-tuples (->>
                     (reduce (fn [acc tuple2]
@@ -551,6 +551,19 @@
     (dt/log "b:" (count new-tuples))
     (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
                new-tuples)))
+
+(defn hash-join-tuple-params [rel common-attrs attrs-to-exclude]
+  (let [tuples (:tuples rel)
+        attrs (:attrs rel)
+        common-gtrs (map #(getter-fn attrs %) common-attrs)
+        keep-attrs (into [] (remove (set attrs-to-exclude)) (keys attrs))
+        keep-idx (to-array (map attrs keep-attrs))
+        key-fn (tuple-key-fn common-gtrs)]
+    {:tuples tuples
+     :attrs attrs
+     :keep-attrs keep-attrs
+     :keep-idx keep-idx
+     :key-fn key-fn}))
 
 (defn hash-join [rel1 rel2]
   (dt/log "hash-join"
@@ -582,8 +595,8 @@
         params1 [tuples1 keep-attrs1 keep-idxs1 key-fn1]
         params2 [tuples2 keep-attrs2 keep-idxs2 key-fn2]]
     (if (< (count tuples1) (count tuples2))
-      (rebuild-tuples params1 params2)
-      (rebuild-tuples params2 params1)
+      (hash-join-tuples params1 params2)
+      (hash-join-tuples params2 params1)
       #_(let [hash       (hash-attrs key-fn1 tuples1)
               new-tuples (->>
                           (reduce (fn [acc tuple2]
@@ -599,19 +612,19 @@
           (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
                      new-tuples))
       #_(let [hash       (hash-attrs key-fn2 tuples2)
-            new-tuples (->>
-                        (reduce (fn [acc tuple1]
-                                  (let [key (key-fn1 tuple1)]
-                                    (if-some [tuples2 (get hash key)]
-                                      (reduce (fn [acc tuple2]
-                                                (conj! acc (join-tuples tuple1 keep-idxs1 tuple2 keep-idxs2)))
-                                              acc tuples2)
-                                      acc)))
-                                (transient []) tuples1)
-                        (persistent!))]
-        (dt/log "b false:" (count new-tuples))
-        (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
-                   new-tuples)))))
+              new-tuples (->>
+                          (reduce (fn [acc tuple1]
+                                    (let [key (key-fn1 tuple1)]
+                                      (if-some [tuples2 (get hash key)]
+                                        (reduce (fn [acc tuple2]
+                                                  (conj! acc (join-tuples tuple1 keep-idxs1 tuple2 keep-idxs2)))
+                                                acc tuples2)
+                                        acc)))
+                                  (transient []) tuples1)
+                          (persistent!))]
+          (dt/log "b false:" (count new-tuples))
+          (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
+                     new-tuples)))))
 
 (defn subtract-rel [a b]
   (let [{attrs-a :attrs, tuples-a :tuples} a
