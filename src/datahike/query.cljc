@@ -535,38 +535,30 @@
                (assoc! hash-table key (conj (get hash-table key '()) tuple))))
       (persistent! hash-table))))
 
-#_xform0 #_(fn [step]
-             (fn
-               ([acc] (step acc))
-               ([acc tuple2]
-                (let [key (key-fn2 tuple2)]
-                  (if-some [tuples1 (get hash key)]
-                    (reduce (fn [acc tuple1]
-                              (step acc (join-tuples tuple1 keep-idxs1 tuple2 keep-idxs2)))
-                            acc tuples1)
-                    acc)))))
-
-(defn hash-join-tuples [{tuples1 :tuples  keep-attrs1 :keep-attrs keep-idxs1 :keep-idxs key-fn1 :key-fn}
-                        {tuples2 :tuples  keep-attrs2 :keep-attrs keep-idxs2 :keep-idxs key-fn2 :key-fn}]
-  (let [hash       (hash-attrs key-fn1 tuples1)
-        xform0 (keep (fn [tuple2]
-                      (when-some [tuples1 (get hash (key-fn2 tuple2))]
-                        [tuples1 tuple2])))
-        xform1 (fn [step]
-                 (fn
-                   ([acc] (step acc))
-                   ([acc [tuples1 tuple2]]
-                    (reduce (fn [acc tuple1]
-                              (step acc (join-tuples tuple1 keep-idxs1 tuple2 keep-idxs2)))
-                            acc tuples1))))
-        new-tuples (into [] (comp xform0 xform1) tuples2)
-
-        a (count tuples1)
-        b (count tuples2)
-        c (count new-tuples)]
-    #_(dt/log "TUPLE COUNTS" a b " - " c)
-    (assert (<= c (* a b)))
-    
+(defn hash-join-tuples [{tuples1 :tuples
+                         keep-attrs1 :keep-attrs
+                         keep-idxs1 :keep-idxs
+                         key-fn1 :key-fn}
+                        {tuples2 :tuples
+                         keep-attrs2 :keep-attrs
+                         keep-idxs2 :keep-idxs
+                         key-fn2 :key-fn}]
+  (let [hash (hash-attrs key-fn1 tuples1)
+        xform (fn [step]
+                (fn
+                  ([acc] (step acc))
+                  ([acc tuple2]
+                   (let [key (key-fn2 tuple2)]
+                     (if-some [tuples1 (get hash key)]
+                       (reduce ((map #(join-tuples
+                                       %
+                                       keep-idxs1
+                                       tuple2
+                                       keep-idxs2)) step)
+                                  acc
+                                  tuples1)
+                       acc)))))        
+        new-tuples (into [] xform tuples2)]
     (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
                new-tuples)))
 
