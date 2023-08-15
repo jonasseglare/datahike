@@ -550,7 +550,7 @@
                         {tuples2 :tuples  keep-attrs2 :keep-attrs keep-idxs2 :keep-idxs key-fn2 :key-fn}]
   (let [hash       (hash-attrs key-fn1 tuples1)
         xform0 (keep (fn [tuple2]
-                      (if-some [tuples1 (get hash (key-fn2 tuple2))]
+                      (when-some [tuples1 (get hash (key-fn2 tuple2))]
                         [tuples1 tuple2])))
         xform1 (fn [step]
                  (fn
