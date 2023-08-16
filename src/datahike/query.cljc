@@ -32,19 +32,6 @@
                    [java.lang.reflect Method]
                    [java.util Date Map])))
 
-(defn disp-context [{:keys [rels]}]
-  (when (< 0 dt/debug-level)
-    (println "Number of rels" (count rels))
-    (doseq [rel rels]
-      (let [{:keys [attrs tuples]} rel]
-        (println "**** REL")
-        (println (format "Attrs (%d):" (count attrs)))
-        (doseq [x (take 10 attrs)]
-          (println x))
-        (println (format "Tuples (%d):" (count tuples)))
-        (doseq [x (take 10 tuples)]
-          (println (vec x)))))))
-
 ;; ----------------------------------------------------------------------------
 
 (def ^:const lru-cache-size 100)
