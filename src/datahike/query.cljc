@@ -1206,26 +1206,20 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
      '[*] ;; pattern <--------------------------------
      (let [source *implicit-source*
            pattern0 (replace (:consts context) clause)
-           pattern1 (resolve-pattern-lookup-refs source pattern0)]
-       (let  [_ (dt/log "pattern1" pattern1)
-              
-              
-              _ (dt/log "----> DEFAULT")
-              context-default (lookup-patterns context clause pattern1 [pattern1])
-              
-              _ (dt/log "----> CONSTRAINED")
-              constrained-patterns (expand-constrained-patterns source context pattern1)
-              context-constrained (lookup-patterns context clause pattern1 constrained-patterns)]
-         (when (not= (relations-data (:rels context-default))
-                     (relations-data (:rels context-constrained)))
-           (dt/log "init")
-           (pp/pprint (relations-data (:rels context)))
-           (dt/log "default" )
-           (pp/pprint (relations-data (:rels context-default)))
-           (dt/log "constrained" )
-           (pp/pprint (relations-data (:rels context-constrained)))
-           (throw (ex-info "Diverging relations data" {})))
-         context-default)))))
+           pattern1 (resolve-pattern-lookup-refs source pattern0)
+           context-default (lookup-patterns context clause pattern1 [pattern1])
+           constrained-patterns (expand-constrained-patterns source context pattern1)
+           context-constrained (lookup-patterns context clause pattern1 constrained-patterns)]
+       (when (not= (relations-data (:rels context-default))
+                   (relations-data (:rels context-constrained)))
+         (dt/log "init")
+         (pp/pprint (relations-data (:rels context)))
+         (dt/log "default" )
+         (pp/pprint (relations-data (:rels context-default)))
+         (dt/log "constrained" )
+         (pp/pprint (relations-data (:rels context-constrained)))
+         (throw (ex-info "Diverging relations data" {})))
+       context-default))))
 
 (defn -resolve-clause
   ([context clause]
