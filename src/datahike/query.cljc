@@ -466,7 +466,6 @@
               (map #(in->rel %1 %2) (:bindings binding) coll)))))
 
 (defn resolve-in [context [binding value]]
-  (dt/log "RESOLVE IN FOR" binding)
   (cond
     (and (instance? BindScalar binding)
          (instance? SrcVar (:variable binding)))
@@ -593,14 +592,10 @@
        (into {})))
 
 q(defn lookup-pattern-db [context db pattern orig-pattern]
-  (dt/log "lookup-pattern-db" pattern)
   ;; TODO optimize with bound attrs min/max values here
   (let [attr->prop (var-mapping orig-pattern ["e" "a" "v" "tx" "added"])
         attr->idx (var-mapping orig-pattern (range))
-        _ (dt/log "attr->prop" attr->prop)
-        _ (dt/log "attr->idx" attr->idx)
         search-pattern (mapv #(if (symbol? %) nil %) pattern)
-        _ (dt/log "Perform the search on" db)
         datoms  (if (first search-pattern)
                   (if-let [eid (dbu/entid db (first search-pattern))]
                     (dbi/-search db (assoc search-pattern 0 eid))
@@ -614,7 +609,6 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
                                   m))
                               {}
                               attr->idx)]
-    (dt/log "lookup-pattern-db returned" (count datoms) "datoms. There are" (count idx->const) "idx->const.")
     (if (empty? idx->const)
       (Relation. attr->prop datoms)
       (Relation. attr->idx (map #(reduce (fn [datom [k v]]
@@ -640,7 +634,6 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
     (Relation. attr->idx (mapv to-array data))))            ;; FIXME to-array
 
 (defn lookup-pattern [context source pattern orig-pattern]
-  (dt/log "lookup-pattern" pattern)
   (cond
     (dbu/db? source)
     (lookup-pattern-db context source pattern orig-pattern)
@@ -660,23 +653,9 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
   (let [all-attr-keys (into [] (mapcat (comp keys :attrs)) rels)]
     (assert (= (count all-attr-keys)
                (count (set all-attr-keys))))
-    (dt/log "Attr count" all-attr-keys)
     rels))
 
-(defn display-rels [label rels]
-  (check-non-overlapping-attrs rels)
-  (println (format "%s - %d rels:" label (count rels)))
-  (doseq [rel rels]
-    (display-rel rel))
-  rels)
-
-(defn summarize-rels [label rels]
-  (dt/log label "rels" (map (comp count :tuples) rels))
-  rels)
-
 (defn collapse-rels [rels new-rel]
-  (summarize-rels "before" rels)
-  (summarize-rels "new" [new-rel])
   (loop [rels rels
          new-rel new-rel
          acc []]
@@ -692,7 +671,7 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
         (recur (next rels) new-rel (conj acc rel)))
 
       ;; Since we are finished, the final state of new-rel is added.
-      (summarize-rels "after" (conj acc new-rel)))))
+      (conj acc new-rel))))
 
 (defn- rel-with-attr [context sym]
   (some #(when (contains? (:attrs %) sym) %) (:rels context)))
@@ -1059,11 +1038,6 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
 (defn disp-vec [v]
   (mapv (fn [x] [x (type x)]) v))
 
-(defn verbose-hash-join [a b]
-  (let [prod (hash-join a b)]
-    (dt/log "hash-join" (count (:tuples a)) (count (:tuples b)) (count (:tuples prod)))
-    prod))
-
 (defn hash-join-bounded [max-rel-count dst rel]
   (let [dstn (count (:tuples dst))
         reln (count (:tuples rel))]
@@ -1257,12 +1231,10 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
   ([context clause]
    (-resolve-clause context clause clause))
   ([context clause orig-clause]
-   (dt/log "-resolve-clause" clause)
    (dqs/update-ctx-with-stats context orig-clause
                               (fn [context] (-resolve-clause* context clause orig-clause)))))
 
 (defn resolve-clause [context clause]
-  (dt/log "\n\nresolve-clause" clause)
   (if (rule? context clause)
     (if (source? (first clause))
       (binding [*implicit-source* (get (:sources context) (first clause))]
@@ -1279,7 +1251,6 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
 
 (defn -q [context clauses]
   (binding [*implicit-source* (get (:sources context) '$)]
-    (dt/log "-q rels" (:rels context))
     (reduce resolve-clause-top context clauses)))
 
 (defn -collect
@@ -1423,9 +1394,6 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
         resultset     (collect context-out all-vars)
         find-elements (dpip/find-elements qfind)
         result-arity  (count find-elements)]
-    (def debug-context-in context-in)
-    (def debug-context-out context-out)
-    (dt/log "resultset size" (count resultset))
     (cond->> resultset
       (or offset limit)                             (paginate offset limit)
       true                                          set
