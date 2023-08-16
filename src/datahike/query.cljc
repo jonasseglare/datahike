@@ -1219,7 +1219,7 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
          (dt/log "constrained" )
          (pp/pprint (relations-data (:rels context-constrained)))
          (throw (ex-info "Diverging relations data" {})))
-       context-default))))
+       context-constrained))))
 
 (defn -resolve-clause
   ([context clause]
