@@ -640,15 +640,6 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
     :else
     (lookup-pattern-coll source pattern orig-pattern)))
 
-(defn display-rel [{:keys [tuples attrs]}]
-  (println "---> REL:")
-  (println "  * attribs")
-  (doseq [[k v] attrs]
-    (println "    + " k ":" v))
-  (println (format "  * %d tuples" (count tuples)))
-  (doseq [x (take 10 tuples)]
-    (println "    - " (vec (seq x)))))
-
 (defn check-non-overlapping-attrs [rels]
   (let [all-attr-keys (into [] (mapcat (comp keys :attrs)) rels)]
     (assert (= (count all-attr-keys)
@@ -1071,7 +1062,7 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
                              tuple-count
                              (filter #(some (:attrs %) vars) (:rels context)))
         
-        limit 10
+        limit 1
         
         ;; Compute a product with no more than
         ;; `limit` tuples.
@@ -1213,6 +1204,15 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
        
        (assert (= (relations-data (:rels context-default))
                   (relations-data (:rels context-constrained))))
+
+       #_(let [rd (into {} (:rels context-default))
+             rc (into {} (:rels context-constrained))]
+         (when (not= rd rc)
+           (dt/log "DEFAULT")
+           (pp/pprint rd)
+           (dt/log "CONSTRAINED")
+           (pp/pprint rc)))
+       
        
        ;;context-constrained  ;; funkar inte
        context-default  ;; funkar
