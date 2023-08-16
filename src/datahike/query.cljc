@@ -1051,7 +1051,29 @@
 (defn disp-vec [v]
   (mapv (fn [x] [x (type x)]) v))
 
-(def max-expanded-constrained-patterns 10)
+(defn verbose-hash-join [a b]
+  (let [prod (hash-join a b)]
+    (dt/log "hash-join" (count (:tuples a)) (count (:tuples b)) (count (:tuples prod)))
+    prod))
+
+(defn hash-join-bounded [max-rel-count dst rel]
+  (let [dstn (count (:tuples dst))
+        reln (count (:tuples rel))]
+    (if (nil? dst)
+      (when (<= reln max-rel-count)
+        rel)
+      (if (<= (* dstn reln) max-rel-count)
+        (hash-join dst rel)
+        dst))))
+
+(defn relation->maps [rel]
+  (for [tuple (:tuples rel)]
+    (into {} (for [[k i] (:attrs rel)]
+               [k (nth tuple i)]))))
+
+(defn resolve-pattern-vars-for-relation [pattern rel]
+  (for [m (relation->maps rel)]
+    (replace m pattern)))
 
 (defn expand-constrained-patterns [context pattern]
   (let [vars (collect-vars pattern)
@@ -1059,15 +1081,17 @@
         rels-mentioning-var (sort-by
                              tuple-count
                              (filter #(some (:attrs %) vars) (:rels context)))
-        tuple-counts (reductions ((comp (map tuple-count)
-                                        (filter #(<= % max-expanded-constrained-patterns)))
-                                  *)
-                                 1 rels-mentioning-var)
-        rels-for-constraints (take (dec (count tuple-counts)) rels-mentioning-var)
-        rel-product (when (seq rels-for-constraints)
-                      (reduce hash-join rels-for-constraints))]
-    (dt/log "vars" vars "tuple-count" (tuple-count rel-product))
-    [pattern]))
+
+        limit 1
+
+        ;; Compute a product with no more than
+        ;; `limit` tuples.
+        product (reduce (partial hash-join-bounded limit)
+                        nil
+                        rels-mentioning-var)]
+    (if product
+      (resolve-pattern-vars-for-relation pattern product)
+      [pattern])))
 
 (defn -resolve-clause*
   ([context clause]
