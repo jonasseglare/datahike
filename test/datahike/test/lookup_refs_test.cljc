@@ -185,91 +185,94 @@
       [[1 :friends 2] [1 :friends 3] [2 :friends 3]])))
 
 (deftest test-lookup-refs-query
-  (binding [dt/debug-level 1]
-    (let [schema {:name   {:db/unique :db.unique/identity}
-                  :friend {:db/valueType :db.type/ref}}
-          db (d/db-with (db/empty-db schema)
-                        [{:db/id 1 :id 1 :name "Ivan" :age 11 :friend 2}
-                         {:db/id 2 :id 2 :name "Petr" :age 22 :friend 3}
-                         {:db/id 3 :id 3 :name "Oleg" :age 33}])]
-      #_(is (= (set (d/q '[:find ?e ?v
-                         :in $ ?e
-                         :where [?e :age ?v]]
-                       db [:name "Ivan"]))
-             #{[[:name "Ivan"] 11]}))
+  (let [schema {:name   {:db/unique :db.unique/identity}
+                :friend {:db/valueType :db.type/ref}}
+        db (d/db-with (db/empty-db schema)
+                      [{:db/id 1 :id 1 :name "Ivan" :age 11 :friend 2}
+                       {:db/id 2 :id 2 :name "Petr" :age 22 :friend 3}
+                       {:db/id 3 :id 3 :name "Oleg" :age 33}])]
+    (is (= (set (d/q '[:find ?e ?v
+                       :in $ ?e
+                       :where [?e :age ?v]]
+                     db [:name "Ivan"]))
+           #{[[:name "Ivan"] 11]}))
 
-      #_(is (= (set (d/q '[:find [?v ...]
-                         :in $ [?e ...]
-                         :where [?e :age ?v]]
-                       db [[:name "Ivan"] [:name "Petr"]]))
-             #{11 22}))
+    (is (= (set (d/q '[:find [?v ...]
+                       :in $ [?e ...]
+                       :where [?e :age ?v]]
+                     db [[:name "Ivan"] [:name "Petr"]]))
+           #{11 22}))
 
-      #_(is (= (set (d/q '[:find [?e ...]
-                         :in $ ?v
-                         :where [?e :friend ?v]]
-                       db [:name "Petr"]))
-             #{1}))
+    (is (= (set (d/q '[:find [?e ...]
+                       :in $ ?v
+                       :where [?e :friend ?v]]
+                     db [:name "Petr"]))
+           #{1}))
 
-      #_(is (= (set (d/q '[:find [?e ...]
-                         :in $ [?v ...]
-                         :where [?e :friend ?v]]
-                       db [[:name "Petr"] [:name "Oleg"]]))
-             #{1 2}))
+    (is (= (set (d/q '[:find [?e ...]
+                       :in $ [?v ...]
+                       :where [?e :friend ?v]]
+                     db [[:name "Petr"] [:name "Oleg"]]))
+           #{1 2}))
 
-      #_(is (= (d/q '[:find ?e ?v
-                    :in $ ?e ?v
-                    :where [?e :friend ?v]]
-                  db [:name "Ivan"] [:name "Petr"])
-             #{[[:name "Ivan"] [:name "Petr"]]}))
+    (is (= (d/q '[:find ?e ?v
+                  :in $ ?e ?v
+                  :where [?e :friend ?v]]
+                db [:name "Ivan"] [:name "Petr"])
+           #{[[:name "Ivan"] [:name "Petr"]]}))
+    
+    (is (= (d/q '[:find ?e ?v
+                  :in $ [?e ...] [?v ...]
+                  :where [?e :friend ?v]]
+                db [[:name "Ivan"] [:name "Petr"] [:name "Oleg"]]
+                [[:name "Ivan"] [:name "Petr"] [:name "Oleg"]])
+           #{[[:name "Ivan"] [:name "Petr"]]
+             [[:name "Petr"] [:name "Oleg"]]}))
 
-      #_(is (= (d/q '[:find ?e ?v
-                    :in $ [?e ...] [?v ...]
-                    :where [?e :friend ?v]]
-                  db [[:name "Ivan"] [:name "Petr"] [:name "Oleg"]]
-                  [[:name "Ivan"] [:name "Petr"] [:name "Oleg"]])
-             #{[[:name "Ivan"] [:name "Petr"]]
-               [[:name "Petr"] [:name "Oleg"]]}))
-
-      #_(is (= (d/q '[:find ?e
+      ;;;;;;; What should happen in this case?
+      ;;;;;;; ... and what should happen if we wrap "A" in a  collection
+      ;;;;;;;     with one element? Maybe it should not throw an error.
+    #_(is (= (d/q '[:find ?e
                     :in $ ?e
                     :where [?e :friend 3]]
                   db "A")
+             #{}))
+
+    (is (= (d/q '[:find ?e
+                  :in $ [?e ...]
+                  :where [?e :friend 3]]
+                db [1 2 3 "A"])
+           #{[2]}))
+
+    
+
+    (let [db2 (d/db-with (db/empty-db schema)
+                         [{:db/id 3 :name "Ivan" :id 3}
+                          {:db/id 1 :name "Petr" :id 1}
+                          {:db/id 2 :name "Oleg" :id 2}])]
+      (is (= (d/q '[:find ?e ?e1 ?e2
+                    :in $1 $2 [?e ...]
+                    :where [$1 ?e :id ?e1]
+                    [$2 ?e :id ?e2]]
+                  db db2 [[:name "Ivan"] [:name "Petr"] [:name "Oleg"]])
+             #{[[:name "Ivan"] 1 3]
+               [[:name "Petr"] 2 1]
+               [[:name "Oleg"] 3 2]})))
+
+    (testing "inline refs"
+      (is (= (d/q '[:find ?v
+                    :where [[:name "Ivan"] :friend ?v]]
+                  db)
              #{[2]}))
+
       (is (= (d/q '[:find ?e
-                    :in $ [?e ...]
-                    :where [?e :friend 3]]
-                  db [1 2 3 "A"])
-             #{[2]}))
+                    :where [?e :friend [:name "Petr"]]]
+                  db)
+             #{[1]}))
 
-      
-
-      #_(let [db2 (d/db-with (db/empty-db schema)
-                             [{:db/id 3 :name "Ivan" :id 3}
-                              {:db/id 1 :name "Petr" :id 1}
-                              {:db/id 2 :name "Oleg" :id 2}])]
-          (is (= (d/q '[:find ?e ?e1 ?e2
-                        :in $1 $2 [?e ...]
-                        :where [$1 ?e :id ?e1]
-                        [$2 ?e :id ?e2]]
-                      db db2 [[:name "Ivan"] [:name "Petr"] [:name "Oleg"]])
-                 #{[[:name "Ivan"] 1 3]
-                   [[:name "Petr"] 2 1]
-                   [[:name "Oleg"] 3 2]})))
-
-      #_(testing "inline refs"
-        (is (= (d/q '[:find ?v
-                      :where [[:name "Ivan"] :friend ?v]]
-                    db)
-               #{[2]}))
-
-        (is (= (d/q '[:find ?e
-                      :where [?e :friend [:name "Petr"]]]
-                    db)
-               #{[1]}))
-
-        (is (thrown-with-msg? Throwable #"Nothing found for entity id"
-                              (d/q '[:find ?e
-                                     :where [[:name "Valery"] :friend ?e]]
-                                   db)))))))
+      (is (thrown-with-msg? Throwable #"Nothing found for entity id"
+                            (d/q '[:find ?e
+                                   :where [[:name "Valery"] :friend ?e]]
+                                 db))))))
 
 

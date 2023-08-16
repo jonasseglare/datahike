@@ -25,7 +25,7 @@
    [taoensso.timbre :as log])
   (:refer-clojure :exclude [seqable?])
 
-  #?(:clj (:import [clojure.lang Reflector Seqable]
+  #?(:clj (:import [clojure.lang Reflector Seqable ExceptionInfo]
                    [datalog.parser.type Aggregate BindColl BindIgnore BindScalar BindTuple Constant
                     FindColl FindRel FindScalar FindTuple PlainSymbol Pull
                     RulesVar SrcVar Variable]
@@ -185,8 +185,8 @@
       (dt/raise "Can't sum relations with different attrs: " attrs-a " and " attrs-b
                 {:error :query/where})
 
-      (empty? tuples-a) b
-      (empty? tuples-b) a
+      ;;(empty? tuples-a) b
+      ;;(empty? tuples-b) a
 
       (every? number? (vals attrs-a))                       ;; can’t conj into BTSetIter
       (let [idxb->idxa (vec (for [[sym idx-b] attrs-b]
@@ -1004,6 +1004,21 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
        (subvec 0 (count pattern))))
     pattern))
 
+
+
+(def known-lookup-error-kinds #{"lookup-ref" "entity-id"})
+
+(defn resolve-pattern-lookup-refs-or-nil
+  "Translate pattern entries before using pattern for database search"
+  [source pattern]
+  (try
+    (resolve-pattern-lookup-refs source pattern)
+    (catch ExceptionInfo e
+      (if (-> e ex-data :error namespace known-lookup-error-kinds)
+        (do (println "Something wrong with pattern")
+            nil)
+        (throw e)))))
+
 (defn dynamic-lookup-attrs [source pattern]
   (let [[e a v tx] pattern]
     (cond-> #{}
@@ -1085,8 +1100,8 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
   (into #{} (map (comp set relation->maps)) relations))
 
 (defn resolve-pattern-vars-for-relation [source pattern rel]
-  (for [m (relation->maps rel)]
-    (resolve-pattern-lookup-refs source (replace m pattern))))
+  (keep #(resolve-pattern-lookup-refs-or-nil source (replace % pattern))
+        (relation->maps rel)))
 
 (defn expand-constrained-patterns [source context pattern]
   (let [vars (collect-vars pattern)
