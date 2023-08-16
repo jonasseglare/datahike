@@ -1108,44 +1108,7 @@
 
     (dt/log "Expanded" pattern "--->" expanded)
     
-    expanded
-    ))
-
-#_(defn disjoint-relations-union
-  ([x] x)
-  ([a b]
-   {:pre [(= (-> a :attrs keys set)
-             (-> b :attrs keys set))]}
-   (cond
-     (empty? (:tuples a)) b
-     (empty? (:tuples b)) a
-     :else (let [ks (-> a :attrs keys)
-                 new-mapping (zipmap ks (range))
-                 a-getters ()]))
-   
-   #_{:pre [(= (:attrs a) (:attrs b))]}
-   (println "a" (:attrs a))
-   (println "b" (:attrs b))
-   (assert (= (:attrs a) (:attrs b)))
-   (Relation. (:attrs a)
-              (into [] (mapcat :tuples) [a b]))))
-
-    #_(reduce (fn [context pattern]
-              (let [
-                    relation #(lookup-pattern context source pattern clause)]
-                (when (<= 2 dt/debug-level)
-                  (let [rel-maps (relation->maps relation)]
-                    (dt/log "---found relation" (count (:tuples relation)))
-                    (dt/log (take 10 rel-maps))
-                    (dt/log (filter (fn [r] (#{16441 16440} (get r '?r))) rel-maps))))
-                (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
-                                           (dynamic-lookup-attrs source pattern)
-                                           *lookup-attrs*)]
-                  
-                  (cond-> (update context :rels collapse-rels relation)
-                    (:stats context) (assoc :tmp-stats {:type :lookup})))))
-            context
-            patterns)
+    expanded))
 
 (defn lookup-patterns [context
                        clause
