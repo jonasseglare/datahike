@@ -21,6 +21,7 @@
                                          FindColl FindRel FindScalar FindTuple PlainSymbol Pull
                                          RulesVar SrcVar Variable]])
    [me.tonsky.persistent-sorted-set.arrays :as da]
+   [clojure.pprint :as pp]
    [taoensso.timbre :as log])
   (:refer-clojure :exclude [seqable?])
 
@@ -32,7 +33,7 @@
                    [java.util Date Map])))
 
 (defn disp-context [{:keys [rels]}]
-  (when dt/debug?
+  (when (< 0 dt/debug-level)
     (println "Number of rels" (count rels))
     (doseq [rel rels]
       (let [{:keys [attrs tuples]} rel]
@@ -1091,7 +1092,7 @@
                              tuple-count
                              (filter #(some (:attrs %) vars) (:rels context)))
 
-        limit 1
+        limit 10
 
         ;; Compute a product with no more than
         ;; `limit` tuples.
@@ -1110,12 +1111,33 @@
     expanded
     ))
 
-(defn lookup-patterns [context clause patterns]
-  (let [source *implicit-source*]
-    (reduce (fn [context pattern]
-              (let [relation (lookup-pattern context source pattern clause)]
-                #_(when (< (count (:tuples relation)) 10)
-                  (dt/log "    - Looked up relation" relation))
+#_(defn disjoint-relations-union
+  ([x] x)
+  ([a b]
+   {:pre [(= (-> a :attrs keys set)
+             (-> b :attrs keys set))]}
+   (cond
+     (empty? (:tuples a)) b
+     (empty? (:tuples b)) a
+     :else (let [ks (-> a :attrs keys)
+                 new-mapping (zipmap ks (range))
+                 a-getters ()]))
+   
+   #_{:pre [(= (:attrs a) (:attrs b))]}
+   (println "a" (:attrs a))
+   (println "b" (:attrs b))
+   (assert (= (:attrs a) (:attrs b)))
+   (Relation. (:attrs a)
+              (into [] (mapcat :tuples) [a b]))))
+
+    #_(reduce (fn [context pattern]
+              (let [
+                    relation #(lookup-pattern context source pattern clause)]
+                (when (<= 2 dt/debug-level)
+                  (let [rel-maps (relation->maps relation)]
+                    (dt/log "---found relation" (count (:tuples relation)))
+                    (dt/log (take 10 rel-maps))
+                    (dt/log (filter (fn [r] (#{16441 16440} (get r '?r))) rel-maps))))
                 (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
                                            (dynamic-lookup-attrs source pattern)
                                            *lookup-attrs*)]
@@ -1123,7 +1145,24 @@
                   (cond-> (update context :rels collapse-rels relation)
                     (:stats context) (assoc :tmp-stats {:type :lookup})))))
             context
-            patterns)))
+            patterns)
+
+(defn lookup-patterns [context
+                       clause
+                       pattern-before-expansion
+                       patterns-after-expansion]
+  (let [source *implicit-source*
+        base-rel (Relation. (var-mapping clause (range)) [])
+        relation (transduce (map #(lookup-pattern context source % clause))
+                            (completing sum-rel)
+                            base-rel
+                            patterns-after-expansion)]
+    (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
+                               (dynamic-lookup-attrs source pattern-before-expansion)
+                               *lookup-attrs*)]
+      
+      (cond-> (update context :rels collapse-rels relation)
+        (:stats context) (assoc :tmp-stats {:type :lookup})))))
 
 
 (defn -resolve-clause*
@@ -1226,22 +1265,29 @@
      (let [source *implicit-source*
            pattern0 (replace (:consts context) clause)
            pattern1 (resolve-pattern-lookup-refs source pattern0)
-
-           _ (dt/log "----> DEFAULT")
-           context-default (lookup-patterns context clause [pattern1])
+           debug? (= pattern1 '[?r 80 ?related-c])]
+       (binding [dt/debug-level (if debug? 2 dt/debug-level)]
+         (let  [_ (dt/log "pattern1" pattern1)
+                
+                
+                _ (dt/log "----> DEFAULT")
+                context-default (lookup-patterns context clause pattern1 [pattern1])
+                
+                _ (dt/log "----> CONSTRAINED")
+                constrained-patterns (expand-constrained-patterns context pattern1)
+                context-constrained (lookup-patterns context clause pattern1 constrained-patterns)]
+           (println "debug?" debug?)
            
-           _ (dt/log "----> CONSTRAINED")
-           constrained-patterns (expand-constrained-patterns context pattern1)
-           context-constrained (lookup-patterns context clause constrained-patterns)]
-
-       (when (not= (relations-data (:rels context-default))
-                   (relations-data (:rels context-constrained)))
-         (dt/log "init" (relations-data (:rels context)))
-         (dt/log "default" (relations-data (:rels context-default)))
-         (dt/log "constrained" (relations-data (:rels context-constrained)))
-         (throw (ex-info "Diverging relations data" {})))
-       
-       context-default))))
+           (when (not= (relations-data (:rels context-default))
+                       (relations-data (:rels context-constrained)))
+             (dt/log "init")
+             (pp/pprint (relations-data (:rels context)))
+             (dt/log "default" )
+             (pp/pprint (relations-data (:rels context-default)))
+             (dt/log "constrained" )
+             (pp/pprint (relations-data (:rels context-constrained)))
+             (throw (ex-info "Diverging relations data" {})))
+           context-default))))))
 
 (defn -resolve-clause
   ([context clause]

@@ -6,10 +6,10 @@
   #?(:clj (:import [java.util Properties UUID Date]
                    [java.net InetAddress])))
 
-(def ^:dynamic debug? false)
+(def ^:dynamic debug-level 0)
 
 (defn log [& args]
-  (when debug?
+  (when (< 0 debug-level)
     (apply println "DEBUG LOG" args)))
 
 (defn combine-hashes [x y]

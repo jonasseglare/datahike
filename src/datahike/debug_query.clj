@@ -146,7 +146,7 @@
             path [:args]
             db (d/as-of (deref conn) 536870932)
             query (update-in broader-query path (fn [args] (into [db] args)))
-            result (binding [tools/debug? true]
+            result (binding [tools/debug-level 1]
                      (d/q query))]
         (assert (= [{:from_id "w6ud_quG_dgh", :id "j7Cq_ZJe_GkT"}] result))
         result))))
@@ -168,3 +168,4 @@
   )
 
 
+(keyword :backend)
