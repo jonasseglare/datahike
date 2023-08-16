@@ -15,10 +15,8 @@
    [datahike.middleware.utils :as middleware-utils]
    [datalog.parser :refer [parse]]
    [datalog.parser.impl :as dpi]
-   [datahike.datom :as datom]
    [datalog.parser.impl.proto :as dpip]
    [datalog.parser.pull :as dpp]
-   [clojure.pprint :as pp]
    #?(:cljs [datalog.parser.type :refer [Aggregate BindColl BindIgnore BindScalar BindTuple Constant
                                          FindColl FindRel FindScalar FindTuple PlainSymbol Pull
                                          RulesVar SrcVar Variable]])
@@ -1071,9 +1069,11 @@
         dst))))
 
 (defn relation->maps [rel]
-  (for [tuple (:tuples rel)]
-    (into {} (for [[k i] (:attrs rel)]
-               [k (nth tuple i)]))))
+  (let [attrs (:attrs rel)
+        key-fn-pairs (into [] (map (juxt identity (partial getter-fn attrs))) (keys attrs))]
+    (for [tuple (:tuples rel)]
+      (into {} (for [[k f] key-fn-pairs]
+                 [k (f tuple)])))))
 
 (defn relations-data
   "Used to compare to different sequences of relations to see if they are equivalent"
@@ -1101,7 +1101,7 @@
 
         default-result [pattern]
         
-        expanded (if (and product (seq (:tuples product)))
+        expanded (if (seq (:tuples product))
                    (resolve-pattern-vars-for-relation pattern product)
                    default-result)]
 
