@@ -1086,18 +1086,18 @@
 
 (defn expand-constrained-patterns [context pattern]
   (let [vars (collect-vars pattern)
-          tuple-count (comp count :tuples)
-          rels-mentioning-var (sort-by
-                               tuple-count
-                               (filter #(some (:attrs %) vars) (:rels context)))
+        tuple-count (comp count :tuples)
+        rels-mentioning-var (sort-by
+                             tuple-count
+                             (filter #(some (:attrs %) vars) (:rels context)))
 
-          limit 1
+        limit 1
 
-          ;; Compute a product with no more than
-          ;; `limit` tuples.
-          product (reduce (partial hash-join-bounded limit)
-                          nil
-                          rels-mentioning-var)
+        ;; Compute a product with no more than
+        ;; `limit` tuples.
+        product (reduce (partial hash-join-bounded limit)
+                        nil
+                        rels-mentioning-var)
 
         default-result [pattern]
         
@@ -1105,15 +1105,17 @@
                    (resolve-pattern-vars-for-relation pattern product)
                    default-result)]
 
-      (dt/log "Expanded" pattern "--->" expanded)
+    (dt/log "Expanded" pattern "--->" expanded)
     
-      expanded
-      ))
+    expanded
+    ))
 
 (defn lookup-patterns [context clause patterns]
   (let [source *implicit-source*]
     (reduce (fn [context pattern]
               (let [relation (lookup-pattern context source pattern clause)]
+                #_(when (< (count (:tuples relation)) 10)
+                  (dt/log "    - Looked up relation" relation))
                 (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
                                            (dynamic-lookup-attrs source pattern)
                                            *lookup-attrs*)]
