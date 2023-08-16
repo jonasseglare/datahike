@@ -1101,7 +1101,7 @@
 
         default-result [pattern]
         
-        expanded (if product
+        expanded (if (and product (seq (:tuples product)))
                    (resolve-pattern-vars-for-relation pattern product)
                    default-result)]
 
@@ -1224,10 +1224,21 @@
      (let [source *implicit-source*
            pattern0 (replace (:consts context) clause)
            pattern1 (resolve-pattern-lookup-refs source pattern0)
-           constrained-patterns (expand-constrained-patterns context pattern1)
 
+           _ (dt/log "----> DEFAULT")
            context-default (lookup-patterns context clause [pattern1])
+           
+           _ (dt/log "----> CONSTRAINED")
+           constrained-patterns (expand-constrained-patterns context pattern1)
            context-constrained (lookup-patterns context clause constrained-patterns)]
+
+       (when (not= (relations-data (:rels context-default))
+                   (relations-data (:rels context-constrained)))
+         (dt/log "init" (relations-data (:rels context)))
+         (dt/log "default" (relations-data (:rels context-default)))
+         (dt/log "constrained" (relations-data (:rels context-constrained)))
+         (throw (ex-info "Diverging relations data" {})))
+       
        context-default))))
 
 (defn -resolve-clause
