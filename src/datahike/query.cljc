@@ -1214,8 +1214,8 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
            (pp/pprint rc)))
        
        
-       ;;context-constrained  ;; funkar inte
-       context-default  ;; funkar
+       context-constrained  ;; funkar inte
+       ;;context-default  ;; funkar
        ))))
 
 (defn -resolve-clause
