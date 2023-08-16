@@ -185,6 +185,9 @@
       (dt/raise "Can't sum relations with different attrs: " attrs-a " and " attrs-b
                 {:error :query/where})
 
+      (empty? tuples-a) b
+      (empty? tuples-b) a
+
       (every? number? (vals attrs-a))                       ;; can’t conj into BTSetIter
       (let [idxb->idxa (vec (for [[sym idx-b] attrs-b]
                               [idx-b (attrs-a sym)]))
@@ -602,7 +605,7 @@
        (filter (fn [[s _]] (free-var? s)))
        (into {})))
 
-(defn lookup-pattern-db [context db pattern orig-pattern]
+q(defn lookup-pattern-db [context db pattern orig-pattern]
   (dt/log "lookup-pattern-db" pattern)
   ;; TODO optimize with bound attrs min/max values here
   (let [attr->prop (var-mapping orig-pattern ["e" "a" "v" "tx" "added"])
@@ -1091,23 +1094,19 @@
         rels-mentioning-var (sort-by
                              tuple-count
                              (filter #(some (:attrs %) vars) (:rels context)))
-
+        
         limit 10
-
+        
         ;; Compute a product with no more than
         ;; `limit` tuples.
         product (reduce (partial hash-join-bounded limit)
                         nil
                         rels-mentioning-var)
-
         default-result [pattern]
-        
         expanded (if product
                    (resolve-pattern-vars-for-relation pattern product)
                    default-result)]
-
     (dt/log "Expanded" pattern "--->" expanded)
-    
     expanded))
 
 (defn lookup-patterns [context
