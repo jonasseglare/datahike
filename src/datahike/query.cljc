@@ -1107,8 +1107,7 @@
 
       (dt/log "Expanded" pattern "--->" expanded)
     
-      ;;expanded
-      default-result
+      expanded
       ))
 
 (defn lookup-patterns [context clause patterns]
