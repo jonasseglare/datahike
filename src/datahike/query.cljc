@@ -1096,7 +1096,7 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
                              tuple-count
                              (filter #(some (:attrs %) vars) (:rels context)))
         
-        limit nil
+        limit 10;nil
         
         ;; Compute a product with no more than
         ;; `limit` tuples.
@@ -1234,7 +1234,9 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
      '[*] ;; pattern <--------------------------------
      (let [source *implicit-source*
            pattern0 (replace (:consts context) clause)
+           _ (dt/log "pattern0" pattern0)
            pattern1 (resolve-pattern-lookup-refs source pattern0)
+           _ (dt/log "pattern1" pattern0)
            constrained-patterns (expand-constrained-patterns source context pattern1)
            context-constrained (lookup-patterns context clause pattern1 constrained-patterns)]
        context-constrained))))

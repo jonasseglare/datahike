@@ -3,6 +3,7 @@
    #?(:cljs [cljs.test    :as t :refer-macros [is deftest testing]]
       :clj  [clojure.test :as t :refer        [is deftest testing]])
    [datahike.api :as d]
+   [datahike.tools :as dt]
    [datahike.db :as db]))
 
 #?(:cljs (def Throwable js/Error))
@@ -177,72 +178,73 @@
            #{[2]}))))
 
 (deftest test-rule-arguments
-  (let [cfg {:store {:backend :mem
-                     :id "rule-test"}
-             :name "rule-test"
-             :keep-history? true
-             :schema-flexibility :write
-             :attribute-refs? true}
-        schema [{:db/ident       :name
-                 :db/cardinality :db.cardinality/one
-                 :db/index       true
-                 :db/unique      :db.unique/identity
-                 :db/valueType   :db.type/string}
-                {:db/ident       :parents
-                 :db/cardinality :db.cardinality/many
-                 :db/valueType   :db.type/ref}
-                {:db/ident       :age
-                 :db/cardinality :db.cardinality/one
-                 :db/valueType   :db.type/long}]
-        rules '[[(parent-info ?child ?name ?age)
-                 [?child :parents ?p]
-                 [(ground ["Alice" "Bob"]) [?name ...]]
-                 [?p :name ?name]
-                 [?p :age ?age]]]
-        _ (d/delete-database cfg)
-        _ (d/create-database cfg)
-        conn (d/connect cfg)]
+  (binding [dt/debug-level 1]
+    (let [cfg {:store {:backend :mem
+                       :id "rule-test"}
+               :name "rule-test"
+               :keep-history? true
+               :schema-flexibility :write
+               :attribute-refs? true}
+          schema [{:db/ident       :name
+                   :db/cardinality :db.cardinality/one
+                   :db/index       true
+                   :db/unique      :db.unique/identity
+                   :db/valueType   :db.type/string}
+                  {:db/ident       :parents
+                   :db/cardinality :db.cardinality/many
+                   :db/valueType   :db.type/ref}
+                  {:db/ident       :age
+                   :db/cardinality :db.cardinality/one
+                   :db/valueType   :db.type/long}]
+          rules '[[(parent-info ?child ?name ?age)
+                   [?child :parents ?p]
+                   [(ground ["Alice" "Bob"]) [?name ...]]
+                   [?p :name ?name]
+                   [?p :age ?age]]]
+          _ (d/delete-database cfg)
+          _ (d/create-database cfg)
+          conn (d/connect cfg)]
 
-    (d/transact conn {:tx-data schema})
-    (d/transact conn {:tx-data [{:name "Alice"
-                                 :age  25}
-                                {:name "Bob"
-                                 :age 30}]})
-    (d/transact conn {:tx-data [{:name    "Charlie"
-                                 :age     5
-                                 :parents [[:name "Alice"]
-                                           [:name "Bob"]]}]})
+      (d/transact conn {:tx-data schema})
+      (d/transact conn {:tx-data [{:name "Alice"
+                                   :age  25}
+                                  {:name "Bob"
+                                   :age 30}]})
+      (d/transact conn {:tx-data [{:name    "Charlie"
+                                   :age     5
+                                   :parents [[:name "Alice"]
+                                             [:name "Bob"]]}]})
 
-    (is (= #{[25]}
-           (d/q {:query '{:find [?age]
-                          :in [$ ?n ?pn %]
-                          :where
-                          [[?child :name ?n]
-                           (parent-info ?child ?pn ?age)]}
-                 :args [@conn "Charlie" "Alice" rules]})))
+      (is (= #{[25]}
+             (d/q {:query '{:find [?age]
+                            :in [$ ?n ?pn %]
+                            :where
+                            [[?child :name ?n]
+                             (parent-info ?child ?pn ?age)]}
+                   :args [@conn "Charlie" "Alice" rules]})))
 
-    (is (= #{[25]}
-           (d/q {:query '{:find [?age]
-                          :in [$ ?n [?pn ...] %]
-                          :where
-                          [[?child :name ?n]
-                           (parent-info ?child ?pn ?age)]}
-                 :args [@conn "Charlie" ["Alice"] rules]})))
+      (is (= #{[25]}
+             (d/q {:query '{:find [?age]
+                            :in [$ ?n [?pn ...] %]
+                            :where
+                            [[?child :name ?n]
+                             (parent-info ?child ?pn ?age)]}
+                   :args [@conn "Charlie" ["Alice"] rules]})))
 
-    (is (= #{[25]}
-           (d/q {:query '{:find [?age]
-                          :in [$ ?n %]
-                          :where
-                          [[?child :name ?n]
-                           (parent-info ?child "Alice" ?age)]}
-                 :args [@conn "Charlie" rules]})))
+      (is (= #{[25]}
+             (d/q {:query '{:find [?age]
+                            :in [$ ?n %]
+                            :where
+                            [[?child :name ?n]
+                             (parent-info ?child "Alice" ?age)]}
+                   :args [@conn "Charlie" rules]})))
 
-    (is (thrown-with-msg? Throwable
-                          #"Bad format for value in pattern, must be a scalar, nil or a vector of two elements."
-                          (d/q {:query '{:find [?age]
-                                         :in [$ ?n %]
-                                         :where
-                                         [[?child :name ?n]
-                                          (parent-info ?child ["Alice"] ?age)]}
-                                :args [@conn "Charlie" rules]})))
-    (d/release conn)))
+      (is (thrown-with-msg? Throwable
+                            #"Bad format for value in pattern, must be a scalar, nil or a vector of two elements."
+                            (d/q {:query '{:find [?age]
+                                           :in [$ ?n %]
+                                           :where
+                                           [[?child :name ?n]
+                                            (parent-info ?child ["Alice"] ?age)]}
+                                  :args [@conn "Charlie" rules]})))
+      (d/release conn))))
