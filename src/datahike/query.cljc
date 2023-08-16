@@ -1111,6 +1111,20 @@
       default-result
       ))
 
+(defn lookup-patterns [context clause patterns]
+  (let [source *implicit-source*]
+    (reduce (fn [context pattern]
+              (let [relation (lookup-pattern context source pattern clause)]
+                (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
+                                           (dynamic-lookup-attrs source pattern)
+                                           *lookup-attrs*)]
+                  
+                  (cond-> (update context :rels collapse-rels relation)
+                    (:stats context) (assoc :tmp-stats {:type :lookup})))))
+            context
+            patterns)))
+
+
 (defn -resolve-clause*
   ([context clause]
    (-resolve-clause* context clause clause))
@@ -1211,21 +1225,11 @@
      (let [source *implicit-source*
            pattern0 (replace (:consts context) clause)
            pattern1 (resolve-pattern-lookup-refs source pattern0)
-           constrained-patterns (expand-constrained-patterns context pattern1)]
-       (reduce (fn [context pattern]
-                 (let [relation (lookup-pattern context source pattern clause)]
-                   (dt/log "clause" clause)
-                   (dt/log "pattern0" pattern0)
-                   (dt/log "pattern" (disp-vec pattern))
-                   (dt/log "-resolve-clause*: Got" (count (:tuples relation)) "tuples")
-                   (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
-                                              (dynamic-lookup-attrs source pattern)
-                                              *lookup-attrs*)]
-                     
-                     (cond-> (update context :rels collapse-rels relation)
-                       (:stats context) (assoc :tmp-stats {:type :lookup})))))
-               context
-               constrained-patterns)))))
+           constrained-patterns (expand-constrained-patterns context pattern1)
+
+           context-default (lookup-patterns context clause [pattern1])
+           context-constrained (lookup-patterns context clause constrained-patterns)]
+       context-default))))
 
 (defn -resolve-clause
   ([context clause]
