@@ -1075,6 +1075,11 @@
     (into {} (for [[k i] (:attrs rel)]
                [k (nth tuple i)]))))
 
+(defn relations-data
+  "Used to compare to different sequences of relations to see if they are equivalent"
+  [relations]
+  (into #{} (map (comp set relation->maps)) relations))
+
 (defn resolve-pattern-vars-for-relation [pattern rel]
   (for [m (relation->maps rel)]
     (replace m pattern)))
