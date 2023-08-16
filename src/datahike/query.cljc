@@ -1095,7 +1095,7 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
                              tuple-count
                              (filter #(some (:attrs %) vars) (:rels context)))
         
-        limit 10
+        limit 10 ; <-- and we are using 10!
         
         ;; Compute a product with no more than
         ;; `limit` tuples.
@@ -1123,8 +1123,8 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
                                 (completing sum-rel)
                                 base-rel
                                 patterns-after-expansion)
-        ;relation (simplify-rel raw-relation)
-        relation raw-relation
+        relation (simplify-rel raw-relation)
+        ;relation raw-relation
         ]
     (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
                                (dynamic-lookup-attrs source pattern-before-expansion)
