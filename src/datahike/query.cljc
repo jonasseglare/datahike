@@ -1102,7 +1102,7 @@
 
         default-result [pattern]
         
-        expanded (if (seq (:tuples product))
+        expanded (if product
                    (resolve-pattern-vars-for-relation pattern product)
                    default-result)]
 
