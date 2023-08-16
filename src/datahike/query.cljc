@@ -1084,11 +1084,11 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
   [relations]
   (into #{} (map (comp set relation->maps)) relations))
 
-(defn resolve-pattern-vars-for-relation [pattern rel]
+(defn resolve-pattern-vars-for-relation [source pattern rel]
   (for [m (relation->maps rel)]
-    (replace m pattern)))
+    (resolve-pattern-lookup-refs source (replace m pattern))))
 
-(defn expand-constrained-patterns [context pattern]
+(defn expand-constrained-patterns [source context pattern]
   (let [vars (collect-vars pattern)
         tuple-count (comp count :tuples)
         rels-mentioning-var (sort-by
@@ -1104,7 +1104,7 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
                         rels-mentioning-var)
         default-result [pattern]
         expanded (if product
-                   (resolve-pattern-vars-for-relation pattern product)
+                   (resolve-pattern-vars-for-relation source pattern product)
                    default-result)]
     (dt/log "Expanded" pattern "--->" expanded)
     expanded))
@@ -1115,7 +1115,11 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
                        patterns-after-expansion]
   (let [source *implicit-source*
         base-rel (Relation. (var-mapping clause (range)) [])
-        relation (transduce (map #(lookup-pattern context source % clause))
+        relation (transduce (map (fn [pattern]
+                                   (lookup-pattern context
+                                                   source
+                                                   pattern
+                                                   clause)))
                             (completing sum-rel)
                             base-rel
                             patterns-after-expansion)]
@@ -1226,30 +1230,26 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
      '[*] ;; pattern <--------------------------------
      (let [source *implicit-source*
            pattern0 (replace (:consts context) clause)
-           pattern1 (resolve-pattern-lookup-refs source pattern0)
-           debug? (= pattern1 '[?r 80 ?related-c])]
-       (binding [dt/debug-level (if debug? 2 dt/debug-level)]
-         (let  [_ (dt/log "pattern1" pattern1)
-                
-                
-                _ (dt/log "----> DEFAULT")
-                context-default (lookup-patterns context clause pattern1 [pattern1])
-                
-                _ (dt/log "----> CONSTRAINED")
-                constrained-patterns (expand-constrained-patterns context pattern1)
-                context-constrained (lookup-patterns context clause pattern1 constrained-patterns)]
-           (println "debug?" debug?)
-           
-           (when (not= (relations-data (:rels context-default))
-                       (relations-data (:rels context-constrained)))
-             (dt/log "init")
-             (pp/pprint (relations-data (:rels context)))
-             (dt/log "default" )
-             (pp/pprint (relations-data (:rels context-default)))
-             (dt/log "constrained" )
-             (pp/pprint (relations-data (:rels context-constrained)))
-             (throw (ex-info "Diverging relations data" {})))
-           context-default))))))
+           pattern1 (resolve-pattern-lookup-refs source pattern0)]
+       (let  [_ (dt/log "pattern1" pattern1)
+              
+              
+              _ (dt/log "----> DEFAULT")
+              context-default (lookup-patterns context clause pattern1 [pattern1])
+              
+              _ (dt/log "----> CONSTRAINED")
+              constrained-patterns (expand-constrained-patterns source context pattern1)
+              context-constrained (lookup-patterns context clause pattern1 constrained-patterns)]
+         (when (not= (relations-data (:rels context-default))
+                     (relations-data (:rels context-constrained)))
+           (dt/log "init")
+           (pp/pprint (relations-data (:rels context)))
+           (dt/log "default" )
+           (pp/pprint (relations-data (:rels context-default)))
+           (dt/log "constrained" )
+           (pp/pprint (relations-data (:rels context-constrained)))
+           (throw (ex-info "Diverging relations data" {})))
+         context-default)))))
 
 (defn -resolve-clause
   ([context clause]

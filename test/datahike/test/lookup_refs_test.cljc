@@ -230,24 +230,31 @@
              #{[[:name "Ivan"] [:name "Petr"]]
                [[:name "Petr"] [:name "Oleg"]]}))
 
+      #_(is (= (d/q '[:find ?e
+                    :in $ ?e
+                    :where [?e :friend 3]]
+                  db "A")
+             #{[2]}))
       (is (= (d/q '[:find ?e
                     :in $ [?e ...]
                     :where [?e :friend 3]]
                   db [1 2 3 "A"])
              #{[2]}))
 
+      
+
       #_(let [db2 (d/db-with (db/empty-db schema)
-                           [{:db/id 3 :name "Ivan" :id 3}
-                            {:db/id 1 :name "Petr" :id 1}
-                            {:db/id 2 :name "Oleg" :id 2}])]
-        (is (= (d/q '[:find ?e ?e1 ?e2
-                      :in $1 $2 [?e ...]
-                      :where [$1 ?e :id ?e1]
-                      [$2 ?e :id ?e2]]
-                    db db2 [[:name "Ivan"] [:name "Petr"] [:name "Oleg"]])
-               #{[[:name "Ivan"] 1 3]
-                 [[:name "Petr"] 2 1]
-                 [[:name "Oleg"] 3 2]})))
+                             [{:db/id 3 :name "Ivan" :id 3}
+                              {:db/id 1 :name "Petr" :id 1}
+                              {:db/id 2 :name "Oleg" :id 2}])]
+          (is (= (d/q '[:find ?e ?e1 ?e2
+                        :in $1 $2 [?e ...]
+                        :where [$1 ?e :id ?e1]
+                        [$2 ?e :id ?e2]]
+                      db db2 [[:name "Ivan"] [:name "Petr"] [:name "Oleg"]])
+                 #{[[:name "Ivan"] 1 3]
+                   [[:name "Petr"] 2 1]
+                   [[:name "Oleg"] 3 2]})))
 
       #_(testing "inline refs"
         (is (= (d/q '[:find ?v
