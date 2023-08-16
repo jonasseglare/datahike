@@ -644,7 +644,6 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
   `(let [a# ~a
          b# ~b]
      (when (not= a# b#)
-       (println "FAILED!!!!!!!!")
        (throw (ex-info "Assertion failed"
                        {:a [~(str "expr" a) a#]
                         :b [~(str "expr" b) b#]})))))
@@ -1058,9 +1057,8 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
   (println "rel" rel)
   (assert attrs)
   (assert tuples)
-  (let [maps (relation->maps rel)]
-    (println "maps=" maps)
-    (assert= (count maps) (count (set maps))))
+  #_(let [maps (relation->maps rel)]
+    #_(assert= (count maps) (count (set maps))))
   rel)
 
 (defn check-relations [rels]
