@@ -508,3 +508,10 @@
                                   :where '[[?e :name ?value]]
                                   :offset 0
                                   :limit 100} [])))))
+
+(deftest test-distinct-tuples
+  (is (= [[3 4]] (dq/distinct-tuples [[3 4]])))
+  (is (= [[3 4]] (dq/distinct-tuples [[3 4] [3 4]])))
+  (is (= [[3 4]] (dq/distinct-tuples [[3 4]
+                                      (long-array [3 4])])))
+  (is (= [[3 4] [9 7]] (dq/distinct-tuples [[3 4] [9 7] [3 4]]))))

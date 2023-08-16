@@ -88,6 +88,15 @@
 
 ;; Utilities
 
+(defn distinct-tuples [tuples]
+  (first (reduce (fn [[dst seen] tuple]
+                   (let [key (vec tuple)]
+                     (if (seen key)
+                       [dst seen]
+                       [(conj dst tuple) (conj seen key)])))
+                 [[] #{}]
+                 tuples)))
+
 (defn seqable?
   #?@(:clj [^Boolean [x]]
       :cljs [^boolean [x]])
@@ -195,6 +204,9 @@
         (-> (Relation. all-attrs [])
             (sum-rel a)
             (sum-rel b))))))
+
+(defn simplify-rel [rel]
+  (Relation. (:attrs rel) (distinct-tuples (:tuples rel))))
 
 (defn prod-rel
   ([] (Relation. {} [(da/make-array 0)]))
@@ -1057,8 +1069,15 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
   (println "rel" rel)
   (assert attrs)
   (assert tuples)
+  (let [v (map vec tuples)]
+    
+    #_(when (not= (count v) (count (set v)))
+        (println "vecs:" v)
+        (throw (ex-info "Duplicate vecs" {:vecs v}))))
+
+  
   #_(let [maps (relation->maps rel)]
-    #_(assert= (count maps) (count (set maps))))
+      #_(assert= (count maps) (count (set maps))))
   rel)
 
 (defn check-relations [rels]
@@ -1096,14 +1115,15 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
                        patterns-after-expansion]
   (let [source *implicit-source*
         base-rel (Relation. (var-mapping clause (range)) [])
-        relation (transduce (map (fn [pattern]
-                                   (lookup-pattern context
-                                                   source
-                                                   pattern
-                                                   clause)))
-                            (completing sum-rel)
-                            base-rel
-                            patterns-after-expansion)]
+        raw-relation (transduce (map (fn [pattern]
+                                       (lookup-pattern context
+                                                       source
+                                                       pattern
+                                                       clause)))
+                                (completing sum-rel)
+                                base-rel
+                                patterns-after-expansion)
+        relation (simplify-rel raw-relation)]
     (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
                                (dynamic-lookup-attrs source pattern-before-expansion)
                                *lookup-attrs*)]
