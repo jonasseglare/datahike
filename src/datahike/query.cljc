@@ -1123,7 +1123,9 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
                                 (completing sum-rel)
                                 base-rel
                                 patterns-after-expansion)
-        relation (simplify-rel raw-relation)]
+        ;relation (simplify-rel raw-relation)
+        relation raw-relation
+        ]
     (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
                                (dynamic-lookup-attrs source pattern-before-expansion)
                                *lookup-attrs*)]
