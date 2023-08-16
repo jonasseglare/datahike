@@ -681,9 +681,13 @@
     (display-rel rel))
   rels)
 
+(defn summarize-rels [label rels]
+  (dt/log label "rels" (map (comp count :tuples) rels))
+  rels)
+
 (defn collapse-rels [rels new-rel]
-  (display-rels "before" rels)
-  (display-rels "new" [new-rel])
+  (summarize-rels "before" rels)
+  (summarize-rels "new" [new-rel])
   (loop [rels rels
          new-rel new-rel
          acc []]
@@ -699,7 +703,7 @@
         (recur (next rels) new-rel (conj acc rel)))
 
       ;; Since we are finished, the final state of new-rel is added.
-      (display-rels "after" (conj acc new-rel)))))
+      (summarize-rels "after" (conj acc new-rel)))))
 
 (defn- rel-with-attr [context sym]
   (some #(when (contains? (:attrs %) sym) %) (:rels context)))
@@ -1077,21 +1081,30 @@
 
 (defn expand-constrained-patterns [context pattern]
   (let [vars (collect-vars pattern)
-        tuple-count (comp count :tuples)
-        rels-mentioning-var (sort-by
-                             tuple-count
-                             (filter #(some (:attrs %) vars) (:rels context)))
+          tuple-count (comp count :tuples)
+          rels-mentioning-var (sort-by
+                               tuple-count
+                               (filter #(some (:attrs %) vars) (:rels context)))
 
-        limit 1
+          limit 1
 
-        ;; Compute a product with no more than
-        ;; `limit` tuples.
-        product (reduce (partial hash-join-bounded limit)
-                        nil
-                        rels-mentioning-var)]
-    (if product
-      (resolve-pattern-vars-for-relation pattern product)
-      [pattern])))
+          ;; Compute a product with no more than
+          ;; `limit` tuples.
+          product (reduce (partial hash-join-bounded limit)
+                          nil
+                          rels-mentioning-var)
+
+        default-result [pattern]
+        
+        expanded (if product
+                   (resolve-pattern-vars-for-relation pattern product)
+                   default-result)]
+
+      (dt/log "Expanded" pattern "--->" expanded)
+    
+      ;;expanded
+      default-result
+      ))
 
 (defn -resolve-clause*
   ([context clause]
