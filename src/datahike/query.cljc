@@ -640,11 +640,14 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
     :else
     (lookup-pattern-coll source pattern orig-pattern)))
 
-(defn check-non-overlapping-attrs [rels]
-  (let [all-attr-keys (into [] (mapcat (comp keys :attrs)) rels)]
-    (assert (= (count all-attr-keys)
-               (count (set all-attr-keys))))
-    rels))
+(defmacro assert= [a b]
+  `(let [a# ~a
+         b# ~b]
+     (when (not= a# b#)
+       (println "FAILED!!!!!!!!")
+       (throw (ex-info "Assertion failed"
+                       {:a [~(str "expr" a) a#]
+                        :b [~(str "expr" b) b#]})))))
 
 (defn collapse-rels [rels new-rel]
   (loop [rels rels
@@ -1051,6 +1054,19 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
   [relations]
   (into #{} (map (comp set relation->maps)) relations))
 
+(defn check-relation [{:keys [attrs tuples] :as rel}]
+  (println "rel" rel)
+  (assert attrs)
+  (assert tuples)
+  (let [maps (relation->maps rel)]
+    (println "maps=" maps)
+    (assert= (count maps) (count (set maps))))
+  rel)
+
+(defn check-relations [rels]
+  (doseq [rel rels]
+    (check-relation rel)))
+
 (defn resolve-pattern-vars-for-relation [source pattern rel]
   (keep #(resolve-pattern-lookup-refs-or-nil source (replace % pattern))
         (relation->maps rel)))
@@ -1203,15 +1219,18 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
            context-constrained (lookup-patterns context clause pattern1 constrained-patterns)]
        
 
-       (let [rd (into {} (:rels context-default))
-             rc (into {} (:rels context-constrained))]
+       (let [rd (:rels context-default)
+             rc (:rels context-constrained)]
          (assert (= (relations-data rd)
                     (relations-data rc)))
+         (check-relations rd)
+         (check-relations rc)
          
-         (assert (= (count (set (:tuples rd)))
-                    (count (set (:tuples rc)))))
-         (assert (= (count (:tuples rd))
-                    (count (:tuples rc))))
+         #_(assert (= (count (set (:tuples rd)))
+                      (count (set (:tuples rc)))))
+         
+         #_(assert (= (count (:tuples rd))
+                      (count (:tuples rc))))
          
          #_(when (not= rd rc)
              (dt/log "DEFAULT")
