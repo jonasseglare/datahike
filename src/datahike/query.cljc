@@ -1045,11 +1045,12 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
 
 (defn hash-join-bounded [max-rel-count dst rel]
   (let [dstn (count (:tuples dst))
-        reln (count (:tuples rel))]
+        reln (count (:tuples rel))
+        unbounded (nil? max-rel-count)]
     (if (nil? dst)
-      (when (<= reln max-rel-count)
+      (when (or unbounded (<= reln max-rel-count))
         rel)
-      (if (<= (* dstn reln) max-rel-count)
+      (if (or unbounded (<= (* dstn reln) max-rel-count))
         (hash-join dst rel)
         dst))))
 
