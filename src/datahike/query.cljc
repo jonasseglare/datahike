@@ -1210,16 +1210,13 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
            context-default (lookup-patterns context clause pattern1 [pattern1])
            constrained-patterns (expand-constrained-patterns source context pattern1)
            context-constrained (lookup-patterns context clause pattern1 constrained-patterns)]
-       (when (not= (relations-data (:rels context-default))
-                   (relations-data (:rels context-constrained)))
-         (dt/log "init")
-         (pp/pprint (relations-data (:rels context)))
-         (dt/log "default" )
-         (pp/pprint (relations-data (:rels context-default)))
-         (dt/log "constrained" )
-         (pp/pprint (relations-data (:rels context-constrained)))
-         (throw (ex-info "Diverging relations data" {})))
-       context-constrained))))
+       
+       (assert (= (relations-data (:rels context-default))
+                  (relations-data (:rels context-constrained))))
+       
+       ;;context-constrained  ;; funkar inte
+       context-default  ;; funkar
+       ))))
 
 (defn -resolve-clause
   ([context clause]
