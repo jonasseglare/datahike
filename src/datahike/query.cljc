@@ -35,7 +35,7 @@
 
 (def ^:const lru-cache-size 100)
 
-(declare -collect -resolve-clause resolve-clause raw-q relprod-select-simple)
+(declare -collect -resolve-clause resolve-clause raw-q)
 
 ;; Records
 
@@ -48,8 +48,6 @@
 ;;    [ #js [1 "Ivan" 5 14] ... ]
 ;; or [ (Datom. 2 "Oleg" 1 55) ... ]
 (defrecord Relation [attrs tuples])
-
-(def default-settings {:relprod-strategy relprod-select-simple})
 
 ;; Main functions
 
@@ -1392,8 +1390,9 @@ more expanded patterns but only more specific patterns."
   (->> (-collect context symbols)
        (map vec)))
 
+(def default-settings {:relprod-strategy relprod-select-simple})
+
 (defn raw-q [{:keys [query args offset limit stats? settings] :as _query-map}]
-  (println "got settings" settings)
   (let [settings (merge default-settings settings)
         {:keys [qfind
                 qwith
