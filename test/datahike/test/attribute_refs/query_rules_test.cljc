@@ -6,9 +6,7 @@
                                                wrap-direct-datoms
                                                wrap-ref-datoms
                                                shift-in]]
-   [datahike.api :as d]
-   [datahike.query :as dq]
-   [datahike.tools :as dt]))
+   [datahike.api :as d]))
 
 (deftest test-rules
   (let [datoms [[1 :follow 2]
@@ -40,7 +38,7 @@
                   '[[(rule ?a ?b)
                      [?a :follow ?b]]]))))
 
-    #_(testing "Rule context is isolated from outer context"
+    (testing "Rule context is isolated from outer context"
       (is (= (shift-in #{[2] [3] [4] [6]} [0] ref-e0)
              (d/q '[:find ?x
                     :in $ %
@@ -50,7 +48,7 @@
                   '[[(rule ?e)
                      [_ :follow ?e]]]))))
 
-    #_(testing "Rule with branches"
+    (testing "Rule with branches"
       (is (= (shift-in #{[2] [3] [4]} [0] ref-e0)
              (d/q '[:find  ?e2
                     :in    $ ?e1 %
@@ -63,7 +61,7 @@
                      [?e2 :follow ?t]
                      [?t  :follow ?e1]]]))))
 
-    #_(testing "Recursive rules"
+    (testing "Recursive rules"
       (is (= (shift-in #{[2] [3] [4] [6]} [0] ref-e0)
              (d/q '[:find  ?e2
                     :in    $ ?e1 %
@@ -98,7 +96,7 @@
                     [(follow ?e1 ?e2)
                      (follow ?e2 ?e1)]]))))
 
-    #_(testing "Mutually recursive rules"
+    (testing "Mutually recursive rules"
       (let [datoms [[0 :f1 1]
                     [1 :f2 2]
                     [2 :f1 3]
@@ -126,7 +124,7 @@
                        [?t :f2 ?e2]
                        (f1 ?e1 ?t)]])))))
 
-    #_(testing "Passing ins to rule"
+    (testing "Passing ins to rule"
       (is (= (set (filter (fn [[x y]] (and (even? x) (even? y)))
                           all-pairs))
              (d/q '[:find ?x ?y
@@ -140,7 +138,7 @@
                      [(?pred ?e2)]]]
                   even?))))
 
-    #_(testing "Using built-ins inside rule"
+    (testing "Using built-ins inside rule"
       (is (= (set (filter (fn [[x y]] (and (even? x) (even? y)))
                           all-pairs))
              (d/q '[:find ?x ?y
@@ -151,7 +149,7 @@
                      [?e :follow ?e2]
                      [(even? ?e)]
                      [(even? ?e2)]]]))))
-    #_(testing "Calling rule twice (#44)"
+    (testing "Calling rule twice (#44)"
       (d/q '[:find ?p
              :in $ % ?fn
              :where (rule ?p ?fn :a)
@@ -176,34 +174,3 @@
            (d/q '[:find ?id :in $ %
                   :where (is ?id false)]
                 db rules)))))
-
-
-(defn small-test []
-  (binding [dt/debug-level 1]
-    (let [datoms [[1 :follow 2]
-                  [2 :follow 3]
-                  [2 :follow 4]
-                  [3 :follow 4]
-                  [4 :follow 6]
-                  [5 :follow 3]]
-          db (d/db-with ref-db (wrap-ref-datoms ref-db ref-e0 :db/add datoms))
-          all-pairs (shift-in #{[1 2] [2 3] [2 4] [3 4] [4 6] [5 3]} [0 1] ref-e0)
-          all-pairs-reversed (shift-in #{[2 1] [3 2] [4 2] [4 3] [6 4] [3 5]} [0 1] ref-e0)]
-      #_(assert (= all-pairs
-                 (d/q '[:find  ?e1 ?e2
-                        :in    $ %
-                        :where (follow ?e1 ?e2)]
-                      db
-                      '[[(follow ?x ?y)
-                         [?x :follow ?y]]])))
-
-      (assert (= (set (filter (fn [[_ x]] (and (even? x) ((set (map first all-pairs-reversed)) x)))
-                              all-pairs-reversed))
-                 (d/q '[:find ?y ?x
-                        :in $ %
-                        :where [_ _ ?x]
-                        (rule ?x ?y)
-                        [(even? ?x)]]
-                      db
-                      '[[(rule ?a ?b)
-                         [?a :follow ?b]]]))))))
