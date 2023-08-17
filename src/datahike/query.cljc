@@ -1056,12 +1056,15 @@
             (replace (mapper %) pattern))
           (:tuples rel))))
 
+(def rel-product-unit (Relation. {} [[]]))
+
 (defn rel-product-limited-by-tuple-count [rel-data tuple-limit]
-  (reduce (partial hash-join-bounded tuple-limit)
-          nil
-          (map :rel (sort-by
-                     :tuple-count
-                     rel-data))))
+  (or (reduce (partial hash-join-bounded tuple-limit)
+              nil
+              (map :rel (sort-by
+                         :tuple-count
+                         rel-data)))
+      rel-product-unit))
 
 (defn expand-constrained-patterns [source context pattern]
   (let [vars (collect-vars pattern)
