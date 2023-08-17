@@ -79,7 +79,7 @@
       
       [(get-else $ ?related-c :concept/deprecated false) ?deprecated]
       ]},
-    :settings :kattskit
+    :settings {}
     :args
     [
 

@@ -35,7 +35,7 @@
 
 (def ^:const lru-cache-size 100)
 
-(declare -collect -resolve-clause resolve-clause raw-q)
+(declare -collect -resolve-clause resolve-clause raw-q relprod-select-simple)
 
 ;; Records
 
@@ -48,6 +48,8 @@
 ;;    [ #js [1 "Ivan" 5 14] ... ]
 ;; or [ (Datom. 2 "Oleg" 1 55) ... ]
 (defrecord Relation [attrs tuples])
+
+(def default-settings {:relprod-strategy relprod-select-simple})
 
 ;; Main functions
 
@@ -1397,13 +1399,14 @@ more expanded patterns but only more specific patterns."
 
 (defn raw-q [{:keys [query args offset limit stats? settings] :as _query-map}]
   (println "got settings" settings)
-  (let [{:keys [qfind
+  (let [settings (merge default-settings settings)
+        {:keys [qfind
                 qwith
                 qreturnmaps
                 qin]} (memoized-parse-query query)
         context-in    (-> (if stats?
-                            (StatContext. [] {} {} {} [] {})
-                            (Context. [] {} {} {} {}))
+                            (StatContext. [] {} {} {} [] settings)
+                            (Context. [] {} {} {} settings))
                           (resolve-ins qin args))
         ;; TODO utilize parser
         all-vars      (concat (dpi/find-vars qfind) (map :symbol qwith))
