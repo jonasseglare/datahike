@@ -1058,10 +1058,15 @@
 
 (defn expand-constrained-patterns [source context pattern]
   (let [vars (collect-vars pattern)
-        tuple-count (comp count :tuples)
-        rels-mentioning-var (sort-by
-                             tuple-count
-                             (filter #(some (:attrs %) vars) (:rels context)))
+        rel-data (sort-by
+                  :tuple-count
+                  (for [{:keys [attrs tuples] :as rel} (:rels context)
+                        :let [mentioned-vars (filter attrs vars)]
+                        :when (seq mentioned-vars)]
+                    {:rel rel
+                     :vars mentioned-vars
+                     :tuple-count (count tuples)}))
+        rels-mentioning-var (map :rel rel-data)
         
         tuple-limit nil
         
