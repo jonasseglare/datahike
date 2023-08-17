@@ -1070,29 +1070,38 @@
 
 (defn init-relprod [rel-data]
   {:product rel-product-unit
-   :rel-data rel-data})
+   :include []
+   :exclude rel-data})
 
-(defn relprod-keys [{:keys [rel-data]}]
-  (map :key rel-data))
+(defn relprod-exclude-keys [{:keys [exclude]}]
+  (map :key exclude))
 
-(defn relprod-filter [{:keys [product rel-data]} predf]
-  {:pre [product rel-data]}
-  (let [picked (filter predf rel-data)]
+(defn relprod-filter [{:keys [product include exclude]} predf]
+  {:pre [product include exclude]}
+  (let [picked (into [] (filter predf) exclude)]
     {:product (reduce hash-join product (map :rel picked))
-     :rel-data (remove predf rel-data)}))
+     :include (into include picked)
+     :exclude (remove predf exclude)}))
 
-(defn relprod-pick [relprod & ks]
-  {:pre [(every? (set (relprod-keys relprod)) ks)]}
+(defn relprod-select-keys [relprod & ks]
+  {:pre [(every? (set (relprod-exclude-keys relprod)) ks)]}
   (relprod-filter relprod (comp (set ks) :key)))
 
-(defn relprod-all [relprod]
+(defn relprod-select-all [relprod]
   (relprod-filter relprod (constantly true)))
+
+(defn relprod-select-simple [relprod]
+  (relprod-filter relprod #(<= (:tuple-count %) 1)))
 
 (defn expand-constrained-patterns [source context pattern]
   (let [vars (collect-vars pattern)
         rel-data (expansion-rel-data (:rels context) vars)
+        
+        strategy relprod-select-all
+        
         product (-> rel-data
                     init-relprod
+                    strategy
                     :product)]
     (resolve-pattern-vars-for-relation source pattern product)))
 

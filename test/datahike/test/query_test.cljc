@@ -522,38 +522,36 @@
 
 (deftest test-relprod
   (let [x (simple-rel '?x [1 2 3 4])
-        y (simple-rel '?y [90 100])
+        y (simple-rel '?y [90])
         z (simple-rel '?z [10 11 12])
         rels [x y z]
         vars ['?x '?y]
         rel-data (dq/expansion-rel-data rels vars)
         relprod (dq/init-relprod rel-data)
-        relprod-x (dq/relprod-pick relprod ['?x])
-        relprod-xy (dq/relprod-pick relprod ['?x] ['?y])
-        relprod-xy2 (dq/relprod-all relprod)]
+        relprod-x (dq/relprod-select-keys relprod ['?x])
+        relprod-xy (dq/relprod-select-keys relprod ['?x] ['?y])
+        relprod-xy2 (dq/relprod-select-all relprod)
+        relprod-y (dq/relprod-select-simple relprod)
+        prodks (comp set keys :attrs :product)]
     (is (= 2 (count rel-data)))
     (is (= [{:rel x
              :tuple-count 4
              :vars ['?x]
              :key ['?x]}
             {:rel y
-             :tuple-count 2
+             :tuple-count 1
              :vars ['?y]
              :key ['?y]}]
            rel-data))
-    (is (sequential? (:rel-data relprod)))
-    (is (= 2 (count (:rel-data relprod))))
-    (is (= 1 (count (:rel-data relprod-x))))
-    (is (= 0 (count (:rel-data relprod-xy))))
-    (-> relprod-x
-        :product
-        :attrs
-        keys
-        set
-        (= #{'?x}))
-    (-> relprod-xy
-        :product
-        :attrs
-        keys
-        set
-        (= #{'?x '?y}))))
+    (is (sequential? (:exclude relprod)))
+    (is (= 2 (count (:exclude relprod))))
+    (is (= 1 (count (:exclude relprod-x))))
+    (is (= 0 (count (:exclude relprod-xy))))
+    (is (= #{'?x} (prodks relprod-x)))
+    (is (= #{'?x '?y} (prodks relprod-xy)))
+    (is (= #{'?x '?y} (prodks relprod-xy2)))
+    (is (= #{'?y} (prodks relprod-y)))
+    
+    (doseq [{:keys [include exclude]} [relprod relprod-x relprod-xy relprod-xy2 relprod-y]]
+      (is (= 2 (+ (count include)
+                  (count exclude)))))))
