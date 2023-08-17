@@ -1058,13 +1058,11 @@
 
 (def rel-product-unit (Relation. {} [[]]))
 
-(defn rel-product-limited-by-tuple-count [rel-data tuple-limit]
-  (or (reduce (partial hash-join-bounded tuple-limit)
-              nil
-              (map :rel (sort-by
-                         :tuple-count
-                         rel-data)))
-      rel-product-unit))
+(defn rel-product-limited-by-tuple-count [{:keys [rel-data product]} tuple-limit]
+  {:product (or (reduce (partial hash-join-bounded tuple-limit)
+                        nil
+                        (map :rel (sort-by :tuple-count rel-data)))
+                product)})
 
 (defn expand-constrained-patterns [source context pattern]
   (let [vars (collect-vars pattern)
@@ -1074,7 +1072,11 @@
                    {:rel rel
                     :vars mentioned-vars
                     :tuple-count (count tuples)})
-        product (rel-product-limited-by-tuple-count rel-data nil)]
+        init-state {:product rel-product-unit
+                    :rel-data rel-data}
+        product (-> init-state
+                    (rel-product-limited-by-tuple-count nil)
+                    :product)]
     (resolve-pattern-vars-for-relation source pattern product)))
 
 (defn lookup-patterns [context
