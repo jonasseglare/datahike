@@ -1074,13 +1074,8 @@
                    {:rel rel
                     :vars mentioned-vars
                     :tuple-count (count tuples)})
-        
-        product (rel-product-limited-by-tuple-count rel-data nil)
-        default-result [pattern]
-        expanded (if product
-                   (resolve-pattern-vars-for-relation source pattern product)
-                   default-result)]
-    expanded))
+        product (rel-product-limited-by-tuple-count rel-data nil)]
+    (resolve-pattern-vars-for-relation source pattern product)))
 
 (defn lookup-patterns [context
                        clause
