@@ -1016,7 +1016,7 @@
   ([source pattern] (resolve-pattern-lookup-refs source pattern nil))
   ([source pattern error-code]
    (if (dbu/db? source)
-     (dt/map-vector-elements
+     (dt/repack-vector
          pattern
          e (resolve-pattern-lookup-entity-id source e error-code)
          a (if (and (:attribute-refs? (dbi/-config source)) (keyword? a))

@@ -154,7 +154,7 @@
   #?(:clj (.getHostAddress (InetAddress/getLocalHost))
      :cljs (raise "Not supported yet." {:type :hostname-not-supported-yet})))
 
-(defmacro map-vector-elements [v & var-expr-pairs]
+(defmacro repack-vector [v & var-expr-pairs]
   {:pre [(even? (count var-expr-pairs))]}
   (let [pairs (partition 2 var-expr-pairs)
         vars (mapv first pairs)
