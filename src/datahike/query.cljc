@@ -1114,7 +1114,7 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
                              tuple-count
                              (filter #(some (:attrs %) vars) (:rels context)))
         
-        limit 10;nil
+        limit nil
         
         ;; Compute a product with no more than
         ;; `limit` tuples.
