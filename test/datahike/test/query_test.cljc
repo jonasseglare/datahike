@@ -525,9 +525,9 @@
         y (simple-rel '?y [90])
         z (simple-rel '?z [10 11 12])
         rels [x y z]
-        vars ['?x '?y]
-        rel-data (dq/expansion-rel-data rels vars)
-        relprod (dq/init-relprod rel-data)
+        xy-vars ['?x '?y]
+        rel-data (dq/expansion-rel-data rels xy-vars)
+        relprod (dq/init-relprod rel-data xy-vars)
         relprod-x (dq/relprod-select-keys relprod ['?x])
         relprod-xy (dq/relprod-select-keys relprod ['?x] ['?y])
         relprod-xy2 (dq/relprod-select-all relprod)
@@ -552,6 +552,7 @@
     (is (= #{'?x '?y} (prodks relprod-xy2)))
     (is (= #{'?y} (prodks relprod-y)))
     
-    (doseq [{:keys [include exclude]} [relprod relprod-x relprod-xy relprod-xy2 relprod-y]]
+    (doseq [{:keys [include exclude vars]} [relprod relprod-x relprod-xy relprod-xy2 relprod-y]]
       (is (= 2 (+ (count include)
-                  (count exclude)))))))
+                  (count exclude))))
+      (is (= xy-vars vars)))))

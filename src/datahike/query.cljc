@@ -1068,40 +1068,58 @@
      :tuple-count (count tuples)
      :key k}))
 
-(defn init-relprod [rel-data]
+;; A *relprod* is a state in the process of
+;; selecting what relations to use when expanding
+;; the pattern. The world "relprod" is an abbreviation for
+;; "relation product".
+;;
+;; A *strategy* is a function that takes a relprod
+;; as input and returns a new relprod as output.
+;; The simplest strategy is `identity` meaning that
+;; not pattern expansion will happen.
+(defn init-relprod [rel-data vars]
   {:product rel-product-unit
    :include []
-   :exclude rel-data})
+   :exclude rel-data
+   :vars vars})
 
 (defn relprod-exclude-keys [{:keys [exclude]}]
   (map :key exclude))
 
-(defn relprod-filter [{:keys [product include exclude]} predf]
+(defn relprod-filter [{:keys [product include exclude vars]} predf]
   {:pre [product include exclude]}
   (let [picked (into [] (filter predf) exclude)]
     {:product (reduce hash-join product (map :rel picked))
      :include (into include picked)
-     :exclude (remove predf exclude)}))
+     :exclude (remove predf exclude)
+     :vars vars}))
 
 (defn relprod-select-keys [relprod & ks]
   {:pre [(every? (set (relprod-exclude-keys relprod)) ks)]}
   (relprod-filter relprod (comp (set ks) :key)))
 
-(defn relprod-select-all [relprod]
+(defn relprod-select-all
+  "This is a relprod strategy that will result in all 
+possible combinations of relations substituted in the pattern.
+ It may be faster or slower than no strategy at all depending 
+on the data."
+  [relprod]
   (relprod-filter relprod (constantly true)))
 
-(defn relprod-select-simple [relprod]
+(defn relprod-select-simple
+  "This is a relprod strategy that will perform at least as 
+well as no strategy at all because it will never result in 
+more expanded patterns but only more specific patterns."
+  [relprod]
   (relprod-filter relprod #(<= (:tuple-count %) 1)))
+        
+(def relprod-strategy relprod-select-simple) 
 
 (defn expand-constrained-patterns [source context pattern]
   (let [vars (collect-vars pattern)
         rel-data (expansion-rel-data (:rels context) vars)
-        
-        strategy relprod-select-all
-        
-        product (-> rel-data
-                    init-relprod
-                    strategy
+        product (-> (init-relprod rel-data vars)
+                    relprod-strategy
                     :product)]
     (resolve-pattern-vars-for-relation source pattern product)))
 
