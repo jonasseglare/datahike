@@ -1004,31 +1004,32 @@
 #_(defn validate-tx [tx]
   (value-error "tx" tx))
 
-(defn resolve-pattern-lookup-entity-id [source e]
+(defn resolve-pattern-lookup-entity-id [source e error-code]
   (cond
-    (or (lookup-ref? e) (attr? e)) (dbu/entid-strict source e)
+    (or (lookup-ref? e) (attr? e)) (dbu/entid-strict source e error-code)
     (entid? e) e
     (symbol? e) e
-    :else (dt/raise "Invalid entid" {:error :entity-id/syntax :entity-id e})))
+    :else (or error-code (dt/raise "Invalid entid" {:error :entity-id/syntax :entity-id e}))))
 
 (defn resolve-pattern-lookup-refs
   "Translate pattern entries before using pattern for database search"
-  [source pattern]
-  (if (dbu/db? source)
-    (dt/map-vector-elements
-        pattern
-      e (resolve-pattern-lookup-entity-id source e)
-      a (if (and (:attribute-refs? (dbi/-config source)) (keyword? a))
-          (dbi/-ref-for source a)
-          a)
-      v (if (and v (attr? a) (dbu/ref? source a) (or (lookup-ref? v) (attr? v)))
-          (dbu/entid-strict source v)
-          v)
-      tx (if (lookup-ref? tx)
-           (dbu/entid-strict source tx)
-           tx)
-      added added)
-    pattern))
+  ([source pattern] (resolve-pattern-lookup-refs source pattern nil))
+  ([source pattern error-code]
+   (if (dbu/db? source)
+     (dt/map-vector-elements
+         pattern
+         e (resolve-pattern-lookup-entity-id source e error-code)
+         a (if (and (:attribute-refs? (dbi/-config source)) (keyword? a))
+             (dbi/-ref-for source a)
+             a)
+         v (if (and v (attr? a) (dbu/ref? source a) (or (lookup-ref? v) (attr? v)))
+             (dbu/entid-strict source v)
+             v)
+         tx (if (lookup-ref? tx)
+              (dbu/entid-strict source tx)
+              tx)
+         added added)
+     pattern)))
 
 #_(defn map-pattern-lookup-refs [pattern ef af vf txf]
   (let [[e a v tx added] pattern]
