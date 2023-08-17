@@ -1037,8 +1037,8 @@
             0
             (count pattern))))
 
-(defn resolve-pattern-lookup-refs-or-nil [source pattern]
-  "Translate pattern entries before using pattern for database search"
+(defn resolve-pattern-lookup-refs-or-nil
+  "This function works just like `resolve-pattern-lookup-refs` but if there is an error it returns `nil` instead of throwing an exception. This is used to reject patterns with variables substituted for invalid values."
   [source pattern]
   (let [result (resolve-pattern-lookup-refs source pattern ::error)]
     (when (not-any? #(= % ::error) result)
