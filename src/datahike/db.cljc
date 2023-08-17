@@ -191,7 +191,6 @@
 
   dbi/ISearch
   (-search [db pattern]
-    (dt/log "db -search" pattern)
     (dbs/search-current-indices db pattern))
 
   dbi/IIndexAccess
@@ -285,7 +284,6 @@
 
   dbi/ISearch
   (-search [db pattern]
-    (dt/log "filtered-db -search" pattern)
     (filter (.-pred db) (dbi/-search unfiltered-db pattern)))
 
   dbi/IIndexAccess
@@ -350,7 +348,6 @@
 
   dbi/ISearch
   (-search [db pattern]
-    (dt/log "hist -search" pattern)    
     (dbs/temporal-search origin-db pattern))
 
   dbi/IIndexAccess
@@ -390,7 +387,6 @@
                 [])))))))
 
 (defn filter-as-of-datoms [datoms time-point db]
-  (println "Number of datoms to filter:" (count datoms))
   (let [as-of-pred (fn [^Datom d]
                      (if (date? time-point)
                        (.before ^Date (.-v d) ^Date time-point)
@@ -449,7 +445,6 @@
 
   dbi/ISearch
   (-search [db pattern]
-    (dt/log "as-of -search" pattern)
     (-> (dbs/temporal-search origin-db pattern)
         (filter-as-of-datoms time-point origin-db)))
 
@@ -529,7 +524,6 @@
 
   dbi/ISearch
   (-search [db pattern]
-    (dt/log "since-db -search" pattern)    
     (-> (dbs/temporal-search origin-db pattern)
         (filter-since time-point origin-db)))
 

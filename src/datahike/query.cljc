@@ -52,24 +52,6 @@
 
 ;; Main functions
 
-
-(defn display-rel [{:keys [attrs tuples] :as rel}]
-  {:pre [attrs tuples]}
-  (dt/log "Rel mapping:")
-  (doseq [[k v] attrs]
-    (dt/log "  *" k v))
-  (dt/log (format "Tuples %d:" (count tuples)))
-  (doseq [tuple (take 1000 tuples)]
-    (dt/log "  *" (vec tuple))))
-
-(defn display-rels [rels]
-  (dt/log (format "There are %d rels:" (count rels)))
-  (doseq [rel rels]
-    (display-rel rel)))
-
-(defn display-context [context]
-  (display-rels (:rels context)))
-
 (defn normalize-q-input
   "Turns input to q into a map with :query and :args fields.
    Also normalizes the query into a map representation."
@@ -670,7 +652,6 @@
     (Relation. attr->idx (mapv to-array data))))            ;; FIXME to-array
 
 (defn lookup-pattern [context source pattern orig-pattern]
-  (dt/log "lookup-pattern" pattern)
   (cond
     (dbu/db? source)
     (lookup-pattern-db context source pattern orig-pattern)
@@ -1095,19 +1076,6 @@
 (defn resolve-context [context clauses]
   (reduce resolve-clause context clauses))
 
-(defmacro condp-debug [pred clause & pairs]
-  `(condp ~pred ~clause
-     ~@(for [[i [k v]] (map-indexed vector (partition 2 pairs))
-             x [k `(do (println  ~(format "Key %d: %s" i (str k)))
-                       ~v)]]
-         x)))
-
-#_`(do (println "key:" ~k)
-                 ~v)
-
-(defn disp-vec [v]
-  (mapv (fn [x] [x (type x)]) v))
-
 (defn hash-join-bounded [max-rel-count dst rel]
   (let [dstn (count (:tuples dst))
         reln (count (:tuples rel))
@@ -1151,26 +1119,19 @@
     (check-relation rel)))
 
 (defn resolve-pattern-vars-for-relation [source pattern rel]
-  (dt/log "REL for res")
-  (display-rel rel)
-  (dt/log "MAPS" (relation->maps rel))
   (keep #(resolve-pattern-lookup-refs-or-nil
           source
           (replace % pattern))
         (relation->maps rel)))
 
 (defn expand-constrained-patterns [source context pattern]
-  (dt/log "RESOLUTION OF" [true 58 '?y] "into"
-          (resolve-pattern-lookup-refs-or-nil source [true 58 '?y]))
-  ;(assert false)
-  
   (let [vars (collect-vars pattern)
         tuple-count (comp count :tuples)
         rels-mentioning-var (sort-by
                              tuple-count
                              (filter #(some (:attrs %) vars) (:rels context)))
         
-        tuple-limit 1
+        tuple-limit nil
         
         ;; Compute a product with no more than
         ;; `limit` tuples.
@@ -1181,13 +1142,6 @@
         expanded (if product
                    (resolve-pattern-vars-for-relation source pattern product)
                    default-result)]
-
-    
-    ;;(def prod product)
-    (when product
-      (dt/log "Product")
-      (display-rel product))
-    (dt/log "Expanded" pattern "--->" expanded)
     expanded))
 
 (defn lookup-patterns [context
@@ -1219,15 +1173,13 @@
   ([context clause]
    (-resolve-clause* context clause clause))
   ([context clause orig-clause]
-   (dt/log "-resolve-clause*" clause " orig:"orig-clause)
-   (condp-debug looks-like? clause
+   (condp looks-like? clause
      [[symbol? '*]] ;; predicate [(pred ?a ?b ?c)]
      (do (check-all-bound context (identity (filter free-var? (first clause))) orig-clause)
          (filter-by-pred context clause))
 
      [[symbol? '*] '_] ;; function [(fn ?a ?b) ?res]
-     (do (dt/log [symbol? '*])
-         (bind-by-fn context clause))
+     (bind-by-fn context clause)
 
      [source? '*] ;; source + anything
      (let [[source-sym & rest] clause]
@@ -1313,12 +1265,8 @@
 
      '[*] ;; pattern <--------------------------------
      (let [source *implicit-source*
-           _ (dt/log "CONTEXT at entry")
-           _ (display-context context)
            pattern0 (replace (:consts context) clause)
-           _ (dt/log "pattern0" pattern0)
            pattern1 (resolve-pattern-lookup-refs source pattern0)
-           _ (dt/log "pattern1" pattern0)
            constrained-patterns (expand-constrained-patterns source context pattern1)
            context-constrained (lookup-patterns context clause pattern1 constrained-patterns)]
        context-constrained))))
@@ -1339,16 +1287,9 @@
                                  (fn [context] (solve-rule context clause))))
     (-resolve-clause context clause)))
 
-(defn resolve-clause-top [context clause]
-  (dt/log "\n\nresolve-clause-top" clause)
-  (resolve-clause context clause)
-
-  ;(assert false)
-  )
-
 (defn -q [context clauses]
   (binding [*implicit-source* (get (:sources context) '$)]
-    (reduce resolve-clause-top context clauses)))
+    (reduce resolve-clause context clauses)))
 
 (defn -collect
   ([context symbols]
