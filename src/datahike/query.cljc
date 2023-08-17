@@ -1037,20 +1037,12 @@
             0
             (count pattern))))
 
-(def known-lookup-error-kinds #{"lookup-ref" "entity-id"})
-
 (defn resolve-pattern-lookup-refs-or-nil [source pattern]
-    "Translate pattern entries before using pattern for database search"
-    [source pattern]
-    (try
-      (resolve-pattern-lookup-refs source pattern)
-      (catch ExceptionInfo e
-        (if-let [error (-> e ex-data :error)]
-          (if (-> error namespace known-lookup-error-kinds)
-            (do (println "Something wrong with pattern" pattern)
-                nil)
-            (throw e))
-          (throw e)))))
+  "Translate pattern entries before using pattern for database search"
+  [source pattern]
+  (let [result (resolve-pattern-lookup-refs source pattern ::error)]
+    (when (not-any? #(= % ::error) result)
+      result)))
 
 
 #_(defn resolve-pattern-lookup-refs-or-nil
