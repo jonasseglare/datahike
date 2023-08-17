@@ -39,8 +39,8 @@
 
 ;; Records
 
-(defrecord Context [rels sources rules consts])
-(defrecord StatContext [rels sources rules consts stats])
+(defrecord Context [rels sources rules consts settings])
+(defrecord StatContext [rels sources rules consts stats settings])
 
 ;; attrs:
 ;;    {?e 0, ?v 1} or {?e2 "a", ?age "v"}
@@ -65,11 +65,12 @@
                      (log/warn (str "Query-map '" query "' already defines query input."
                                     " Additional arguments to q will be ignored!")))
                    (:args query-input))
-               arg-inputs)]
-    (cond-> {:query (dissoc query :offset :limit :stats?)
+               arg-inputs)
+        extra-ks [:offset :limit :stats? :settings]]
+    (cond-> {:query (apply dissoc query extra-ks)
              :args args}
       (map? query-input)
-      (merge (select-keys query-input [:offset :limit :stats?])))))
+      (merge (select-keys query-input extra-ks)))))
 
 (defn q [query & inputs]
   (let [{:keys [args] :as query-map} (normalize-q-input query inputs)]
@@ -1112,14 +1113,18 @@ well as no strategy at all because it will never result in
 more expanded patterns but only more specific patterns."
   [relprod]
   (relprod-filter relprod #(<= (:tuple-count %) 1)))
-        
-(def relprod-strategy relprod-select-simple) 
+
+;; TODO: Can we pass this in the argmap of the query instead
+;; and then propagate it with the context? We could add an extra
+;; `settings` field in the `Context` object and have a `:settings`
+;; key in the argmap, maybe?
+(def ^:dynamic *relprod-strategy* relprod-select-simple) 
 
 (defn expand-constrained-patterns [source context pattern]
   (let [vars (collect-vars pattern)
         rel-data (expansion-rel-data (:rels context) vars)
         product (-> (init-relprod rel-data vars)
-                    relprod-strategy
+                    *relprod-strategy*
                     :product)]
     (resolve-pattern-vars-for-relation source pattern product)))
 
@@ -1396,8 +1401,8 @@ more expanded patterns but only more specific patterns."
                 qreturnmaps
                 qin]} (memoized-parse-query query)
         context-in    (-> (if stats?
-                            (StatContext. [] {} {} {} [])
-                            (Context. [] {} {} {}))
+                            (StatContext. [] {} {} {} [] {})
+                            (Context. [] {} {} {} {}))
                           (resolve-ins qin args))
         ;; TODO utilize parser
         all-vars      (concat (dpi/find-vars qfind) (map :symbol qwith))
