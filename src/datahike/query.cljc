@@ -1057,12 +1057,11 @@
           (:tuples rel))))
 
 (defn rel-product-limited-by-tuple-count [rel-data tuple-limit]
-  (or (reduce (partial hash-join-bounded tuple-limit)
-              nil
-              (map :rel (sort-by
-                         :tuple-count
-                         rel-data)))
-      (Relation. {} [])))
+  (reduce (partial hash-join-bounded tuple-limit)
+          nil
+          (map :rel (sort-by
+                     :tuple-count
+                     rel-data))))
 
 (defn expand-constrained-patterns [source context pattern]
   (let [vars (collect-vars pattern)
