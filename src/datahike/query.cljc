@@ -1395,7 +1395,8 @@ more expanded patterns but only more specific patterns."
   (->> (-collect context symbols)
        (map vec)))
 
-(defn raw-q [{:keys [query args offset limit stats?] :as _query-map}]
+(defn raw-q [{:keys [query args offset limit stats? settings] :as _query-map}]
+  (println "got settings" settings)
   (let [{:keys [qfind
                 qwith
                 qreturnmaps
