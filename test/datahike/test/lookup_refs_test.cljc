@@ -4,7 +4,6 @@
       :clj  [clojure.test :as t :refer        [is are deftest testing]])
    [datahike.api :as d]
    [datahike.db :as db]
-   [datahike.tools :as dt]
    [datahike.test.core-test :as tdc]))
 
 #?(:cljs (def Throwable js/Error))
@@ -243,8 +242,6 @@
                   :where [?e :friend 3]]
                 db [1 2 3 "A"])
            #{[2]}))
-
-    
 
     (let [db2 (d/db-with (db/empty-db schema)
                          [{:db/id 3 :name "Ivan" :id 3}
