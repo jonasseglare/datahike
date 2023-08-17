@@ -958,31 +958,6 @@
                                     :branches tmp-stats}))))))
 
 
-#_(defn value-error [label x]
-  (throw (ex-info (format "Invalid %s" label)
-                  {:label label
-                   :type (type x)
-                   :value x})))
-
-#_(defn validate-e [e]
-  (if (symbol? e)
-      e
-      e;(value-error "e" e)
-      ))
-
-#_(defn validate-a [a]
-  (if (or (symbol? a) (number? a))
-      a
-      (value-error "a" a)))
-
-#_(defn validate-v [v]
-  (if (symbol? v)
-      v
-      (value-error "v" v)))
-
-#_(defn validate-tx [tx]
-  (value-error "tx" tx))
-
 (defn resolve-pattern-lookup-entity-id [source e error-code]
   (cond
     (or (lookup-ref? e) (attr? e)) (dbu/entid-strict source e error-code)
@@ -1009,30 +984,12 @@
        added added)
      pattern)))
 
-#_(defn map-pattern-lookup-refs [pattern ef af vf txf]
-  (let [[e a v tx added] pattern]
-    (subvec [(ef e) (af a) (vf v) (txf tx) added]
-            0
-            (count pattern))))
-
 (defn resolve-pattern-lookup-refs-or-nil
   "This function works just like `resolve-pattern-lookup-refs` but if there is an error it returns `nil` instead of throwing an exception. This is used to reject patterns with variables substituted for invalid values."
   [source pattern]
   (let [result (resolve-pattern-lookup-refs source pattern ::error)]
     (when (not-any? #(= % ::error) result)
       result)))
-
-
-#_(defn resolve-pattern-lookup-refs-or-nil
-  "Translate pattern entries before using pattern for database search"
-  [source pattern]
-  (try
-    (resolve-pattern-lookup-refs source pattern)
-    (catch ExceptionInfo e
-      (if (-> e ex-data :error namespace known-lookup-error-kinds)
-        (do (println "Something wrong with pattern" pattern)
-            nil)
-        (throw e)))))
 
 (defn dynamic-lookup-attrs [source pattern]
   (let [[e a v tx] pattern]
@@ -1097,25 +1054,6 @@
   [relations]
   (into #{} (map (comp set relation->maps)) relations))
 
-(defn check-relation [{:keys [attrs tuples] :as rel}]
-  (println "rel" rel)
-  (assert attrs)
-  (assert tuples)
-  (let [v (map vec tuples)]
-    
-    #_(when (not= (count v) (count (set v)))
-        (println "vecs:" v)
-        (throw (ex-info "Duplicate vecs" {:vecs v}))))
-
-  
-  #_(let [maps (relation->maps rel)]
-      #_(assert= (count maps) (count (set maps))))
-  rel)
-
-(defn check-relations [rels]
-  (doseq [rel rels]
-    (check-relation rel)))
-
 (defn resolve-pattern-vars-for-relation [source pattern rel]
   (keep #(resolve-pattern-lookup-refs-or-nil
           source
@@ -1156,9 +1094,7 @@
                                 (completing sum-rel)
                                 base-rel
                                 patterns-after-expansion)
-        relation (simplify-rel raw-relation)
-        ;relation raw-relation
-        ]
+        relation (simplify-rel raw-relation)]
     (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
                                (dynamic-lookup-attrs source pattern-before-expansion)
                                *lookup-attrs*)]
@@ -1261,7 +1197,7 @@
          (:stats context) (assoc :tmp-stats {:type :not
                                              :branches (:stats negation-context)})))
 
-     '[*] ;; pattern <--------------------------------
+     '[*] ;; pattern
      (let [source *implicit-source*
            pattern0 (replace (:consts context) clause)
            pattern1 (resolve-pattern-lookup-refs source pattern0)
