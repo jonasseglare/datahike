@@ -97,8 +97,6 @@
 (defn numeric-entid? [x]
   (and (number? x) (pos? x)))
 
-(def ^:dynamic *raise-return-value* false)
-
 (defn entid
   ([db eid] (entid db eid nil))
   ([db eid error-code]
