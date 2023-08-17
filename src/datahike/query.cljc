@@ -1064,17 +1064,23 @@
                         (map :rel (sort-by :tuple-count rel-data)))
                 product)})
 
+(defn expansion-rel-data [rels vars]
+  (into {}
+        (for [{:keys [attrs tuples] :as rel} rels
+              :let [mentioned-vars (filter attrs vars)
+                    k (vec (keys attrs))]
+              :when (seq mentioned-vars)]
+          [k {:rel rel
+              :vars mentioned-vars
+              :tuple-count (count tuples)
+              :key k}])))
+
 (defn expand-constrained-patterns [source context pattern]
   (let [vars (collect-vars pattern)
-        rel-data (for [{:keys [attrs tuples] :as rel} (:rels context)
-                       :let [mentioned-vars (filter attrs vars)]
-                       :when (seq mentioned-vars)]
-                   {:rel rel
-                    :vars mentioned-vars
-                    :tuple-count (count tuples)})
-        init-state {:product rel-product-unit
-                    :rel-data rel-data}
-        product (-> init-state
+        rel-data (expansion-rel-data (:rels context) vars)
+        init-relprod {:product rel-product-unit
+                      :rel-data (vals rel-data)}
+        product (-> init-relprod
                     (rel-product-limited-by-tuple-count nil)
                     :product)]
     (resolve-pattern-vars-for-relation source pattern product)))
