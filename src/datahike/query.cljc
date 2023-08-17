@@ -174,6 +174,12 @@
 (defn lookup-ref? [form]
   (looks-like? [attr? '_] form))
 
+(defn entid? [x] ;; See `dbu/entid for all forms that are accepted
+  (or (attr? x)
+      (lookup-ref? x)
+      (dbu/numeric-entid? x)
+      (keyword? x)))
+
 ;; Relation algebra
 (defn join-tuples [t1 #?(:cljs idxs1
                          :clj ^{:tag "[[Ljava.lang.Object;"} idxs1)
@@ -621,7 +627,7 @@
        (filter (fn [[s _]] (free-var? s)))
        (into {})))
 
-q(defn lookup-pattern-db [context db pattern orig-pattern]
+(defn lookup-pattern-db [context db pattern orig-pattern]
   ;; TODO optimize with bound attrs min/max values here
   (let [attr->prop (var-mapping orig-pattern ["e" "a" "v" "tx" "added"])
         attr->idx (var-mapping orig-pattern (range))
@@ -973,60 +979,55 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
                                     :branches tmp-stats}))))))
 
 
-(defn value-error [label x]
+#_(defn value-error [label x]
   (throw (ex-info (format "Invalid %s" label)
                   {:label label
                    :type (type x)
                    :value x})))
 
-(defn validate-e [e]
-  e
-  #_(if (symbol? e)
+#_(defn validate-e [e]
+  (if (symbol? e)
       e
-      (value-error "e" e)))
+      e;(value-error "e" e)
+      ))
 
-(defn validate-a [a]
-  a
-  #_(if (symbol? a)
+#_(defn validate-a [a]
+  (if (or (symbol? a) (number? a))
       a
       (value-error "a" a)))
 
-(defn validate-v [v]
-  v
-  #_(if (symbol? v)
+#_(defn validate-v [v]
+  (if (symbol? v)
       v
       (value-error "v" v)))
 
-(defn validate-tx [tx]
-  tx
-  #_(value-error "tx" tx))
+#_(defn validate-tx [tx]
+  (value-error "tx" tx))
 
-
+(defn resolve-pattern-lookup-entity-id [source e]
+  (cond
+    (or (lookup-ref? e) (attr? e)) (dbu/entid-strict source e)
+    (entid? e) e
+    (symbol? e) e
+    :else (dt/raise "Invalid entid" {:error :entity-id/syntax :entity-id e})))
 
 (defn resolve-pattern-lookup-refs
   "Translate pattern entries before using pattern for database search"
   [source pattern]
   (if (dbu/db? source)
-    (let [[e a v tx added] pattern]
-
-      (dt/log "e=" e)
-      (dt/log "e resolved=" ())
-      
-      (->
-       [(if (or (lookup-ref? e) (attr? e))
-          (dbu/entid-strict source e)
-          (validate-e e))
-        (if (and (:attribute-refs? (dbi/-config source)) (keyword? a))
+    (dt/map-vector-elements
+        pattern
+      e (resolve-pattern-lookup-entity-id source e)
+      a (if (and (:attribute-refs? (dbi/-config source)) (keyword? a))
           (dbi/-ref-for source a)
-          (validate-a a))
-        (if (and v (attr? a) (dbu/ref? source a) (or (lookup-ref? v) (attr? v)))
+          a)
+      v (if (and v (attr? a) (dbu/ref? source a) (or (lookup-ref? v) (attr? v)))
           (dbu/entid-strict source v)
-          (validate-v v))
-        (if (lookup-ref? tx)
-          (dbu/entid-strict source tx)
-          (validate-tx tx))
-        added]
-       (subvec 0 (count pattern))))
+          v)
+      tx (if (lookup-ref? tx)
+           (dbu/entid-strict source tx)
+           tx)
+      added added)
     pattern))
 
 #_(defn map-pattern-lookup-refs [pattern ef af vf txf]
@@ -1038,15 +1039,17 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
 (def known-lookup-error-kinds #{"lookup-ref" "entity-id"})
 
 (defn resolve-pattern-lookup-refs-or-nil [source pattern]
-  "Translate pattern entries before using pattern for database search"
-  [source pattern]
-  (try
-    (resolve-pattern-lookup-refs source pattern)
-    (catch ExceptionInfo e
-      (if (-> e ex-data :error namespace known-lookup-error-kinds)
-        (do (println "Something wrong with pattern" pattern)
-            nil)
-        (throw e)))))
+    "Translate pattern entries before using pattern for database search"
+    [source pattern]
+    (try
+      (resolve-pattern-lookup-refs source pattern)
+      (catch ExceptionInfo e
+        (if-let [error (-> e ex-data :error)]
+          (if (-> error namespace known-lookup-error-kinds)
+            (do (println "Something wrong with pattern" pattern)
+                nil)
+            (throw e))
+          (throw e)))))
 
 
 #_(defn resolve-pattern-lookup-refs-or-nil

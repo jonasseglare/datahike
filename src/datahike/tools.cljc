@@ -158,19 +158,21 @@
   {:pre [(even? (count var-expr-pairs))]}
   (let [pairs (partition 2 var-expr-pairs)
         vars (mapv first pairs)
-        new-vars (vec (repeatedly (count vars) gensym))
-        nsym (gensym)]
-    `(let [v# ~v
-           ~nsym (count v#)
-           ~vars v#
-           ~@(into []
-                   (comp (map-indexed (fn [i [varname expr]]
-                                        [(nth new-vars i)
-                                         `(if (< ~i ~nsym)
-                                            ~expr nil)]))
-                         cat)
-                   pairs)]
-       (case ~nsym
-         ~@(for [i (range (inc (count pairs)))
-                 x [i (vec (take i new-vars))]]
-             x)))))
+        vsym (gensym)
+        nsym (gensym)
+        generate (fn generate [acc pairs]
+                   (let [i (count acc)]
+                     `(if (<= ~nsym ~i)
+                        ~acc
+                        ~(if (empty? pairs)
+                           `(throw (ex-info "Pattern mismatch"
+                                            {:input ~vsym
+                                             :pattern (quote ~var-expr-pairs)}))
+                           (let [[[_ expr] & pairs] pairs
+                                 g (gensym)]
+                             `(let [~g ~expr]
+                                ~(generate (conj acc g) pairs)))))))]
+    `(let [~vsym ~v
+           ~nsym (count ~vsym)
+           ~vars ~vsym]
+       ~(generate [] pairs))))

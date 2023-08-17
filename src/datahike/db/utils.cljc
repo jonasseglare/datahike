@@ -94,12 +94,13 @@
        (satisfies? dbi/IIndexAccess x)
        (satisfies? dbi/IDB x)))
 
+(defn numeric-entid? [x]
+  (and (number? x) (pos? x)))
+
 (defn entid [db eid]
   {:pre [(db? db)]}
   (cond
-    (and (number? eid) (pos? eid))
-    eid
-
+    (numeric-entid? eid) eid
     (sequential? eid)
     (let [[attr value] eid]
       (cond
