@@ -512,8 +512,6 @@
 (defn getter-fn [attrs attr]
   (let [idx (attrs attr)]
     (if (contains? *lookup-attrs* attr)
-
-      ;; tuple kan vara en array eller en datom
       (fn [tuple]
         (let [eid (#?(:cljs da/aget :clj get) tuple idx)]
           (cond
