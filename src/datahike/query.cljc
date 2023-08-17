@@ -1170,11 +1170,11 @@
                              tuple-count
                              (filter #(some (:attrs %) vars) (:rels context)))
         
-        limit 1
+        tuple-limit 1
         
         ;; Compute a product with no more than
         ;; `limit` tuples.
-        product (reduce (partial hash-join-bounded limit)
+        product (reduce (partial hash-join-bounded tuple-limit)
                         nil
                         rels-mentioning-var)
         default-result [pattern]
