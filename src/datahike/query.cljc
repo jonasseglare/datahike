@@ -1056,25 +1056,23 @@
             (replace (mapper %) pattern))
           (:tuples rel))))
 
+(defn rel-product-limited-by-tuple-count [rel-data tuple-limit]
+  (reduce (partial hash-join-bounded tuple-limit)
+          nil
+          (map :rel (sort-by
+                     :tuple-count
+                     rel-data))))
+
 (defn expand-constrained-patterns [source context pattern]
   (let [vars (collect-vars pattern)
-        rel-data (sort-by
-                  :tuple-count
-                  (for [{:keys [attrs tuples] :as rel} (:rels context)
-                        :let [mentioned-vars (filter attrs vars)]
-                        :when (seq mentioned-vars)]
-                    {:rel rel
-                     :vars mentioned-vars
-                     :tuple-count (count tuples)}))
-        rels-mentioning-var (map :rel rel-data)
+        rel-data (for [{:keys [attrs tuples] :as rel} (:rels context)
+                       :let [mentioned-vars (filter attrs vars)]
+                       :when (seq mentioned-vars)]
+                   {:rel rel
+                    :vars mentioned-vars
+                    :tuple-count (count tuples)})
         
-        tuple-limit nil
-        
-        ;; Compute a product with no more than
-        ;; `limit` tuples.
-        product (reduce (partial hash-join-bounded tuple-limit)
-                        nil
-                        rels-mentioning-var)
+        product (rel-product-limited-by-tuple-count rel-data nil)
         default-result [pattern]
         expanded (if product
                    (resolve-pattern-vars-for-relation source pattern product)
