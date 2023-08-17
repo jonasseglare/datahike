@@ -1038,23 +1038,23 @@
         (hash-join dst rel)
         dst))))
 
-(defn relation->maps [rel]
+(defn tuple-var-mapper [rel]
   (let [attrs (:attrs rel)
         key-fn-pairs (into [] (map (juxt identity (partial getter-fn attrs))) (keys attrs))]
-    (for [tuple (:tuples rel)]
-      (into {} (for [[k f] key-fn-pairs]
-                 [k (f tuple)])))))
+    (fn [tuple]
+      (into {}
+            (map (fn [[k f]] [k (f tuple)]))
+            key-fn-pairs))))
 
-(defn relations-data
-  "Used to compare to different sequences of relations to see if they are equivalent"
-  [relations]
-  (into #{} (map (comp set relation->maps)) relations))
+(defn relation->maps [rel]
+  (map (tuple-var-mapper rel) (:tuples rel)))
 
 (defn resolve-pattern-vars-for-relation [source pattern rel]
-  (keep #(resolve-pattern-lookup-refs-or-nil
-          source
-          (replace % pattern))
-        (relation->maps rel)))
+  (let [mapper (tuple-var-mapper rel)]
+    (keep #(resolve-pattern-lookup-refs-or-nil
+            source
+            (replace (mapper %) pattern))
+          (:tuples rel))))
 
 (defn expand-constrained-patterns [source context pattern]
   (let [vars (collect-vars pattern)
