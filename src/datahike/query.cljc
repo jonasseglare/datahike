@@ -52,6 +52,24 @@
 
 ;; Main functions
 
+
+(defn display-rel [{:keys [attrs tuples] :as rel}]
+  {:pre [(instance? Relation rel)]}
+  (dt/log "Rel mapping:")
+  (doseq [[k v] attrs]
+    (dt/log "  *" k v))
+  (dt/log "Tuples:")
+  (doseq [tuple (take 10 tuples)]
+    (dt/log "  *" (vec tuple))))
+
+(defn display-rels [rels]
+  (dt/log (format "There are %d rels:" (count rels)))
+  (doseq [rel rels]
+    (display-rel rel)))
+
+(defn display-context [context]
+  (display-rels (:rels context)))
+
 (defn normalize-q-input
   "Turns input to q into a map with :query and :args fields.
    Also normalizes the query into a map representation."
@@ -1233,6 +1251,8 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
 
      '[*] ;; pattern <--------------------------------
      (let [source *implicit-source*
+           _ (dt/log "CONTEXT at entry")
+           _ (display-context context)
            pattern0 (replace (:consts context) clause)
            _ (dt/log "pattern0" pattern0)
            pattern1 (resolve-pattern-lookup-refs source pattern0)
@@ -1258,6 +1278,7 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
     (-resolve-clause context clause)))
 
 (defn resolve-clause-top [context clause]
+  (dt/log "\n\nresolve-clause-top" clause)
   (resolve-clause context clause)
 
   ;(assert false)
