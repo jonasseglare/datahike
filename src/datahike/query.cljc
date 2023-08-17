@@ -1016,19 +1016,18 @@
   ([source pattern] (resolve-pattern-lookup-refs source pattern nil))
   ([source pattern error-code]
    (if (dbu/db? source)
-     (dt/repack-vector
-         pattern
-         e (resolve-pattern-lookup-entity-id source e error-code)
-         a (if (and (:attribute-refs? (dbi/-config source)) (keyword? a))
-             (dbi/-ref-for source a)
-             a)
-         v (if (and v (attr? a) (dbu/ref? source a) (or (lookup-ref? v) (attr? v)))
-             (dbu/entid-strict source v error-code)
-             v)
-         tx (if (lookup-ref? tx)
-              (dbu/entid-strict source tx error-code)
-              tx)
-         added added)
+     (dt/with-elements-of pattern
+       e (resolve-pattern-lookup-entity-id source e error-code)
+       a (if (and (:attribute-refs? (dbi/-config source)) (keyword? a))
+           (dbi/-ref-for source a)
+           a)
+       v (if (and v (attr? a) (dbu/ref? source a) (or (lookup-ref? v) (attr? v)))
+           (dbu/entid-strict source v error-code)
+           v)
+       tx (if (lookup-ref? tx)
+            (dbu/entid-strict source tx error-code)
+            tx)
+       added added)
      pattern)))
 
 #_(defn map-pattern-lookup-refs [pattern ef af vf txf]
