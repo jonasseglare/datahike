@@ -54,12 +54,12 @@
 
 
 (defn display-rel [{:keys [attrs tuples] :as rel}]
-  {:pre [(instance? Relation rel)]}
+  {:pre [attrs tuples]}
   (dt/log "Rel mapping:")
   (doseq [[k v] attrs]
     (dt/log "  *" k v))
-  (dt/log "Tuples:")
-  (doseq [tuple (take 10 tuples)]
+  (dt/log (format "Tuples %d:" (count tuples)))
+  (doseq [tuple (take 1000 tuples)]
     (dt/log "  *" (vec tuple))))
 
 (defn display-rels [rels]
@@ -664,6 +664,7 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
     (Relation. attr->idx (mapv to-array data))))            ;; FIXME to-array
 
 (defn lookup-pattern [context source pattern orig-pattern]
+  (dt/log "lookup-pattern" pattern)
   (cond
     (dbu/db? source)
     (lookup-pattern-db context source pattern orig-pattern)
@@ -971,40 +972,91 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
           stats? (assoc :tmp-stats {:type :rule
                                     :branches tmp-stats}))))))
 
+
+(defn value-error [label x]
+  (throw (ex-info (format "Invalid %s" label)
+                  {:label label
+                   :type (type x)
+                   :value x})))
+
+(defn validate-e [e]
+  e
+  #_(if (symbol? e)
+      e
+      (value-error "e" e)))
+
+(defn validate-a [a]
+  a
+  #_(if (symbol? a)
+      a
+      (value-error "a" a)))
+
+(defn validate-v [v]
+  v
+  #_(if (symbol? v)
+      v
+      (value-error "v" v)))
+
+(defn validate-tx [tx]
+  tx
+  #_(value-error "tx" tx))
+
+
+
 (defn resolve-pattern-lookup-refs
   "Translate pattern entries before using pattern for database search"
   [source pattern]
   (if (dbu/db? source)
     (let [[e a v tx added] pattern]
+
+      (dt/log "e=" e)
+      (dt/log "e resolved=" ())
+      
       (->
        [(if (or (lookup-ref? e) (attr? e))
           (dbu/entid-strict source e)
-          e)
+          (validate-e e))
         (if (and (:attribute-refs? (dbi/-config source)) (keyword? a))
           (dbi/-ref-for source a)
-          a)
+          (validate-a a))
         (if (and v (attr? a) (dbu/ref? source a) (or (lookup-ref? v) (attr? v)))
           (dbu/entid-strict source v)
-          v)
+          (validate-v v))
         (if (lookup-ref? tx)
           (dbu/entid-strict source tx)
-          tx)
+          (validate-tx tx))
         added]
        (subvec 0 (count pattern))))
     pattern))
 
-
+#_(defn map-pattern-lookup-refs [pattern ef af vf txf]
+  (let [[e a v tx added] pattern]
+    (subvec [(ef e) (af a) (vf v) (txf tx) added]
+            0
+            (count pattern))))
 
 (def known-lookup-error-kinds #{"lookup-ref" "entity-id"})
 
-(defn resolve-pattern-lookup-refs-or-nil
+(defn resolve-pattern-lookup-refs-or-nil [source pattern]
   "Translate pattern entries before using pattern for database search"
   [source pattern]
   (try
     (resolve-pattern-lookup-refs source pattern)
     (catch ExceptionInfo e
       (if (-> e ex-data :error namespace known-lookup-error-kinds)
-        (do (println "Something wrong with pattern")
+        (do (println "Something wrong with pattern" pattern)
+            nil)
+        (throw e)))))
+
+
+#_(defn resolve-pattern-lookup-refs-or-nil
+  "Translate pattern entries before using pattern for database search"
+  [source pattern]
+  (try
+    (resolve-pattern-lookup-refs source pattern)
+    (catch ExceptionInfo e
+      (if (-> e ex-data :error namespace known-lookup-error-kinds)
+        (do (println "Something wrong with pattern" pattern)
             nil)
         (throw e)))))
 
@@ -1104,10 +1156,19 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
     (check-relation rel)))
 
 (defn resolve-pattern-vars-for-relation [source pattern rel]
-  (keep #(resolve-pattern-lookup-refs-or-nil source (replace % pattern))
+  (dt/log "REL for res")
+  (display-rel rel)
+  (dt/log "MAPS" (relation->maps rel))
+  (keep #(resolve-pattern-lookup-refs-or-nil
+          source
+          (replace % pattern))
         (relation->maps rel)))
 
 (defn expand-constrained-patterns [source context pattern]
+  (dt/log "RESOLUTION OF" [true 58 '?y] "into"
+          (resolve-pattern-lookup-refs-or-nil source [true 58 '?y]))
+  ;(assert false)
+  
   (let [vars (collect-vars pattern)
         tuple-count (comp count :tuples)
         rels-mentioning-var (sort-by
@@ -1125,6 +1186,12 @@ q(defn lookup-pattern-db [context db pattern orig-pattern]
         expanded (if product
                    (resolve-pattern-vars-for-relation source pattern product)
                    default-result)]
+
+    
+    ;;(def prod product)
+    (when product
+      (dt/log "Product")
+      (display-rel product))
     (dt/log "Expanded" pattern "--->" expanded)
     expanded))
 

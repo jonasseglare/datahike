@@ -153,3 +153,24 @@
 (defn get-hostname []
   #?(:clj (.getHostAddress (InetAddress/getLocalHost))
      :cljs (raise "Not supported yet." {:type :hostname-not-supported-yet})))
+
+(defmacro map-vector-elements [v & var-expr-pairs]
+  {:pre [(even? (count var-expr-pairs))]}
+  (let [pairs (partition 2 var-expr-pairs)
+        vars (mapv first pairs)
+        new-vars (vec (repeatedly (count vars) gensym))
+        nsym (gensym)]
+    `(let [v# ~v
+           ~nsym (count v#)
+           ~vars v#
+           ~@(into []
+                   (comp (map-indexed (fn [i [varname expr]]
+                                        [(nth new-vars i)
+                                         `(if (< ~i ~nsym)
+                                            ~expr nil)]))
+                         cat)
+                   pairs)]
+       (case ~nsym
+         ~@(for [i (range (inc (count pairs)))
+                 x [i (vec (take i new-vars))]]
+             x)))))
