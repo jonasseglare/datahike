@@ -21,11 +21,10 @@
                                          FindColl FindRel FindScalar FindTuple PlainSymbol Pull
                                          RulesVar SrcVar Variable]])
    [me.tonsky.persistent-sorted-set.arrays :as da]
-   [clojure.pprint :as pp]
    [taoensso.timbre :as log])
   (:refer-clojure :exclude [seqable?])
 
-  #?(:clj (:import [clojure.lang Reflector Seqable ExceptionInfo]
+  #?(:clj (:import [clojure.lang Reflector Seqable]
                    [datalog.parser.type Aggregate BindColl BindIgnore BindScalar BindTuple Constant
                     FindColl FindRel FindScalar FindTuple PlainSymbol Pull
                     RulesVar SrcVar Variable]
@@ -186,9 +185,6 @@
       (not (same-keys? attrs-a attrs-b))
       (dt/raise "Can't sum relations with different attrs: " attrs-a " and " attrs-b
                 {:error :query/where})
-
-      ;;(empty? tuples-a) b
-      ;;(empty? tuples-b) a
 
       (every? number? (vals attrs-a))                       ;; can’t conj into BTSetIter
       (let [idxb->idxa (vec (for [[sym idx-b] attrs-b]
