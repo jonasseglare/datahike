@@ -6,8 +6,8 @@
   #?(:clj (:import [java.util Properties UUID Date]
                    [java.net InetAddress])))
 
+;;;;;;;;;;;;; TODO: THIS IS JUST FOR DEBUGGING
 (def ^:dynamic debug-level 0)
-
 (defn log [& args]
   (when (< 0 debug-level)
     (apply println "DEBUG LOG" args)))
