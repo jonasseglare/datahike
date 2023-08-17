@@ -1170,7 +1170,7 @@
                              tuple-count
                              (filter #(some (:attrs %) vars) (:rels context)))
         
-        limit nil
+        limit 1
         
         ;; Compute a product with no more than
         ;; `limit` tuples.
