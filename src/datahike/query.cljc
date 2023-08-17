@@ -1422,11 +1422,7 @@
                           (resolve-ins qin args))
         ;; TODO utilize parser
         all-vars      (concat (dpi/find-vars qfind) (map :symbol qwith))
-
-
-        ;; Här körs själva frågan
         context-out   (-q context-in (:where query))
-        
         resultset     (collect context-out all-vars)
         find-elements (dpip/find-elements qfind)
         result-arity  (count find-elements)]
