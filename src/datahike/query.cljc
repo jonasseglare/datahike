@@ -1116,17 +1116,12 @@ more expanded patterns but only more specific patterns."
   [relprod]
   (relprod-filter relprod #(<= (:tuple-count %) 1)))
 
-;; TODO: Can we pass this in the argmap of the query instead
-;; and then propagate it with the context? We could add an extra
-;; `settings` field in the `Context` object and have a `:settings`
-;; key in the argmap, maybe?
-(def ^:dynamic *relprod-strategy* relprod-select-simple) 
-
 (defn expand-constrained-patterns [source context pattern]
   (let [vars (collect-vars pattern)
         rel-data (expansion-rel-data (:rels context) vars)
+        strategy (-> context :settings :relprod-strategy)
         product (-> (init-relprod rel-data vars)
-                    *relprod-strategy*
+                    strategy
                     :product)]
     (resolve-pattern-vars-for-relation source pattern product)))
 

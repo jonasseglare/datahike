@@ -139,35 +139,30 @@
 
 (defonce db (create-populated-database))
 
-(defn run-example []
-  (with-connection db
-    (fn [conn]
-      (let [;;_ (def extracted (extract-datahike-data conn))
-            ;;_ (assert (= extracted datoms))
-            path [:args]
-            db (d/as-of (deref conn) 536870932)
-            query (update-in broader-query path (fn [args] (into [db] args)))
-            result (binding [tools/debug-level 1]
-                     (d/q query))]
-        (assert (= [{:from_id "w6ud_quG_dgh", :id "j7Cq_ZJe_GkT"}] result))
-        result))))
-
-
+(defn run-example
+  ([] (run-example identity))
+  ([strategy]
+   (with-connection db
+     (fn [conn]
+       (let [ ;;_ (def extracted (extract-datahike-data conn))
+             ;;_ (assert (= extracted datoms))
+             path [:args]
+             db (d/as-of (deref conn) 536870932)
+             query (-> broader-query
+                       (update-in path (fn [args] (into [db] args)))
+                       (assoc-in [:settings :relprod-strategy] strategy))
+             result (binding [tools/debug-level 1]
+                      (d/q query))]
+         (assert (= [{:from_id "w6ud_quG_dgh", :id "j7Cq_ZJe_GkT"}] result))
+         result)))))
 
 (comment
-  
 
-  (def x (first (:rels dq/debug-context-in)))
-  (dq/display-rels (:rels dq/debug-context-in))
-
-  (into [] (map #(into {} %)) (:rels dq/debug-context-in))
+  (time (run-example identity))
+  (time (run-example dq/relprod-select-simple))
+  (time (run-example dq/relprod-select-all))
 
 
-  (replace {:b 119} [:a :b :c])
-  ;; => [:a 119 :c]
 
   )
 
-
-(keyword :backend)
-;; => :backend
