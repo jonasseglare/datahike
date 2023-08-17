@@ -517,4 +517,43 @@
   (is (= [[3 4] [9 7]] (dq/distinct-tuples [[3 4] [9 7] [3 4]]))))
 
 
+(defn simple-rel [v values]
+  (dq/->Relation {v 0} (map vector values)))
 
+(deftest test-relprod
+  (let [x (simple-rel '?x [1 2 3 4])
+        y (simple-rel '?y [90 100])
+        z (simple-rel '?z [10 11 12])
+        rels [x y z]
+        vars ['?x '?y]
+        rel-data (dq/expansion-rel-data rels vars)
+        relprod (dq/init-relprod rel-data)
+        relprod-x (dq/relprod-pick relprod ['?x])
+        relprod-xy (dq/relprod-pick relprod ['?x] ['?y])
+        relprod-xy2 (dq/relprod-all relprod)]
+    (is (= 2 (count rel-data)))
+    (is (= [{:rel x
+             :tuple-count 4
+             :vars ['?x]
+             :key ['?x]}
+            {:rel y
+             :tuple-count 2
+             :vars ['?y]
+             :key ['?y]}]
+           rel-data))
+    (is (sequential? (:rel-data relprod)))
+    (is (= 2 (count (:rel-data relprod))))
+    (is (= 1 (count (:rel-data relprod-x))))
+    (is (= 0 (count (:rel-data relprod-xy))))
+    (-> relprod-x
+        :product
+        :attrs
+        keys
+        set
+        (= #{'?x}))
+    (-> relprod-xy
+        :product
+        :attrs
+        keys
+        set
+        (= #{'?x '?y}))))

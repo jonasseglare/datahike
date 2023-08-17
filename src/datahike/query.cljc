@@ -1058,30 +1058,41 @@
 
 (def rel-product-unit (Relation. {} [[]]))
 
-(defn rel-product-limited-by-tuple-count [{:keys [rel-data product]} tuple-limit]
-  {:product (or (reduce (partial hash-join-bounded tuple-limit)
-                        nil
-                        (map :rel (sort-by :tuple-count rel-data)))
-                product)})
-
 (defn expansion-rel-data [rels vars]
-  (into {}
-        (for [{:keys [attrs tuples] :as rel} rels
-              :let [mentioned-vars (filter attrs vars)
-                    k (vec (keys attrs))]
-              :when (seq mentioned-vars)]
-          [k {:rel rel
-              :vars mentioned-vars
-              :tuple-count (count tuples)
-              :key k}])))
+  (for [{:keys [attrs tuples] :as rel} rels
+        :let [mentioned-vars (filter attrs vars)
+              k (vec (keys attrs))]
+        :when (seq mentioned-vars)]
+    {:rel rel
+     :vars mentioned-vars
+     :tuple-count (count tuples)
+     :key k}))
+
+(defn init-relprod [rel-data]
+  {:product rel-product-unit
+   :rel-data rel-data})
+
+(defn relprod-keys [{:keys [rel-data]}]
+  (map :key rel-data))
+
+(defn relprod-filter [{:keys [product rel-data]} predf]
+  {:pre [product rel-data]}
+  (let [picked (filter predf rel-data)]
+    {:product (reduce hash-join product (map :rel picked))
+     :rel-data (remove predf rel-data)}))
+
+(defn relprod-pick [relprod & ks]
+  {:pre [(every? (set (relprod-keys relprod)) ks)]}
+  (relprod-filter relprod (comp (set ks) :key)))
+
+(defn relprod-all [relprod]
+  (relprod-filter relprod (constantly true)))
 
 (defn expand-constrained-patterns [source context pattern]
   (let [vars (collect-vars pattern)
         rel-data (expansion-rel-data (:rels context) vars)
-        init-relprod {:product rel-product-unit
-                      :rel-data (vals rel-data)}
-        product (-> init-relprod
-                    (rel-product-limited-by-tuple-count nil)
+        product (-> rel-data
+                    init-relprod
                     :product)]
     (resolve-pattern-vars-for-relation source pattern product)))
 
