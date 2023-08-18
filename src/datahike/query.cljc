@@ -1061,13 +1061,12 @@
 
 (defn expansion-rel-data [rels vars]
   (for [{:keys [attrs tuples] :as rel} rels
-        :let [mentioned-vars (filter attrs vars)
-              k (vec (keys attrs))]
+        :let [mentioned-vars (filter attrs vars)]
         :when (seq mentioned-vars)]
     {:rel rel
      :vars mentioned-vars
      :tuple-count (count tuples)
-     :key k}))
+     :key mentioned-vars}))
 
 ;; A *relprod* is a state in the process of
 ;; selecting what relations to use when expanding
@@ -1086,6 +1085,12 @@
 
 (defn relprod-exclude-keys [{:keys [exclude]}]
   (map :key exclude))
+
+(defn relprod-vars [relprod & ks]
+  (into #{}
+        (comp (mapcat #(get relprod %))
+              (mapcat :vars))
+        ks))
 
 (defn relprod-filter [{:keys [product include exclude vars]} predf]
   {:pre [product include exclude]}
@@ -1113,6 +1118,13 @@ well as no strategy at all because it will never result in
 more expanded patterns but only more specific patterns."
   [relprod]
   (relprod-filter relprod #(<= (:tuple-count %) 1)))
+
+(defn relprod-expand-once [relprod]
+  (let [relprod (relprod-select-simple relprod)
+        [r & _] (sort-by :tuple-count (:exclude relprod))]
+    (if r
+      (relprod-select-keys relprod (:key r))
+      relprod)))
 
 (defn expand-constrained-patterns [source context pattern]
   (let [vars (collect-vars pattern)

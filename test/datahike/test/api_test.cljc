@@ -882,7 +882,8 @@
     ;; only have different performance characteristics.
     (doseq [strategy [(pushing :identity)
                       (comp (pushing :simple) dq/relprod-select-simple)
-                      (comp (pushing :all) dq/relprod-select-all)]]
+                      (comp (pushing :all) dq/relprod-select-all)
+                      (comp (pushing :once) dq/relprod-expand-once)]]
       (let [cfg {:store {:backend :mem
                          :id "q"}
                  :initial-tx [[:db/add -1 :name "Ivan"]
@@ -899,5 +900,5 @@
                               [2 :likes "candy"]
                               [3 :likes "pie"]
                               [4 :likes "pizza"]}]})))))
-    (is (= [:identity :simple :all]
+    (is (= [:identity :simple :all :once]
            (-> state deref dedupe)))))
