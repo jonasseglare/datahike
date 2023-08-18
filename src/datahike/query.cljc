@@ -156,7 +156,7 @@
 (defn lookup-ref? [form]
   (looks-like? [attr? '_] form))
 
-(defn entid? [x] ;; See `dbu/entid for all forms that are accepted
+(defn entid? [x]  ;; See `dbu/entid for all forms that are accepted
   (or (attr? x)
       (lookup-ref? x)
       (dbu/numeric-entid? x)
