@@ -234,6 +234,33 @@
                 db [1 2 3 "A"])
            #{[2]}))
 
+
+
+    ;; Note that `?e` cannot be bound to `"A"` and the query engine
+    ;; will ignore that binding. So this test works.
+    (is (= (d/q '[:find ?e
+                  :in $ [?e ...]
+                  :where [?e :friend 3]]
+                db ["A"])
+           #{}))
+    
+    ;; Because the previous test with `[?e ...]` being `["A"]` results
+    ;; in an empty result set, wouldn't it be consistent if this test with
+    ;; `?e` being `"A"` also successfully results in an empty result set?
+    ;;
+    ;; That is currently not the case and this test reflects that.
+    ;; A first step to make it work would be to remove the branch in `resolve-in`
+    ;; where the `:consts` is accumulated.
+    (is (thrown-with-msg?
+         Throwable
+         #"Expected number or lookup ref for entity id"
+         
+         (= (d/q '[:find ?e
+                   :in $ ?e
+                   :where [?e :friend 3]]
+                 db "A")
+            #{})))
+
     (let [db2 (d/db-with (db/empty-db schema)
                          [{:db/id 3 :name "Ivan" :id 3}
                           {:db/id 1 :name "Petr" :id 1}
