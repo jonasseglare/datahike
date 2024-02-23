@@ -71,7 +71,9 @@
       [dq/-resolve-clause* [context clause orig-clause]
        dq/lookup-pattern [context source pattern orig-pattern]
        dq/lookup-patterns [context clause p-before p-after]
+       dq/simplify-rel [rel]
        dq/sum-rel [a b]
+       dq/lookup-and-sum-pattern-rels [context source patterns clause collect-stats]
        dq/q []]
     (apply dq/q args)))
 

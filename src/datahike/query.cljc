@@ -29,7 +29,7 @@
                     FindColl FindRel FindScalar FindTuple PlainSymbol Pull
                     RulesVar SrcVar Variable]
                    [java.lang.reflect Method]
-                   [java.util Date Map])))
+                   [java.util Date Map HashSet])))
 
 ;; ----------------------------------------------------------------------------
 
@@ -91,13 +91,8 @@
 (defn distinct-tuples
   "Remove duplicates just like `distinct` but with the difference that it only works on values on which `vec` can be applied and two different objects are considered equal if and only if their results after `vec` has been applied are equal. This means that two different Java arrays are considered equal if and only if their elements are equal."
   [tuples]
-  (first (reduce (fn [[dst seen] tuple]
-                   (let [key (vec tuple)]
-                     (if (seen key)
-                       [dst seen]
-                       [(conj dst tuple) (conj seen key)])))
-                 [[] #{}]
-                 tuples)))
+  (let [seen (HashSet.)]
+    (into [] (filter #(.add ^HashSet seen (vec %))) tuples)))
 
 (defn seqable?
   #?@(:clj [^Boolean [x]]
@@ -1162,7 +1157,8 @@ than doing no expansion at all."
         (recur (sum-rel rel added)
                (rest patterns)
                (when collect-stats
-                 (conj lookup-stats {:pattern pattern :tuple-count (count (:tuples added))})))))))
+                 (conj lookup-stats {:pattern pattern
+                                     :tuple-count (count (:tuples added))})))))))
 
 (defn lookup-patterns [context
                        clause
