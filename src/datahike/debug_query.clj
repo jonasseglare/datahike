@@ -17,22 +17,24 @@
       (finally
         (d/release conn)))))
 
+(defmacro wrap-op [trace type-key end-data & body]
+  `(do (swap! ~trace conj {:type [~type-key :begin]})
+       (let [start# (System/nanoTime)
+             result# (do ~@body)
+             end# (System/nanoTime)]
+         (swap! ~trace conj (assoc ~end-data
+                                   :type [~type-key :end]
+                                   :result result#
+                                   :start-ns start#
+                                   :elapsed-ns (- end# start#)))
+         result#)))
+
 (defn wrap-traced-fn [trace type-key f arg-ks]
   {:pre [(keyword? type-key)
          (ifn? f)
          (sequential? arg-ks)]}
   (fn [& args]
-    (swap! trace conj (assoc (zipmap arg-ks args)
-                             :type [type-key :begin]
-                             :args args))
-    (let [start (System/nanoTime)
-          result (apply f args)
-          end (System/nanoTime)]
-      (swap! trace conj {:type [type-key :end]
-                         :result result
-                         :start-ns start
-                         :elapsed-ns (- end start)})
-      result)))
+    (wrap-op trace type-key (assoc (zipmap arg-ks args) :args args) (apply f args))))
 
 (defn summarize-trace-item [x]
   (select-keys x [:type :start-ns :elapsed-ns :path]))
