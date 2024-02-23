@@ -1146,19 +1146,25 @@ than doing no expansion at all."
     (resolve-pattern-vars-for-relation source pattern product)))
 
 (defn lookup-and-sum-pattern-rels [context source patterns clause collect-stats]
-  (loop [rel (Relation. (var-mapping clause (range)) [])
-         patterns patterns
-         lookup-stats []]
-    (if (empty? patterns)
-      {:relation (simplify-rel rel)
-       :lookup-stats lookup-stats}
-      (let [pattern (first patterns)
-            added (lookup-pattern context source pattern clause)]
-        (recur (sum-rel rel added)
-               (rest patterns)
-               (when collect-stats
-                 (conj lookup-stats {:pattern pattern
-                                     :tuple-count (count (:tuples added))})))))))
+  {:relation (simplify-rel
+              (transduce (map (fn [pattern] (lookup-pattern context source pattern clause)))
+                         (completing sum-rel)
+                         (Relation. (var-mapping clause (range)) [])
+                         patterns))
+   :lookup-stats []}
+  #_(loop [rel (Relation. (var-mapping clause (range)) [])
+           patterns patterns
+           lookup-stats []]
+      (if (empty? patterns)
+        {:relation (simplify-rel rel)
+         :lookup-stats lookup-stats}
+        (let [pattern (first patterns)
+              added (lookup-pattern context source pattern clause)]
+          (recur (sum-rel rel added)
+                 (rest patterns)
+                 (when collect-stats
+                   (conj lookup-stats {:pattern pattern
+                                       :tuple-count (count (:tuples added))})))))))
 
 (defn lookup-patterns [context
                        clause
