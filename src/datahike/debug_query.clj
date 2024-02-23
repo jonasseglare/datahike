@@ -34,7 +34,7 @@
       result)))
 
 (defn summarize-trace-item [x]
-  (select-keys x [:type :start-ns :elapsed-ns]))
+  (select-keys x [:type :start-ns :elapsed-ns :path]))
 
 (defn traced-q
   "Instrument important functions to record a trace of db operations"
@@ -42,6 +42,7 @@
   (let [trace (atom [])
         orig-resolve-clause* dq/-resolve-clause*
         orig-lookup-pattern dq/lookup-pattern
+        orig-lookup-patterns dq/lookup-patterns
         tq (wrap-traced-fn trace
                            :q
                            d/q
@@ -54,7 +55,14 @@
                   dq/lookup-pattern (wrap-traced-fn trace
                                                     :lookup-pattern
                                                     orig-lookup-pattern
-                                                    [:context :source :pattern :orig-pattern])]
+                                                    [:context :source :pattern :orig-pattern])
+                  dq/lookup-patterns (wrap-traced-fn trace
+                                                     :lookup-patterns
+                                                     orig-lookup-patterns
+                                                     [:context
+                                                      :clause
+                                                      :p-before
+                                                      :p-after])]
                  (apply tq args))]
     [result (deref trace)]))
 
@@ -131,19 +139,99 @@
       (set-db (deref conn))
       (set-strategy strategy)))
 
+(defn trace-with-paths [trace]
+  (loop [trace trace
+         path []
+         result []]
+    (if (empty? trace)
+      result
+      (let [[x & trace] trace
+            [k begin-or-end] (:type x)
+            _ (assert (#{:begin :end} begin-or-end))
+            [this-path next-path] (case begin-or-end
+                                    :begin [path (conj path k)]
+                                    :end (let [p (pop path)]
+                                           [p p]))]
+        (recur trace next-path (conj result (assoc x :path this-path)))))))
+
+(defn openness [trace-item]
+  {:post [(#{:begin :end} %)]}
+  (-> trace-item :type second))
+
+(defn end? [x]
+  (= :end (openness x)))
+
+(defn raw-acc-tree [trace]
+  (let [trace (into [] (filter end?) (trace-with-paths trace))]
+    (transduce (filter end?)
+               (fn
+                 ([dst] dst)
+                 ([dst {:keys [path type elapsed-ns]}]
+                  (let [[k _] type
+                        path (->> k
+                                  (conj path)
+                                  (into [] (mapcat (fn [x] [:sub x])))
+                                  rest)]
+                    (update-in dst
+                               path
+                               (fn [x]
+                                 (-> (merge {:elapsed-ns 0 :count 0} x)
+                                     (update :count inc)
+                                     (update :elapsed-ns + elapsed-ns)))))))
+               {}
+               trace)))
+
+(declare clean-acc-nodes)
+
+(defn clean-acc-nodes-sub [sub-map parent-time]
+  (into {}
+        (map (fn [[k v]] [k (clean-acc-nodes v parent-time)]))
+        sub-map))
+
+(defn clean-acc-nodes [node parent-time]
+  (let [this-time (:elapsed-ns node)]
+    (assert this-time)
+    (-> node
+        (assoc :time-s (* 1.0e-9 this-time)
+               :time-rel (/ (double this-time)
+                            parent-time))
+        (dissoc :elapsed-ns)
+        (update :sub clean-acc-nodes-sub this-time))))
+
+(defn acc-tree [trace]
+  (let [raw (raw-acc-tree trace)
+        total-time (transduce (map :elapsed-ns) + (vals raw))]
+    (clean-acc-nodes-sub raw total-time)))
+
+(defn render-tree [tree]
+  (let [add-sub (fn [stack indent sub]
+                  (into stack
+                        (map (fn [[k v]] [indent k v]))
+                        sub))]
+    (loop [stack (add-sub [] "" tree)]
+      (if (empty? stack)
+        nil
+        (let [[[indent k {:keys [time-s time-rel count sub]}] & stack] stack
+              inner-indent (str indent "  ")]
+          (println (format "%s* %s (%d):" indent (name k) count))
+          (println (format "%sabs: %.3f" inner-indent time-s))
+          (println (format "%srel: %d%%" inner-indent (Math/round (* 100 time-rel))))
+          (recur (add-sub stack inner-indent sub)))))))
+
 (defn run-example
   ([strategy query-builder]
    (with-connection [conn (deref db)]
      (let [query (query-builder conn strategy)
            [result trace] (traced-q query)]
-       (def the-trace trace)
+       (render-tree (acc-tree trace))
        (count result)))))
 
 (defn demo0 [] (run-example dq/expand-once query2))
 
 (comment
 
-  
+  (demo0)
 
+  (def tr2 (-> the-trace trace-with-paths))
 
   )
