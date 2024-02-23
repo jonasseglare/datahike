@@ -16,6 +16,48 @@
       (finally
         (d/release conn)))))
 
+(defn wrap-traced-fn [trace type-key f arg-ks]
+  {:pre [(keyword? type-key)
+         (ifn? f)
+         (sequential? arg-ks)]}
+  (fn [& args]
+    (swap! trace conj (assoc (zipmap arg-ks args)
+                             :type [type-key :begin]
+                             :args args))
+    (let [start (System/nanoTime)
+          result (apply f args)
+          end (System/nanoTime)]
+      (swap! trace conj {:type [type-key :end]
+                         :result result
+                         :start-ns start
+                         :elapsed-ns (- end start)})
+      result)))
+
+(defn summarize-trace-item [x]
+  (select-keys x [:type :start-ns :elapsed-ns]))
+
+(defn traced-q
+  "Instrument important functions to record a trace of db operations"
+  [& args]
+  (let [trace (atom [])
+        orig-resolve-clause* dq/-resolve-clause*
+        orig-lookup-pattern dq/lookup-pattern
+        tq (wrap-traced-fn trace
+                           :q
+                           d/q
+                           [])
+        result (with-redefs
+                 [dq/-resolve-clause* (wrap-traced-fn trace
+                                                      :resolve-clause
+                                                      orig-resolve-clause*
+                                                      [:context :clause :orig-clause])
+                  dq/lookup-pattern (wrap-traced-fn trace
+                                                    :lookup-pattern
+                                                    orig-lookup-pattern
+                                                    [:context :source :pattern :orig-pattern])]
+                 (apply tq args))]
+    [result (deref trace)]))
+
 (defmacro with-connection [[conn db] & body]
   {:pre [(symbol? conn)]}
   `(with-connection-fn
@@ -93,7 +135,8 @@
   ([strategy query-builder]
    (with-connection [conn (deref db)]
      (let [query (query-builder conn strategy)
-           result (dq/q query)]
+           [result trace] (traced-q query)]
+       (def the-trace trace)
        (count result)))))
 
 (defn demo0 [] (run-example dq/expand-once query2))
