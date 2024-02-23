@@ -1,6 +1,7 @@
 (ns datahike.debug-query
   (:require [datahike.api :as d]
             [datahike.query :as dq]
+            [clojure.spec.alpha :as spec]
             [datahike.tools :as tools]
             [taoensso.nippy :as nippy]))
 
@@ -35,6 +36,33 @@
 
 (defn summarize-trace-item [x]
   (select-keys x [:type :start-ns :elapsed-ns :path]))
+
+
+(spec/def ::function-arglist-pairs
+  (spec/* (spec/cat :fsym symbol?
+                    :arglist (spec/spec (spec/* symbol?)))))
+
+(defmacro with-trace-functions [function-arglist-pairs & body]
+  (let [parsed (map #(assoc % :var (gensym))
+                    (spec/conform ::function-arglist-pairs
+                                  function-arglist-pairs))
+        trace (gensym)]
+    `(let [~trace (atom [])
+           ~@(for [x parsed
+                   y [(:var x) (:fsym x)]]
+               y)
+           result# (with-redefs
+                    ~(into []
+                           (mapcat (fn [x]
+                                     [(:fsym x)
+                                      `(wrap-traced-fn
+                                        ~trace
+                                        ~(keyword (:fsym x))
+                                        ~(:var x)
+                                        ~(mapv keyword (:arglist x)))]))
+                           parsed)
+                    ~@body)]
+       [result# (deref ~trace)])))
 
 (defn traced-q
   "Instrument important functions to record a trace of db operations"
