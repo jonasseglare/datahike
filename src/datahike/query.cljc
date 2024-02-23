@@ -29,7 +29,7 @@
                     FindColl FindRel FindScalar FindTuple PlainSymbol Pull
                     RulesVar SrcVar Variable]
                    [java.lang.reflect Method]
-                   [java.util Date Map HashSet])))
+                   [java.util Date Map HashSet ArrayList])))
 
 ;; ----------------------------------------------------------------------------
 
@@ -173,37 +173,39 @@
       (aset res (+ l1 i) (#?(:cljs da/aget :clj get) t2 (aget idxs2 i)))) ;; FIXME aget
     res))
 
-(defn sum-rel [a b]
-  (let [{attrs-a :attrs, tuples-a :tuples} a
-        {attrs-b :attrs, tuples-b :tuples} b]
-    (cond
-      (= attrs-a attrs-b)
-      (Relation. attrs-a (into (vec tuples-a) tuples-b))
+(defn sum-rel
+  ([a] a)
+  ([a b]
+   (let [{attrs-a :attrs, tuples-a :tuples} a
+         {attrs-b :attrs, tuples-b :tuples} b]
+     (cond
+       (= attrs-a attrs-b)
+       (Relation. attrs-a (into (vec tuples-a) tuples-b))
 
-      (not (same-keys? attrs-a attrs-b))
-      (dt/raise "Can't sum relations with different attrs: " attrs-a " and " attrs-b
-                {:error :query/where})
+       (not (same-keys? attrs-a attrs-b))
+       (dt/raise "Can't sum relations with different attrs: " attrs-a " and " attrs-b
+                 {:error :query/where})
 
-      (every? number? (vals attrs-a))                       ;; can’t conj into BTSetIter
-      (let [idxb->idxa (vec (for [[sym idx-b] attrs-b]
-                              [idx-b (attrs-a sym)]))
-            tlen (->> (vals attrs-a) (reduce max) (inc))
-            tuples' (persistent!
-                     (reduce
-                      (fn [acc tuple-b]
-                        (let [tuple' (da/make-array tlen)]
-                          (doseq [[idx-b idx-a] idxb->idxa]
-                            (aset tuple' idx-a (#?(:cljs da/aget :clj get) tuple-b idx-b)))
-                          (conj! acc tuple')))
-                      (transient (vec tuples-a))
-                      tuples-b))]
-        (Relation. attrs-a tuples'))
+       (every? number? (vals attrs-a)) ;; can’t conj into BTSetIter
+       (let [idxb->idxa (vec (for [[sym idx-b] attrs-b]
+                               [idx-b (attrs-a sym)]))
+             tlen (->> (vals attrs-a) (reduce max) (inc))
+             tuples' (persistent!
+                      (reduce
+                       (fn [acc tuple-b]
+                         (let [tuple' (da/make-array tlen)]
+                           (doseq [[idx-b idx-a] idxb->idxa]
+                             (aset tuple' idx-a (#?(:cljs da/aget :clj get) tuple-b idx-b)))
+                           (conj! acc tuple')))
+                       (transient (vec tuples-a))
+                       tuples-b))]
+         (Relation. attrs-a tuples'))
 
-      :else
-      (let [all-attrs (zipmap (keys (merge attrs-a attrs-b)) (range))]
-        (-> (Relation. all-attrs [])
-            (sum-rel a)
-            (sum-rel b))))))
+       :else
+       (let [all-attrs (zipmap (keys (merge attrs-a attrs-b)) (range))]
+         (-> (Relation. all-attrs [])
+             (sum-rel a)
+             (sum-rel b)))))))
 
 (defn simplify-rel [rel]
   (Relation. (:attrs rel) (distinct-tuples (:tuples rel))))
@@ -1146,12 +1148,22 @@ than doing no expansion at all."
     (resolve-pattern-vars-for-relation source pattern product)))
 
 (defn lookup-and-sum-pattern-rels [context source patterns clause collect-stats]
-  {:relation (simplify-rel
-              (transduce (map (fn [pattern] (lookup-pattern context source pattern clause)))
-                         (completing sum-rel)
-                         (Relation. (var-mapping clause (range)) [])
-                         patterns))
-   :lookup-stats []}
+  (let [stats (ArrayList.)
+        result (simplify-rel
+                (transduce (map (fn [pattern]
+                                  (let [added (lookup-pattern
+                                               context source
+                                               pattern clause)]
+                                    #_(when collect-stats
+                                      (.add ^ArrayList stats
+                                            {:pattern pattern
+                                             :tuple-count (count (:tuples added))}))
+                                    added)))
+                           sum-rel
+                           (Relation. (var-mapping clause (range)) [])
+                           patterns))]
+    {:relation result
+     :lookup-stats (vec stats)})
   #_(loop [rel (Relation. (var-mapping clause (range)) [])
            patterns patterns
            lookup-stats []]
