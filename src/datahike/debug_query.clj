@@ -67,32 +67,38 @@
 (defn traced-q
   "Instrument important functions to record a trace of db operations"
   [& args]
-  (let [trace (atom [])
-        orig-resolve-clause* dq/-resolve-clause*
-        orig-lookup-pattern dq/lookup-pattern
-        orig-lookup-patterns dq/lookup-patterns
-        tq (wrap-traced-fn trace
-                           :q
-                           d/q
-                           [])
-        result (with-redefs
-                 [dq/-resolve-clause* (wrap-traced-fn trace
-                                                      :resolve-clause
-                                                      orig-resolve-clause*
-                                                      [:context :clause :orig-clause])
-                  dq/lookup-pattern (wrap-traced-fn trace
-                                                    :lookup-pattern
-                                                    orig-lookup-pattern
-                                                    [:context :source :pattern :orig-pattern])
-                  dq/lookup-patterns (wrap-traced-fn trace
-                                                     :lookup-patterns
-                                                     orig-lookup-patterns
-                                                     [:context
-                                                      :clause
-                                                      :p-before
-                                                      :p-after])]
-                 (apply tq args))]
-    [result (deref trace)]))
+  (with-trace-functions
+      [dq/-resolve-clause* [context clause orig-clause]
+       dq/lookup-pattern [context source pattern orig-pattern]
+       dq/lookup-patterns [context clause p-before p-after]
+       dq/q []]
+    (apply dq/q args))
+  #_(let [trace (atom [])
+          orig-resolve-clause* dq/-resolve-clause*
+          orig-lookup-pattern dq/lookup-pattern
+          orig-lookup-patterns dq/lookup-patterns
+          tq (wrap-traced-fn trace
+                             :q
+                             d/q
+                             [])
+          result (with-redefs
+                   [dq/-resolve-clause* (wrap-traced-fn trace
+                                                        :resolve-clause
+                                                        orig-resolve-clause*
+                                                        [:context :clause :orig-clause])
+                    dq/lookup-pattern (wrap-traced-fn trace
+                                                      :lookup-pattern
+                                                      orig-lookup-pattern
+                                                      [:context :source :pattern :orig-pattern])
+                    dq/lookup-patterns (wrap-traced-fn trace
+                                                       :lookup-patterns
+                                                       orig-lookup-patterns
+                                                       [:context
+                                                        :clause
+                                                        :p-before
+                                                        :p-after])]
+                   (apply tq args))]
+      [result (deref trace)]))
 
 (defmacro with-connection [[conn db] & body]
   {:pre [(symbol? conn)]}
