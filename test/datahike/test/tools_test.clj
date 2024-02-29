@@ -20,3 +20,31 @@
            a (* a a)
            b (* b b)
            c (throw (ex-info "This element should not be evaluated" {}))))))
+
+(deftest test-match-vector
+  (is (= 0 (dt/match-vector [nil nil]
+                            [_ _] 0
+                            [_ 1] 1
+                            [1 *] 2)))
+  (is (= 1 (dt/match-vector [nil 9]
+                            [_ _] 0
+                            [_ 1] 1
+                            [1 *] 2)))
+  (is (= 2 (dt/match-vector [10 nil]
+                            [_ _] 0
+                            [_ 1] 1
+                            [1 *] 2)))
+  (is (= 2 (dt/match-vector [10 :asdf]
+                            [_ _] 0
+                            [_ 1] 1
+                            [1 *] 2)))
+  (is (= 3 (dt/match-vector [10 :asdf]
+                            [_ _] 0
+                            [_ 1] 1
+                            [1 _] 2
+                            [1 1] 3)))
+  (is (= 2 (dt/match-vector [10 nil]
+                            [_ _] 0
+                            [_ 1] 1
+                            [1 _] 2
+                            [1 1] 3))))

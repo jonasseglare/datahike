@@ -24,6 +24,44 @@
    (defmacro case-tree [qs vs]
      (-case-tree qs vs)))
 
+(defn -match-vector-class [x]
+  (case x
+    _ :negative
+    * :any
+    :positive))
+
+(defn -match-vector [path pattern-pos pattern-size pattern-symbols pairs]
+  (cond
+    (< pattern-pos pattern-size)
+    (let [groups (group-by (comp -match-vector-class #(nth % pattern-pos) first) pairs)
+          sub (fn [p pairs] (-match-vector (conj path p)
+                                           (inc pattern-pos)
+                                           pattern-size
+                                           pattern-symbols
+                                           pairs))]
+      (if (= [:any] (keys groups))
+        (sub '* (:any groups))
+        `(if ~(nth pattern-symbols pattern-pos)
+           ~(sub 1 (mapcat groups [:positive :any]))
+           ~(sub '_ (mapcat groups [:negative :any])))))
+    
+    (not= 1 (count pairs)) (throw (ex-info "There should be exactly one expression at leaf"
+                                           {:path path}))
+    :else (-> pairs first second)))
+
+(defmacro match-vector [input-vector & pattern-expr-pairs]
+  {:pre [(sequential? pattern-expr-pairs)
+         (even? (count pattern-expr-pairs))]}
+  (let [pairs (partition 2 pattern-expr-pairs)
+        patterns (map first pairs)
+        _ (assert (every? sequential? patterns))
+        pattern-sizes (into #{} (map count) patterns)
+        _ (assert (= 1 (count pattern-sizes)))
+        pattern-size (first pattern-sizes)
+        symbols (repeatedly pattern-size gensym)]
+    `(let [[~@symbols] ~input-vector]
+       ~(-match-vector [] 0 pattern-size symbols pairs))))
+
 (defn ^:dynamic get-date []
   #?(:clj (Date.)
      :cljs (js/Date.)))

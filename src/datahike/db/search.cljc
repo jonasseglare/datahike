@@ -78,13 +78,13 @@
                   (->> (di/-slice eavt (datom e nil nil tx0) (datom e nil nil txmax) :eavt) ;; e _ _ tx
                        (filter (fn [^Datom d] (= tx (datom-tx d)))))
                   (di/-slice eavt (datom e nil nil tx0) (datom e nil nil txmax) :eavt) ;; e _ _ _
-                  (if indexed?                              ;; _ a v tx
+                  (if indexed? ;; _ a v tx
                     (->> (di/-slice avet (datom e0 a v tx0) (datom emax a v txmax) :avet)
                          (filter (fn [^Datom d] (= tx (datom-tx d)))))
                     (->> (di/-slice aevt (datom e0 a nil tx0) (datom emax a nil txmax) :aevt)
                          (filter (fn [^Datom d] (and (a= v (.-v d))
                                                      (= tx (datom-tx d)))))))
-                  (if indexed?                              ;; _ a v _
+                  (if indexed? ;; _ a v _
                     (di/-slice avet (datom e0 a v tx0) (datom emax a v txmax) :avet)
                     (->> (di/-slice aevt (datom e0 a nil tx0) (datom emax a nil txmax) :aevt)
                          (filter (fn [^Datom d] (a= v (.-v d))))))
@@ -155,3 +155,5 @@
     (dbu/distinct-datoms db
                          (di/-slice (:avet db) from to :avet)
                          (di/-slice (:temporal-avet db) from to :avet))))
+
+
