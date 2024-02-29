@@ -7,7 +7,7 @@
    [datahike.db.utils :as dbu]
    [datahike.index :as di]
    [datahike.lru :refer [lru-datom-cache-factory]]
-   [datahike.tools :refer [case-tree raise]]
+   [datahike.tools :refer [case-tree raise match-vector]]
    [environ.core :refer [env]])
   #?(:cljs (:require-macros [datahike.datom :refer [datom]]
                             [datahike.tools :refer [case-tree raise]]))
@@ -64,37 +64,36 @@
   (let [[e a v tx added?] pattern]
     (if (and (not temporal-db?) (false? added?))
       '()
-      (case-tree [e a (some? v) tx]
-                 [(di/-slice eavt (datom e a v tx) (datom e a v tx) :eavt) ;; e a v tx
-                  (di/-slice eavt (datom e a v tx0) (datom e a v txmax) :eavt) ;; e a v _
-                  (->> (di/-slice eavt (datom e a nil tx0) (datom e a nil txmax) :eavt) ;; e a _ tx
-                       (filter (fn [^Datom d] (= tx (datom-tx d)))))
-                  (di/-slice eavt (datom e a nil tx0) (datom e a nil txmax) :eavt) ;; e a _ _
-                  (->> (di/-slice eavt (datom e nil nil tx0) (datom e nil nil txmax) :eavt) ;; e _ v tx
-                       (filter (fn [^Datom d] (and (a= v (.-v d))
-                                                   (= tx (datom-tx d))))))
-                  (->> (di/-slice eavt (datom e nil nil tx0) (datom e nil nil txmax) :eavt) ;; e _ v _
-                       (filter (fn [^Datom d] (a= v (.-v d)))))
-                  (->> (di/-slice eavt (datom e nil nil tx0) (datom e nil nil txmax) :eavt) ;; e _ _ tx
-                       (filter (fn [^Datom d] (= tx (datom-tx d)))))
-                  (di/-slice eavt (datom e nil nil tx0) (datom e nil nil txmax) :eavt) ;; e _ _ _
-                  (if indexed? ;; _ a v tx
-                    (->> (di/-slice avet (datom e0 a v tx0) (datom emax a v txmax) :avet)
-                         (filter (fn [^Datom d] (= tx (datom-tx d)))))
-                    (->> (di/-slice aevt (datom e0 a nil tx0) (datom emax a nil txmax) :aevt)
-                         (filter (fn [^Datom d] (and (a= v (.-v d))
-                                                     (= tx (datom-tx d)))))))
-                  (if indexed? ;; _ a v _
-                    (di/-slice avet (datom e0 a v tx0) (datom emax a v txmax) :avet)
-                    (->> (di/-slice aevt (datom e0 a nil tx0) (datom emax a nil txmax) :aevt)
-                         (filter (fn [^Datom d] (a= v (.-v d))))))
-                  (->> (di/-slice aevt (datom e0 a nil tx0) (datom emax a nil txmax) :aevt) ;; _ a _ tx
-                       (filter (fn [^Datom d] (= tx (datom-tx d)))))
-                  (di/-slice aevt (datom e0 a nil tx0) (datom emax a nil txmax) :aevt) ;; _ a _ _
-                  (filter (fn [^Datom d] (and (a= v (.-v d)) (= tx (datom-tx d)))) (di/-all eavt)) ;; _ _ v tx
-                  (filter (fn [^Datom d] (a= v (.-v d))) (di/-all eavt)) ;; _ _ v _
-                  (filter (fn [^Datom d] (= tx (datom-tx d))) (di/-all eavt)) ;; _ _ _ tx
-                  (di/-all eavt)]))))
+      (match-vector
+       [e a (some? v) tx indexed?]
+       [e a v t *] (di/-slice eavt (datom e a v tx) (datom e a v tx) :eavt) ;; e a v tx
+       [e a v _ *](di/-slice eavt (datom e a v tx0) (datom e a v txmax) :eavt) ;; e a v _
+       [e a _ t *] (->> (di/-slice eavt (datom e a nil tx0) (datom e a nil txmax) :eavt) ;; e a _ tx
+                        (filter (fn [^Datom d] (= tx (datom-tx d)))))
+       [e a _ _ *] (di/-slice eavt (datom e a nil tx0) (datom e a nil txmax) :eavt) ;; e a _ _
+       [e _ v t *] (->> (di/-slice eavt (datom e nil nil tx0) (datom e nil nil txmax) :eavt) ;; e _ v tx
+                        (filter (fn [^Datom d] (and (a= v (.-v d))
+                                          (= tx (datom-tx d))))))
+       [e _ v _ *] (->> (di/-slice eavt (datom e nil nil tx0) (datom e nil nil txmax) :eavt) ;; e _ v _
+                        (filter (fn [^Datom d] (a= v (.-v d)))))
+       [e _ _ t *] (->> (di/-slice eavt (datom e nil nil tx0) (datom e nil nil txmax) :eavt) ;; e _ _ tx
+                        (filter (fn [^Datom d] (= tx (datom-tx d)))))
+       [e _ _ _ *] (di/-slice eavt (datom e nil nil tx0) (datom e nil nil txmax) :eavt) ;; e _ _ _
+       [_ a v t i] (->> (di/-slice avet (datom e0 a v tx0) (datom emax a v txmax) :avet)
+                          (filter (fn [^Datom d] (= tx (datom-tx d)))))
+       [_ a v t _] (->> (di/-slice aevt (datom e0 a nil tx0) (datom emax a nil txmax) :aevt)
+                        (filter (fn [^Datom d] (and (a= v (.-v d))
+                                                    (= tx (datom-tx d))))))
+       [_ a v _ i] (di/-slice avet (datom e0 a v tx0) (datom emax a v txmax) :avet)
+       [_ a v _ _] (->> (di/-slice aevt (datom e0 a nil tx0) (datom emax a nil txmax) :aevt)
+                        (filter (fn [^Datom d] (a= v (.-v d)))))
+       [_ a _ t *] (->> (di/-slice aevt (datom e0 a nil tx0) (datom emax a nil txmax) :aevt) ;; _ a _ tx
+                        (filter (fn [^Datom d] (= tx (datom-tx d)))))
+       [_ a _ _ *] (di/-slice aevt (datom e0 a nil tx0) (datom emax a nil txmax) :aevt) ;; _ a _ _
+       [_ _ v t *] (filter (fn [^Datom d] (and (a= v (.-v d)) (= tx (datom-tx d)))) (di/-all eavt)) ;; _ _ v tx
+       [_ _ v _ *] (filter (fn [^Datom d] (a= v (.-v d))) (di/-all eavt)) ;; _ _ v _
+       [_ _ _ t *] (filter (fn [^Datom d] (= tx (datom-tx d))) (di/-all eavt)) ;; _ _ _ tx
+       [_ _ _ _ *] (di/-all eavt)))))
 
 (defn search-current-indices [db pattern]
   (memoize-for db [:search pattern]
