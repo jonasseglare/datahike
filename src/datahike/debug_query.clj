@@ -242,6 +242,19 @@
 
 (defn demo0 [] (run-example dq/expand-once query2))
 
+(defn exercise-many
+  ([f n]
+   (dotimes [_i n]
+     (f)))
+  ([f] (exercise-many f 100)))
+
+(def dollar-pattern #"(a)$")
+
+(defn demo2 [s]
+  (let [m (re-matcher dollar-pattern s)]
+    ))
+
+
 (comment
 
   (demo0)
