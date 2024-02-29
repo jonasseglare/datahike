@@ -68,7 +68,6 @@
   {:pre [(symbol? index-expr)
          (nil? (namespace index-expr))]}
   (let [eavt-set (set [e a v t])
-        _ (println "eavt-set" eavt-set)
         _ (assert (every? #{'_ 'f 1} eavt-set))
         has-substitution (contains? eavt-set 1)
         lookup-expr (if has-substitution
@@ -76,11 +75,11 @@
                                   (datom ~(subst 'e e 'e0)
                                          ~(subst 'a a nil)
                                          ~(subst 'v v nil)
-                                         ~(subst 't t 'tx0))
+                                         ~(subst 'tx t 'tx0))
                                   (datom ~(subst 'e e 'emax)
                                          ~(subst 'a a nil)
                                          ~(subst 'v v nil)
-                                         ~(subst 't t 'txmax))
+                                         ~(subst 'tx t 'txmax))
                                   ~(keyword index-expr))
                       `(di/-all ~index-expr))
         dexpr (vary-meta (gensym) assoc :tag `Datom) ;; <-- type hinted symbol
@@ -88,7 +87,6 @@
                                    `(a= ~'v (.-v ~dexpr)))
                                  (when (= 'f t)
                                    `(= ~'tx (datom-tx ~dexpr)))])]
-    (println "lookup expr" lookup-expr)
     (if (seq equalities)
       `(filter (fn [~dexpr] (and ~@equalities)) ~lookup-expr)
       lookup-expr)))
@@ -101,7 +99,7 @@
     (if (and (not temporal-db?) (false? added?))
       '()
       (match-vector [e a (some? v) tx indexed?]
-        [e a v t *] (di/-slice eavt (datom e a v tx) (datom e a v tx) :eavt)
+        [e a v t *] (lookup-strategy eavt 1 1 1 1) #_(di/-slice eavt (datom e a v tx) (datom e a v tx) :eavt)
         [e a v _ *](di/-slice eavt (datom e a v tx0) (datom e a v txmax) :eavt)
         [e a _ t *] (->> (di/-slice eavt (datom e a nil tx0) (datom e a nil txmax) :eavt)
                          (filter (fn [^Datom d] (= tx (datom-tx d)))))
