@@ -1206,24 +1206,26 @@ than doing no expansion at all."
         (:stats context) (assoc :tmp-stats {:type :lookup
                                             :lookup-stats lookup-stats})))))
 
+(defn log-example [_example])
+
 (defn -resolve-clause*
   ([context clause]
    (-resolve-clause* context clause clause))
   ([context clause orig-clause]
    (condp looks-like? clause
-     [[symbol? '*]]                                       ;; predicate [(pred ?a ?b ?c)]
+     [[symbol? '*]] ;; predicate [(pred ?a ?b ?c)]
      (do (check-all-bound context (identity (filter free-var? (first clause))) orig-clause)
          (filter-by-pred context clause))
 
-     [[symbol? '*] '_]                                    ;; function [(fn ?a ?b) ?res]
+     [[symbol? '*] '_] ;; function [(fn ?a ?b) ?res]
      (bind-by-fn context clause)
 
-     [source? '*]                                         ;; source + anything
+     [source? '*] ;; source + anything
      (let [[source-sym & rest] clause]
        (binding [*implicit-source* (get (:sources context) source-sym)]
          (-resolve-clause context rest clause)))
 
-     '[or *]                                              ;; (or ...)
+     '[or *] ;; (or ...)
      (let [[_ & branches] clause
            context' (assoc context :stats [])
            contexts (map #(resolve-clause context' %) branches)
@@ -1234,13 +1236,13 @@ than doing no expansion at all."
          (:stats context) (assoc :tmp-stats {:type :or
                                              :branches (mapv :stats contexts)})))
 
-     '[or-join [[*] *] *]                                 ;; (or-join [[req-vars] vars] ...)
+     '[or-join [[*] *] *] ;; (or-join [[req-vars] vars] ...)
      (let [[_ [req-vars & vars] & branches] clause]
        (check-all-bound context req-vars orig-clause)
        (recur context (list* 'or-join (concat req-vars vars) branches) clause))
 
-     '[or-join [*] *]                                     ;; (or-join [vars] ...)
-       ;; TODO required vars
+     '[or-join [*] *] ;; (or-join [vars] ...)
+     ;; TODO required vars
      (let [[_ vars & branches] clause
            vars (set vars)
            join-context (-> context
@@ -1257,7 +1259,7 @@ than doing no expansion at all."
          (:stats context) (assoc :tmp-stats {:type :or-join
                                              :branches (mapv #(-> % :stats first) contexts)})))
 
-     '[and *]                                             ;; (and ...)
+     '[and *] ;; (and ...)
      (let [[_ & clauses] clause]
        (if (:stats context)
          (let [and-context (-> context
@@ -1269,7 +1271,7 @@ than doing no expansion at all."
                   :stats (:stats context)))
          (resolve-context context clauses)))
 
-     '[not *]                                             ;; (not ...)
+     '[not *] ;; (not ...)
      (let [[_ & clauses] clause
            negation-vars (collect-vars clauses)
            _ (check-some-bound context negation-vars orig-clause)
@@ -1284,7 +1286,7 @@ than doing no expansion at all."
          (:stats context) (assoc :tmp-stats {:type :not
                                              :branches (:stats negation-context)})))
 
-     '[not-join [*] *]                                    ;; (not-join [vars] ...)
+     '[not-join [*] *] ;; (not-join [vars] ...)
      (let [[_ vars & clauses] clause
            _ (check-all-bound context vars orig-clause)
            join-rel (reduce hash-join (:rels context))
@@ -1300,12 +1302,16 @@ than doing no expansion at all."
          (:stats context) (assoc :tmp-stats {:type :not
                                              :branches (:stats negation-context)})))
 
-     '[*]                                                 ;; pattern
+     '[*] ;; pattern
      (let [source *implicit-source*
            pattern0 (replace (:consts context) clause)
            pattern1 (resolve-pattern-lookup-refs source pattern0)
            constrained-patterns (expand-constrained-patterns source context pattern1)
            context-constrained (lookup-patterns context clause pattern1 constrained-patterns)]
+       (log-example {:pattern1 pattern1
+                     :context context
+                     :clause clause
+                     :constrainted-patterns constrained-patterns})
        context-constrained))))
 
 (defn -resolve-clause
