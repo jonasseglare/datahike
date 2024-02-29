@@ -59,6 +59,40 @@
 
 
 
+(defn subst [expr strategy bound]
+  (case strategy
+    1 expr
+    bound))
+
+(defmacro lookup-strategy [index-expr e a v t]
+  {:pre [(symbol? index-expr)
+         (nil? (namespace index-expr))]}
+  (let [eavt-set (set [e a v t])
+        _ (println "eavt-set" eavt-set)
+        _ (assert (every? #{'_ 'f 1} eavt-set))
+        has-substitution (contains? eavt-set 1)
+        lookup-expr (if has-substitution
+                      `(di/-slice ~index-expr
+                                  (datom ~(subst 'e e 'e0)
+                                         ~(subst 'a a nil)
+                                         ~(subst 'v v nil)
+                                         ~(subst 't t 'tx0))
+                                  (datom ~(subst 'e e 'emax)
+                                         ~(subst 'a a nil)
+                                         ~(subst 'v v nil)
+                                         ~(subst 't t 'txmax))
+                                  ~(keyword index-expr))
+                      `(di/-all ~index-expr))
+        dexpr (vary-meta (gensym) assoc :tag `Datom) ;; <-- type hinted symbol
+        equalities (remove nil? [(when (= 'f v)
+                                   `(a= ~'v (.-v ~dexpr)))
+                                 (when (= 'f t)
+                                   `(= ~'tx (datom-tx ~dexpr)))])]
+    (println "lookup expr" lookup-expr)
+    (if (seq equalities)
+      `(filter (fn [~dexpr] (and ~@equalities)) ~lookup-expr)
+      lookup-expr)))
+
 (defn- search-indices
   "Assumes correct pattern form, i.e. refs for ref-database"
   [eavt aevt avet pattern indexed? temporal-db?]
