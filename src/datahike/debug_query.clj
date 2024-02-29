@@ -77,6 +77,7 @@
        dq/var-mapping [pattern indices]
        dq/sum-rel [a b]
        dq/lookup-and-sum-pattern-rels [context source patterns clause collect-stats]
+       dq/lookup-pattern-db [context db pattern orig-pattern]
        dq/q []]
     (apply dq/q args)))
 
@@ -97,6 +98,7 @@
 (defonce db (delay (create-populated-database)))
 
 (defn set-db [query db]
+  (def the-db db)
   (update query :args (fn [args] (into [db] args))))
 
 (defn set-strategy [query strategy]
@@ -247,13 +249,6 @@
    (dotimes [_i n]
      (f)))
   ([f] (exercise-many f 100)))
-
-(def dollar-pattern #"(a)$")
-
-(defn demo2 [s]
-  (let [m (re-matcher dollar-pattern s)]
-    ))
-
 
 (comment
 

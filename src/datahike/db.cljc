@@ -191,7 +191,7 @@
 
   dbi/ISearch
   (-search [db pattern]
-           (dbs/search-current-indices db pattern))
+    (dbs/search-current-indices db pattern))
 
   dbi/IIndexAccess
   (-datoms [db index-type cs]

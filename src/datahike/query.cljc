@@ -596,9 +596,18 @@
 
 (defn lookup-pattern-db [context db pattern orig-pattern]
   ;; TODO optimize with bound attrs min/max values here
-  (let [attr->prop (var-mapping orig-pattern ["e" "a" "v" "tx" "added"])
+  
+  (let [ ;; Create a map from free var to symbol
+        attr->prop (var-mapping orig-pattern ["e" "a" "v" "tx" "added"])
+
+        ;; Create a map from free var to index
+        ;; for the positions in the pattern
         attr->idx (var-mapping orig-pattern (range))
+
+        ;; Replace all unknowns by nil.
         search-pattern (mapv #(if (symbol? %) nil %) pattern)
+
+        
         datoms  (if (first search-pattern)
                   (if-let [eid (dbu/entid db (first search-pattern))]
                     (dbi/-search db (assoc search-pattern 0 eid))
@@ -607,7 +616,7 @@
         idx->const (reduce-kv (fn [m k v]
                                 (if-let [c (k (:consts context))]
                                   (if (= c (get (first datoms) v)) ;; All datoms have the same format and the same value at position v
-                                    m                              ;; -> avoid unnecessary translations
+                                    m ;; -> avoid unnecessary translations
                                     (assoc m v c))
                                   m))
                               {}
@@ -1148,7 +1157,7 @@ than doing no expansion at all."
     (resolve-pattern-vars-for-relation source pattern product)))
 
 (defn lookup-and-sum-pattern-rels [context source patterns clause collect-stats]
-  (let [stats (ArrayList.)
+  #_(let [stats (ArrayList.)
         result (simplify-rel
                 (transduce (map (fn [pattern]
                                   (let [added (lookup-pattern
@@ -1164,7 +1173,7 @@ than doing no expansion at all."
                            patterns))]
     {:relation result
      :lookup-stats (vec stats)})
-  #_(loop [rel (Relation. (var-mapping clause (range)) [])
+  (loop [rel (Relation. (var-mapping clause (range)) [])
            patterns patterns
            lookup-stats []]
       (if (empty? patterns)
