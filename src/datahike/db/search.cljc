@@ -107,6 +107,9 @@
   (let [[e a v tx added?] pattern]
     (if (and (not temporal-db?) (false? added?))
       '()
+
+      ;; Consider refactoring this to return a
+      ;; function that performs the lookup.
       (match-vector [e a (some? v) tx indexed?]
         [e a v t *] (lookup-strategy eavt 1 1 1 1)
         [e a v _ *] (lookup-strategy eavt 1 1 1 _)

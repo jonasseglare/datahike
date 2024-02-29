@@ -70,15 +70,17 @@
   "Instrument important functions to record a trace of db operations"
   [& args]
   (with-trace-functions
-      [dq/-resolve-clause* [context clause orig-clause]
-       dq/lookup-pattern [context source pattern orig-pattern]
-       dq/lookup-patterns [context clause p-before p-after]
-       dq/simplify-rel [rel]
-       dq/var-mapping [pattern indices]
-       dq/sum-rel [a b]
-       dq/lookup-and-sum-pattern-rels [context source patterns clause collect-stats]
-       dq/lookup-pattern-db [context db pattern orig-pattern]
-       dq/q []]
+      [
+       ;dq/-resolve-clause* [context clause orig-clause]
+       ;dq/lookup-pattern [context source pattern orig-pattern]
+       ;dq/lookup-patterns [context clause p-before p-after]
+       ;dq/simplify-rel [rel]
+       ;dq/var-mapping [pattern indices]
+       ;dq/sum-rel [a b]
+       ;dq/lookup-and-sum-pattern-rels [context source patterns clause collect-stats]
+       ;dq/lookup-pattern-db [context db pattern orig-pattern]
+       ;dq/q []
+       ]
     (apply dq/q args)))
 
 (defmacro with-connection [[conn db] & body]
@@ -242,7 +244,7 @@
        (render-tree (acc-tree trace))
        (count result)))))
 
-(defn demo0 [] (run-example dq/expand-once query2))
+(defn demo0 [] (run-example dq/select-all #_dq/expand-once query2))
 
 (defn exercise-many
   ([f n]
