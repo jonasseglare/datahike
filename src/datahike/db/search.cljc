@@ -59,37 +59,46 @@
 
 
 
-(defn subst [expr strategy bound]
-  (case strategy
-    1 expr
-    bound))
 
-(defmacro lookup-strategy [index-expr e a v t]
+
+(defn datom-expr [[esym asym vsym tsym]
+                  [e-strat a-strat v-strat t-strat]
+                  e-bound
+                  tx-bound]
+  (let [subst (fn [expr strategy bound]
+                (case strategy
+                  1 expr
+                  bound))]
+    `(datom ~(subst esym e-strat e-bound)
+            ~(subst asym a-strat nil)
+            ~(subst vsym v-strat nil)
+            ~(subst tsym t-strat tx-bound))))
+
+(defn lookup-strategy-sub [eavt-symbols index-expr eavt-strats]
   {:pre [(symbol? index-expr)
          (nil? (namespace index-expr))]}
-  (let [eavt-set (set [e a v t])
-        _ (assert (every? #{'_ 'f 1} eavt-set))
-        has-substitution (contains? eavt-set 1)
+  (let [[_ _ v-strat t-strat] eavt-strats
+        [_ _ v-sym t-sym] eavt-symbols
+        strat-set (set eavt-strats)
+        _ (assert (every? #{'_ 'f 1} strat-set))
+        has-substitution (contains? strat-set 1)
         lookup-expr (if has-substitution
                       `(di/-slice ~index-expr
-                                  (datom ~(subst 'e e 'e0)
-                                         ~(subst 'a a nil)
-                                         ~(subst 'v v nil)
-                                         ~(subst 'tx t 'tx0))
-                                  (datom ~(subst 'e e 'emax)
-                                         ~(subst 'a a nil)
-                                         ~(subst 'v v nil)
-                                         ~(subst 'tx t 'txmax))
+                                  ~(datom-expr eavt-symbols eavt-strats 'e0 'tx0)
+                                  ~(datom-expr eavt-symbols eavt-strats 'emax 'txmax)
                                   ~(keyword index-expr))
                       `(di/-all ~index-expr))
         dexpr (vary-meta (gensym) assoc :tag `Datom) ;; <-- type hinted symbol
-        equalities (remove nil? [(when (= 'f v)
-                                   `(a= ~'v (.-v ~dexpr)))
-                                 (when (= 'f t)
-                                   `(= ~'tx (datom-tx ~dexpr)))])]
+        equalities (remove nil? [(when (= 'f v-strat)
+                                   `(a= ~v-sym (.-v ~dexpr)))
+                                 (when (= 'f t-strat)
+                                   `(= ~t-sym (datom-tx ~dexpr)))])]
     (if (seq equalities)
       `(filter (fn [~dexpr] (and ~@equalities)) ~lookup-expr)
       lookup-expr)))
+
+(defmacro lookup-strategy [index-expr & eavt-strats]
+  (lookup-strategy-sub '[e a v tx] index-expr eavt-strats))
 
 (defn- search-indices
   "Assumes correct pattern form, i.e. refs for ref-database"
@@ -102,30 +111,21 @@
         [e a v t *] (lookup-strategy eavt 1 1 1 1)
         [e a v _ *] (lookup-strategy eavt 1 1 1 _)
         [e a _ t *] (lookup-strategy eavt 1 1 _ f)
-        [e a _ _ *] (lookup-strategy eavt 1 1 _ _) #_ (di/-slice eavt (datom e a nil tx0) (datom e a nil txmax) :eavt)
-        [e _ v t *] (lookup-strategy eavt 1 _ f f) #_(->> (di/-slice eavt (datom e nil nil tx0) (datom e nil nil txmax) :eavt)
-                             (filter (fn [^Datom d] (and (a= v (.-v d))
-                                                         (= tx (datom-tx d))))))
-        [e _ v _ *] (lookup-strategy eavt 1 _ f _) #_(->> (di/-slice eavt (datom e nil nil tx0) (datom e nil nil txmax) :eavt)
-                           (filter (fn [^Datom d] (a= v (.-v d)))))
-        [e _ _ t *] (lookup-strategy eavt 1 _ _ f) #_(->> (di/-slice eavt (datom e nil nil tx0) (datom e nil nil txmax) :eavt)
-                             (filter (fn [^Datom d] (= tx (datom-tx d)))))
-        [e _ _ _ *] (di/-slice eavt (datom e nil nil tx0) (datom e nil nil txmax) :eavt)
-        [_ a v t i] (->> (di/-slice avet (datom e0 a v tx0) (datom emax a v txmax) :avet)
-                         (filter (fn [^Datom d] (= tx (datom-tx d)))))
-        [_ a v t _] (->> (di/-slice aevt (datom e0 a nil tx0) (datom emax a nil txmax) :aevt)
-                         (filter (fn [^Datom d] (and (a= v (.-v d))
-                                                     (= tx (datom-tx d))))))
-        [_ a v _ i] (di/-slice avet (datom e0 a v tx0) (datom emax a v txmax) :avet)
-        [_ a v _ _] (->> (di/-slice aevt (datom e0 a nil tx0) (datom emax a nil txmax) :aevt)
-                         (filter (fn [^Datom d] (a= v (.-v d)))))
-        [_ a _ t *] (->> (di/-slice aevt (datom e0 a nil tx0) (datom emax a nil txmax) :aevt)
-                         (filter (fn [^Datom d] (= tx (datom-tx d)))))
-        [_ a _ _ *] (di/-slice aevt (datom e0 a nil tx0) (datom emax a nil txmax) :aevt)
-        [_ _ v t *] (filter (fn [^Datom d] (and (a= v (.-v d)) (= tx (datom-tx d)))) (di/-all eavt))
-        [_ _ v _ *] (filter (fn [^Datom d] (a= v (.-v d))) (di/-all eavt))
-        [_ _ _ t *] (filter (fn [^Datom d] (= tx (datom-tx d))) (di/-all eavt))
-        [_ _ _ _ *] (di/-all eavt)))))
+        [e a _ _ *] (lookup-strategy eavt 1 1 _ _)
+        [e _ v t *] (lookup-strategy eavt 1 _ f f)
+        [e _ v _ *] (lookup-strategy eavt 1 _ f _)
+        [e _ _ t *] (lookup-strategy eavt 1 _ _ f)
+        [e _ _ _ *] (lookup-strategy eavt 1 _ _ _)
+        [_ a v t i] (lookup-strategy avet _ 1 1 f)
+        [_ a v t _] (lookup-strategy aevt _ 1 f f)
+        [_ a v _ i] (lookup-strategy avet _ 1 1 _)
+        [_ a v _ _] (lookup-strategy aevt _ 1 f _)
+        [_ a _ t *] (lookup-strategy aevt _ 1 _ f)
+        [_ a _ _ *] (lookup-strategy aevt _ 1 _ _)
+        [_ _ v t *] (lookup-strategy eavt _ _ f f)
+        [_ _ v _ *] (lookup-strategy eavt _ _ f _)
+        [_ _ _ t *] (lookup-strategy eavt _ _ _ f)
+        [_ _ _ _ *] (lookup-strategy eavt _ _ _ _)))))
 
 (defn search-current-indices [db pattern]
   (memoize-for db [:search pattern]
