@@ -236,13 +236,26 @@
           (println (format "%srel: %d%%" inner-indent (Math/round (* 100 time-rel))))
           (recur (add-sub stack inner-indent sub)))))))
 
+(defn disp-examples [examples]
+  (println "The examples:")
+  (doseq [[i ex] (map-indexed vector examples)]
+    (println (format "%d) %s -> %d %s"
+                     i (str (:clause ex))
+                     (count (:constrainted-patterns ex))
+                     (-> ex :constrainted-patterns
+                         first str)))))
+
 (defn run-example
   ([strategy query-builder]
    (with-connection [conn (deref db)]
-     (let [query (query-builder conn strategy)
-           [result trace] (traced-q query)]
-       (render-tree (acc-tree trace))
-       (count result)))))
+     (let [examples (atom [])]
+       (with-redefs [dq/log-example (fn [ex] (swap! examples conj ex))]
+         (let [query (query-builder conn strategy)
+               [result trace] (traced-q query)]
+           (render-tree (acc-tree trace))
+           (def the-examples (deref examples))
+           (disp-examples the-examples)
+           (count result)))))))
 
 (defn demo0 [] (run-example dq/select-all #_dq/expand-once query2))
 

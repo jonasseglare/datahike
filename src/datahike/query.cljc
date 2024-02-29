@@ -1157,22 +1157,6 @@ than doing no expansion at all."
     (resolve-pattern-vars-for-relation source pattern product)))
 
 (defn lookup-and-sum-pattern-rels [context source patterns clause collect-stats]
-  #_(let [stats (ArrayList.)
-        result (simplify-rel
-                (transduce (map (fn [pattern]
-                                  (let [added (lookup-pattern
-                                               context source
-                                               pattern clause)]
-                                    #_(when collect-stats
-                                      (.add ^ArrayList stats
-                                            {:pattern pattern
-                                             :tuple-count (count (:tuples added))}))
-                                    added)))
-                           sum-rel
-                           (Relation. (var-mapping clause (range)) [])
-                           patterns))]
-    {:relation result
-     :lookup-stats (vec stats)})
   (loop [rel (Relation. (var-mapping clause (range)) [])
            patterns patterns
            lookup-stats []]
@@ -1308,7 +1292,8 @@ than doing no expansion at all."
            pattern1 (resolve-pattern-lookup-refs source pattern0)
            constrained-patterns (expand-constrained-patterns source context pattern1)
            context-constrained (lookup-patterns context clause pattern1 constrained-patterns)]
-       (log-example {:pattern1 pattern1
+       (log-example {:source source
+                     :pattern1 pattern1
                      :context context
                      :clause clause
                      :constrainted-patterns constrained-patterns})
