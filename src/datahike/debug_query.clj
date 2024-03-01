@@ -2,7 +2,7 @@
   (:require [datahike.api :as d]
             [datahike.query :as dq]
             [clojure.spec.alpha :as spec]
-            [datahike.tools :as tools]
+            [clojure.pprint :as pp]
             [taoensso.nippy :as nippy]))
 
 (defn default-data []
@@ -247,7 +247,7 @@
 
 (defn crop-rel [rel n]
   {:attrs (:attrs rel)
-   :tuples (take n (:tuples rel))
+   :tuples (into [] (comp (take n) (map vec)) (:tuples rel))
    :tuple-count (count (:tuples rel))})
 
 (defn crop-rels [rels n]
@@ -261,7 +261,7 @@
 (defn crop-example [example n]
   (-> example
       (assoc :source {:max-tx (:max-tx (:source example))})
-      (update :constrained-patterns #(take n %))
+      (update :constrained-patterns #(into [] (take n) %))
       (assoc :constrained-pattern-count
              (-> example :constrained-patterns count))
       (update :context crop-context n)))
@@ -276,7 +276,8 @@
            (render-tree (acc-tree trace))
            (def the-examples (deref examples))
            (disp-examples the-examples)
-           (spit "query_examples.edn" (map #(crop-example % 10) the-examples))
+           (spit "query_examples.edn" (with-out-str
+                                        (pp/pprint (mapv #(crop-example % 10) the-examples))))
            (count result)))))))
 
 (defn demo0 [] (run-example dq/select-all #_dq/expand-once query2))
