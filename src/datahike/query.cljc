@@ -1296,7 +1296,7 @@ than doing no expansion at all."
                      :pattern1 pattern1
                      :context context
                      :clause clause
-                     :constrainted-patterns constrained-patterns})
+                     :constrained-patterns constrained-patterns})
        context-constrained))))
 
 (defn -resolve-clause
