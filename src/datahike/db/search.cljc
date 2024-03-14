@@ -80,15 +80,27 @@
   (let [[_ _ v-strat t-strat] eavt-strats
         [_ _ v-sym t-sym] eavt-symbols
         strat-set (set eavt-strats)
+
+        ;; '_' means that the value in the pattern can be anything.
+        ;; '1' means that it is substituted.
+        ;; 'f' means that it is used for filtering.
         _ (assert (every? #{'_ 'f 1} strat-set))
+
         has-substitution (contains? strat-set 1)
+
+        ;; Either get all datoms or a subset where some values in the
+        ;; datom are fixed.
         lookup-expr (if has-substitution
                       `(di/-slice ~index-expr
                                   ~(datom-expr eavt-symbols eavt-strats 'e0 'tx0)
                                   ~(datom-expr eavt-symbols eavt-strats 'emax 'txmax)
                                   ~(keyword index-expr))
                       `(di/-all ~index-expr))
-        dexpr (vary-meta (gensym) assoc :tag `Datom) ;; <-- type hinted symbol
+
+        ;; Symbol type-hinted as Datom.
+        dexpr (vary-meta (gensym) assoc :tag `Datom)
+
+        ;; Equalities used for filtering (in conjunction)
         equalities (remove nil? [(when (= 'f v-strat)
                                    `(a= ~v-sym (.-v ~dexpr)))
                                  (when (= 'f t-strat)

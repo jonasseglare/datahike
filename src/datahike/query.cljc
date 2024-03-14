@@ -1192,6 +1192,24 @@ than doing no expansion at all."
 
 (defn log-example [_example])
 
+(defn bound-symbol-map [context]
+  (into {} (for [[rel-index rel] (map-indexed vector (:rels context))
+                 [sym tup-index] (:attrs rel)]
+             [sym {:rel-index rel-index
+                   :tup-index tup-index}])))
+
+(defn pattern-search-mask [bsm pattern]
+  (vec (for [x pattern]
+         (cond
+           (not (symbol? x)) x
+           (bsm x) ::bound
+           :else nil))))
+
+(defn prepare-search [context pattern]
+  (let [bound-symbol-map (bound-symbol-map context)
+        mask (pattern-search-mask bound-symbol-map pattern)]
+    mask))
+
 (defn -resolve-clause*
   ([context clause]
    (-resolve-clause* context clause clause))

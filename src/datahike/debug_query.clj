@@ -3,7 +3,8 @@
             [datahike.query :as dq]
             [clojure.spec.alpha :as spec]
             [clojure.pprint :as pp]
-            [taoensso.nippy :as nippy]))
+            [taoensso.nippy :as nippy]
+            [clojure.edn :as edn]))
 
 (defn default-data []
   (nippy/thaw-from-file "/home/jonas/prog/jobtech-taxonomy-api/resources/taxonomy.nippy"))
@@ -276,11 +277,21 @@
            (render-tree (acc-tree trace))
            (def the-examples (deref examples))
            (disp-examples the-examples)
-           (spit "query_examples.edn" (with-out-str
-                                        (pp/pprint (mapv #(crop-example % 10) the-examples))))
+           (spit "query_examples.edn"
+                 (with-out-str
+                   (pp/pprint (mapv #(crop-example % 10) the-examples))))
            (count result)))))))
 
 (defn demo0 [] (run-example dq/select-all #_dq/expand-once query2))
+
+(defn load-examples []
+  (-> "query_examples.edn"
+      slurp
+      edn/read-string))
+
+(defn demo1 []
+  (let [example (second (load-examples))]
+    (dq/prepare-search (:context example) (:pattern1 example))))
 
 (defn exercise-many
   ([f n]
@@ -290,6 +301,8 @@
 
 (comment
 
+  (def examples )
+  
   (demo0)
 
   (def tr2 (-> the-trace trace-with-paths))
