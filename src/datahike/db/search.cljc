@@ -63,7 +63,10 @@
   (case x
     1 :substitute
     f :filter
-    _ :undefined))
+    _ nil
+    :substitute :substitute
+    :filter :filter
+    nil nil))
 
 (defn datom-expr [[esym asym vsym tsym]
                   [e-strat a-strat v-strat t-strat]
