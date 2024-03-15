@@ -158,7 +158,14 @@
 
 (defn search-current-indices [db pattern]
   (memoize-for db [:search pattern]
-               #(let [[_ a _ _] pattern]
+               #(let [[_ a _ _] pattern
+                      #_#_strategy (get-search-strategy pattern
+                                                    (dbu/indexing? db a)
+                                                    false)]
+                  #_(strategy (:eavt db)
+                            (:aevt db)
+                            (:avet db)
+                            pattern)
                   (search-indices (:eavt db)
                                   (:aevt db)
                                   (:avet db)
@@ -169,12 +176,19 @@
 (defn search-temporal-indices [db pattern]
   (memoize-for db [:temporal-search pattern]
                #(let [[_ a _ _ added] pattern
+                      strategy (get-search-strategy pattern
+                                                    (dbu/indexing? db a)
+                                                    true)
+                      #_#_result (strategy (:temporal-eavt db)
+                                       (:temporal-aevt db)
+                                       (:temporal-avet db)
+                                       pattern)
                       result (search-indices (:temporal-eavt db)
-                                             (:temporal-aevt db)
-                                             (:temporal-avet db)
-                                             pattern
-                                             (dbu/indexing? db a)
-                                             true)]
+                                                 (:temporal-aevt db)
+                                                 (:temporal-avet db)
+                                                 pattern
+                                                 (dbu/indexing? db a)
+                                                 true)]
                   (case added
                     true (filter datom-added result)
                     false (remove datom-added result)

@@ -617,13 +617,16 @@
                                          idx->const)
                                 datoms)))))
 
+(defn replace-symbols-by-nil [pattern]
+  (mapv #(if (symbol? %) nil %) pattern))
+
 (defn lookup-pattern-db [context db pattern orig-pattern]
   ;; TODO optimize with bound attrs min/max values here
   (let [ ;; Create a map from free var to symbol
         attr->prop (var-mapping orig-pattern ["e" "a" "v" "tx" "added"])
 
         ;; Replace all unknowns by nil.
-        search-pattern (mapv #(if (symbol? %) nil %) pattern)
+        search-pattern (replace-symbols-by-nil pattern)
 
         
         datoms  (if (first search-pattern)
@@ -646,7 +649,6 @@
       true)))
 
 (defn lookup-pattern-coll [coll pattern orig-pattern]
-  (assert false)
   (let [attr->idx (var-mapping orig-pattern (range))
         data (filter #(matches-pattern? pattern %) coll)]
     (Relation. attr->idx (mapv to-array data))))            ;; FIXME to-array
@@ -1390,7 +1392,7 @@ than doing no expansion at all."
            pattern1 (resolve-pattern-lookup-refs source pattern0)
 
 
-           new-result-set (lookup-new-search source context pattern1)
+           #_#_new-result-set (lookup-new-search source context pattern1)
            
            constrained-patterns (expand-constrained-patterns source context pattern1)
            context-constrained (lookup-patterns context clause pattern1 constrained-patterns)]
