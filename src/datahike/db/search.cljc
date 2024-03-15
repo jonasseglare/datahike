@@ -87,6 +87,7 @@
         strat-set (set eavt-strats)
         has-substitution (contains? strat-set :substitute)
         index-expr (symbol index-key)
+        batch-fn-sym (gensym)
 
         ;; Either get all datoms or a subset where some values in the
         ;; datom are fixed.
@@ -105,10 +106,13 @@
                                    `(a= ~v-sym (.-v ~dexpr)))
                                  (when (= :filter t-strat)
                                    `(= ~t-sym (datom-tx ~dexpr)))])]
-    `(fn [~index-expr ~eavt-symbols]
-       ~(if (seq equalities)
-          `(filter (fn [~dexpr] (and ~@equalities)) ~lookup-expr)
-          lookup-expr))))
+    `(fn
+       ([~index-expr ~eavt-symbols]
+        ~(if (seq equalities)
+           `(filter (fn [~dexpr] (and ~@equalities)) ~lookup-expr)
+           lookup-expr))
+       ([~index-expr ~eavt-symbols ~batch-fn-sym]
+        ))))
 
 (defmacro lookup-strategy [index-key & eavt-strats]
   {:pre [(keyword? index-key)]}
@@ -118,8 +122,11 @@
                           pattern-symbols
                           (map short-hand->strat-symbol eavt-strats))]))
 
-(defn empty-strategy [db-index [e a v tx]]
-  '())
+(defn empty-strategy
+  ([_db-index [_e _a _v _tx]]
+   '())
+  ([_db-index [_e _a _v _tx] _batch-fn]
+   '()))
 
 (defn- get-search-strategy [pattern indexed? temporal-db?]
   (validate-pattern pattern)

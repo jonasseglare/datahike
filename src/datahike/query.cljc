@@ -1290,7 +1290,11 @@ than doing no expansion at all."
      :filter
      filter-set]))
 
-(defn lookup-new-search [source context pattern1])
+(defn lookup-new-search [source context pattern1]
+  (let [rels (vec (:rels context))
+        bsm (bound-symbol-map rels)
+        mask (pattern-search-mask bsm pattern1)]
+    #_(dbi/-batch-search )))
 
 (defn -resolve-clause*
   ([context clause]
