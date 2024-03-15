@@ -289,9 +289,11 @@
       slurp
       edn/read-string))
 
-(defn demo1 []
+(defn demo1 [strategy]
   (let [example (second (load-examples))]
-    (dq/prepare-search (:context example) (:pattern1 example))))
+    (dq/prepare-search (:context example)
+                       (:pattern1 example)
+                       strategy)))
 
 (defn exercise-many
   ([f n]

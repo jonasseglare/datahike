@@ -6,6 +6,7 @@
    [clojure.walk :as walk]
    [datahike.db.interface :as dbi]
    [datahike.db.utils :as dbu]
+   [datahike.array :refer [wrap-comparable]]
    [datahike.impl.entity :as de]
    [datahike.lru]
    [datahike.middleware.query]
@@ -645,6 +646,7 @@
       true)))
 
 (defn lookup-pattern-coll [coll pattern orig-pattern]
+  (assert false)
   (let [attr->idx (var-mapping orig-pattern (range))
         data (filter #(matches-pattern? pattern %) coll)]
     (Relation. attr->idx (mapv to-array data))))            ;; FIXME to-array
@@ -1212,40 +1214,81 @@ than doing no expansion at all."
 (defn normalize-pattern [[e a v tx]]
   [e a v tx])
 
-(defn substitute-relation [relation patterns group]
-  (for [pattern patterns
-        {:keys [tuple-element-index pattern-element-index]} group
-        tuple (:tuples relation)]
-    (assoc pattern pattern-element-index (nth tuple tuple-element-index))))
-
-(defn plan-substitutions [bsm pattern subst-mask]
+(defn search-index-mapping [bsm pattern subst-mask strat-symbol]
   {:pre [(= 4 (count subst-mask))]}
-  (let [pattern (normalize-pattern pattern)
-        subst-list (for [[i p s] (map vector (range) pattern subst-mask)
-                         :when (= 1 s)
-                         :let [m (bsm p)]
-                         :when m]
-                     (assoc m :pattern-element-index i))]
-    (println subst-list)
-    (group-by :relation-index subst-list)))
+  (let [pattern (normalize-pattern pattern)]
+    (map-indexed
+     (fn [i dst]
+       (assoc dst :sim-index i))
+     (for [[i p s] (map vector (range) pattern subst-mask)
+           :when (= strat-symbol s)
+           :let [m (bsm p)]
+           :when m]
+       (assoc m :pattern-element-index i)))))
 
-(defn substitute-relations [pattern rels plan]
-  (reduce (fn [patterns [relation-index group]]
-            (substitute-relation (nth rels relation-index)
-                                 patterns
-                                 group))
-          [pattern]
-          plan))
+(defn search-product [update-element relation current-product group]
+  (for [element current-product
+        {:keys [tuple-element-index] :as sim} group
+        tuple (:tuples relation)]
+    (update-element element sim (nth tuple tuple-element-index))))
 
-(defn prepare-search [context pattern]
+(defn make-product [upd init rels sims]
+  (reduce (fn [prod [relation-index group]]
+            (search-product upd
+                            (nth rels relation-index)
+                            prod
+                            group))
+          [init]
+          (group-by :relation-index sims)))
+
+(defn substitute-relations [pattern rels subst-sim]
+  (make-product (fn [pattern sim x]
+                  (assoc pattern (:pattern-element-index sim) x))
+                pattern
+                rels
+                subst-sim))
+
+(defn make-filter-set [sfff rels filter-sim]
+  (make-product (fn [feature sim x]
+                  (sfff feature (:sim-index sim) x))
+                (sfff)
+                rels
+                filter-sim))
+
+(defn search-filter-feature-fn [filter-sim]
+  (let [n (count filter-sim)
+        pattern-inds (map :pattern-element-index filter-sim)
+        first-pattern-index (first pattern-inds)
+        empty-vec (vec (repeat n nil))]
+    (case n
+      0 nil
+      1 (fn
+          ([] nil)
+          ([datom] (wrap-comparable (nth datom first-pattern-index)))
+          ([_dst _dst-index x] (wrap-comparable x)))
+      (fn
+        ([] empty-vec)
+        ([datom]
+         (mapv #(wrap-comparable (nth datom %)) pattern-inds))
+        ([dst dst-index x]
+         (assoc dst dst-index (wrap-comparable x)))))))
+
+(defn prepare-search [context pattern strategy]
   (let [rels (vec (:rels context))
         bsm (bound-symbol-map rels)
 
         ;; Used to decide on the approach
         _mask (pattern-search-mask bsm pattern)
-        
-        plan (plan-substitutions bsm pattern '[1 1 1 1])]
-    (substitute-relations pattern rels plan)))
+        subst-sim (search-index-mapping bsm pattern strategy 1)
+        filter-sim (search-index-mapping bsm pattern strategy 'f)
+        sfff (search-filter-feature-fn filter-sim)
+        filter-set (when sfff (make-filter-set sfff rels filter-sim))]
+    [:subst
+     (substitute-relations pattern rels subst-sim)
+     :filter
+     filter-set]))
+
+(defn lookup-new-search [source context pattern1])
 
 (defn -resolve-clause*
   ([context clause]
@@ -1345,6 +1388,10 @@ than doing no expansion at all."
      (let [source *implicit-source*
            pattern0 (replace (:consts context) clause)
            pattern1 (resolve-pattern-lookup-refs source pattern0)
+
+
+           new-result-set (lookup-new-search source context pattern1)
+           
            constrained-patterns (expand-constrained-patterns source context pattern1)
            context-constrained (lookup-patterns context clause pattern1 constrained-patterns)]
        (log-example {:source source
