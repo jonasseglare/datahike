@@ -94,7 +94,7 @@
       [5322]
       [5325]],
      :tuple-count 3654}
-    {:attrs {?__auto__1 0, ?reverse-type__auto__6 1},
+    {:attrs {?__auto__1 0, ?reverse-type__auto__9 1},
      :tuples [["narrow-match" "broad-match"]],
      :tuple-count 1}],
    :consts {?__auto__1 "narrow-match"}},
@@ -112,10 +112,10 @@
    [?r1 80 5325]],
   :constrained-pattern-count 3654}
  {:source {:max-tx 536926163},
-  :pattern1 [?r1 81 ?reverse-type__auto__6],
+  :pattern1 [?r1 81 ?reverse-type__auto__9],
   :context
   {:rels
-   [{:attrs {?__auto__1 0, ?reverse-type__auto__6 1},
+   [{:attrs {?__auto__1 0, ?reverse-type__auto__9 1},
      :tuples [["narrow-match" "broad-match"]],
      :tuple-count 1}
     {:attrs {?oc 0, ?r1 1},
@@ -132,7 +132,7 @@
       [5294 106613]],
      :tuple-count 49625}],
    :consts {?__auto__1 "narrow-match"}},
-  :clause [?r1 :relation/type ?reverse-type__auto__6],
+  :clause [?r1 :relation/type ?reverse-type__auto__9],
   :constrained-patterns
   [[17128 81 "broad-match"]
    [17129 81 "broad-match"]
@@ -149,7 +149,7 @@
   :pattern1 [?r1 79 ?esco],
   :context
   {:rels
-   [{:attrs {?oc 0, ?r1 1, ?reverse-type__auto__6 2, ?__auto__1 3},
+   [{:attrs {?oc 0, ?r1 1, ?reverse-type__auto__9 2, ?__auto__1 3},
      :tuples
      [[5289 132713 "broad-match" "narrow-match"]
       [5317 132672 "broad-match" "narrow-match"]

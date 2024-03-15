@@ -59,7 +59,11 @@
 
 
 
-
+(defn short-hand->strat-symbol [x]
+  (case x
+    1 :substitute
+    f :filter
+    _ :undefined))
 
 (defn datom-expr [[esym asym vsym tsym]
                   [e-strat a-strat v-strat t-strat]
@@ -67,30 +71,18 @@
                   tx-bound]
   (let [subst (fn [expr strategy bound]
                 (case strategy
-                  1 expr
+                  :substitute expr
                   bound))]
     `(datom ~(subst esym e-strat e-bound)
             ~(subst asym a-strat nil)
             ~(subst vsym v-strat nil)
             ~(subst tsym t-strat tx-bound))))
 
-(defn short-hand->strat-symbol [x]
-  (case x
-    1 :substitute
-    f :filter
-    _ :undefined))
-
 (defn lookup-strategy-sub [index-key eavt-symbols eavt-strats]
   (let [[_ _ v-strat t-strat] eavt-strats
         [_ _ v-sym t-sym] eavt-symbols
         strat-set (set eavt-strats)
-
-        ;; '_' means that the value in the pattern can be anything.
-        ;; '1' means that it is substituted.
-        ;; 'f' means that it is used for filtering.
-        _ (assert (every? #{'_ 'f 1} strat-set))
-
-        has-substitution (contains? strat-set 1)
+        has-substitution (contains? strat-set :substitute)
         index-expr (symbol index-key)
 
         ;; Either get all datoms or a subset where some values in the
@@ -106,9 +98,9 @@
         dexpr (vary-meta (gensym) assoc :tag `Datom)
 
         ;; Equalities used for filtering (in conjunction)
-        equalities (remove nil? [(when (= 'f v-strat)
+        equalities (remove nil? [(when (= :filter v-strat)
                                    `(a= ~v-sym (.-v ~dexpr)))
-                                 (when (= 'f t-strat)
+                                 (when (= :filter t-strat)
                                    `(= ~t-sym (datom-tx ~dexpr)))])]
     `(fn [~index-expr ~eavt-symbols]
        ~(if (seq equalities)
@@ -121,7 +113,7 @@
     [index-key
      (lookup-strategy-sub index-key
                           pattern-symbols
-                          eavt-strats)]))
+                          (map short-hand->strat-symbol eavt-strats))]))
 
 (defn empty-strategy [db-index [e a v tx]]
   '())
