@@ -192,8 +192,8 @@
   dbi/ISearch
   (-search [db pattern]
     (dbs/search-current-indices db pattern))
-  (-contextual-search [db pattern-mask strategy-data-fn]
-    nil)
+  (-batch-search [db pattern-mask batch-fn]
+    (dbs/search-current-indices db pattern-mask batch-fn))
 
   dbi/IIndexAccess
   (-datoms [db index-type cs]
@@ -286,7 +286,9 @@
 
   dbi/ISearch
   (-search [db pattern]
-           (filter (.-pred db) (dbi/-search unfiltered-db pattern)))
+    (filter (.-pred db) (dbi/-search unfiltered-db pattern)))
+  (-batch-search [db pattern-mask batch-fn]
+    (filter (.-pred db) (dbi/-batch-search unfiltered-db pattern-mask batch-fn)))
 
   dbi/IIndexAccess
   (-datoms [db index cs]
@@ -350,7 +352,9 @@
 
   dbi/ISearch
   (-search [db pattern]
-           (dbs/temporal-search origin-db pattern))
+    (dbs/temporal-search origin-db pattern))
+  (-batch-search [db pattern-mask batch-fn]
+    (dbs/temporal-search origin-db pattern-mask batch-fn))
 
   dbi/IIndexAccess
   (-datoms [db index-type cs] (dbu/temporal-datoms origin-db index-type cs))
@@ -447,8 +451,11 @@
 
   dbi/ISearch
   (-search [db pattern]
-           (-> (dbs/temporal-search origin-db pattern)
-               (filter-as-of-datoms time-point origin-db)))
+    (-> (dbs/temporal-search origin-db pattern)
+        (filter-as-of-datoms time-point origin-db)))
+  (-batch-search [db pattern batch-fn]
+    (-> (dbs/temporal-search origin-db pattern batch-fn)
+        (filter-as-of-datoms time-point origin-db)))
 
   dbi/IIndexAccess
   (-datoms [db index-type cs]
@@ -526,8 +533,11 @@
 
   dbi/ISearch
   (-search [db pattern]
-           (-> (dbs/temporal-search origin-db pattern)
-               (filter-since time-point origin-db)))
+    (-> (dbs/temporal-search origin-db pattern)
+        (filter-since time-point origin-db)))
+  (-batch-search [db pattern batch-fn]
+    (-> (dbs/temporal-search origin-db pattern batch-fn)
+        (filter-since time-point origin-db)))
 
   dbi/IIndexAccess
   (dbi/-datoms [db index-type cs]

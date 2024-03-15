@@ -187,16 +187,26 @@
     false (remove datom-added result)
     nil result))
 
-(defn search-temporal-indices [db pattern]
-  (memoize-for db [:temporal-search pattern]
-               #(let [[db-index strategy] (temporal-search-strategy db pattern)
-                      result (strategy db-index pattern)]
-                  (filter-by-added pattern result))))
+(defn search-temporal-indices
+  ([db pattern]
+   (memoize-for db [:temporal-search pattern]
+                #(let [[db-index strategy] (temporal-search-strategy db pattern)
+                       result (strategy db-index pattern)]
+                   (filter-by-added pattern result))))
+  ([db pattern batch-fn]
+   (let [[db-index strategy] (temporal-search-strategy db pattern)
+         result (strategy db-index pattern batch-fn)]
+     (filter-by-added pattern result))))
 
-(defn temporal-search [db pattern]
-  (dbu/distinct-datoms db
-                       (search-current-indices db pattern)
-                       (search-temporal-indices db pattern)))
+(defn temporal-search
+  ([db pattern]
+   (dbu/distinct-datoms db
+                        (search-current-indices db pattern)
+                        (search-temporal-indices db pattern)))
+  ([db pattern batch-fn]
+   (dbu/distinct-datoms db
+                        (search-current-indices db pattern batch-fn)
+                        (search-temporal-indices db pattern batch-fn))))
 
 (defn temporal-seek-datoms [db index-type cs]
   (let [index (get db index-type)

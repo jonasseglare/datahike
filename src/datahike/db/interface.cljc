@@ -4,7 +4,7 @@
 
 (defprotocol ISearch
   (-search [data pattern])
-  (-contextual-search [data pattern-mask strategy-data-fn]))
+  (-batch-search [data pattern-mask batch-fn]))
 
 (defprotocol IIndexAccess
   (-datoms [db index components])
