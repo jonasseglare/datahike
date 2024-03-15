@@ -74,6 +74,12 @@
             ~(subst vsym v-strat nil)
             ~(subst tsym t-strat tx-bound))))
 
+(defn short-hand->strat-symbol [x]
+  (case x
+    1 :substitute
+    f :filter
+    _ :undefined))
+
 (defn lookup-strategy-sub [index-key eavt-symbols eavt-strats]
   (let [[_ _ v-strat t-strat] eavt-strats
         [_ _ v-sym t-sym] eavt-symbols
