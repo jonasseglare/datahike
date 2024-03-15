@@ -156,36 +156,6 @@
   (let [strategy (get-search-strategy pattern indexed? temporal-db?)]
     (strategy eavt aevt avet pattern)))
 
-#_(defn- search-indices
-    "Assumes correct pattern form, i.e. refs for ref-database"
-    [eavt aevt avet pattern indexed? temporal-db?]
-    (validate-pattern pattern)
-    (let [[e a v tx added?] pattern]
-      (if (and (not temporal-db?) (false? added?))
-        '()
-
-        ;; Consider refactoring this to return a
-        ;; function that performs the lookup.
-        (match-vector [e a (some? v) tx indexed?]
-          [e a v t *] (lookup-strategy eavt 1 1 1 1)
-          [e a v _ *] (lookup-strategy eavt 1 1 1 _)
-          [e a _ t *] (lookup-strategy eavt 1 1 _ f)
-          [e a _ _ *] (lookup-strategy eavt 1 1 _ _)
-          [e _ v t *] (lookup-strategy eavt 1 _ f f)
-          [e _ v _ *] (lookup-strategy eavt 1 _ f _)
-          [e _ _ t *] (lookup-strategy eavt 1 _ _ f)
-          [e _ _ _ *] (lookup-strategy eavt 1 _ _ _)
-          [_ a v t i] (lookup-strategy avet _ 1 1 f)
-          [_ a v t _] (lookup-strategy aevt _ 1 f f)
-          [_ a v _ i] (lookup-strategy avet _ 1 1 _)
-          [_ a v _ _] (lookup-strategy aevt _ 1 f _)
-          [_ a _ t *] (lookup-strategy aevt _ 1 _ f)
-          [_ a _ _ *] (lookup-strategy aevt _ 1 _ _)
-          [_ _ v t *] (lookup-strategy eavt _ _ f f)
-          [_ _ v _ *] (lookup-strategy eavt _ _ f _)
-          [_ _ _ t *] (lookup-strategy eavt _ _ _ f)
-          [_ _ _ _ *] (lookup-strategy eavt _ _ _ _)))))
-
 (defn search-current-indices [db pattern]
   (memoize-for db [:search pattern]
                #(let [[_ a _ _] pattern]

@@ -48,6 +48,26 @@
                    (n/-order-on-edn-types b))))
             (raw-array-compare a b))))
 
+
+#?(:clj (defn string-from-bytes [x]
+          (let [n (alength x)
+                dst (char-array n)]
+            (dotimes [i n]
+              (aset dst i (char (aget x i))))
+            (String. dst))))
+
+(defrecord WrappedBytes [string-repr])
+
+(defn wrap-comparable [x]
+  (if (bytes? x)
+    (WrappedBytes. #?(:clj (string-from-bytes x)
+                      :cljs x))
+    x))
+
+(defn a2= [a b]
+  (= (wrap-comparable a)
+     (wrap-comparable b)))
+
 (defn a=
   "Extension of Clojure's equality to things we also want to treat like values,
   e.g. certain array types."

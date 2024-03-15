@@ -1192,11 +1192,11 @@ than doing no expansion at all."
 
 (defn log-example [_example])
 
-(defn bound-symbol-map [context]
-  (into {} (for [[rel-index rel] (map-indexed vector (:rels context))
+(defn bound-symbol-map [rels]
+  (into {} (for [[rel-index rel] (map-indexed vector rels)
                  [sym tup-index] (:attrs rel)]
-             [sym {:rel-index rel-index
-                   :tup-index tup-index}])))
+             [sym {:relation-index rel-index
+                   :tuple-element-index tup-index}])))
 
 (defn pattern-search-mask [bsm pattern]
   (vec (for [x pattern]
@@ -1205,10 +1205,39 @@ than doing no expansion at all."
            (bsm x) ::bound
            :else nil))))
 
+(defn normalize-pattern [[e a v tx]]
+  [e a v tx])
+
+(defn substitute-relation [relation patterns group]
+  (for [pattern patterns
+        {:keys [tuple-element-index pattern-element-index]} group
+        tuple (:tuples relation)]
+    (assoc pattern pattern-element-index (nth tuple tuple-element-index))))
+
+(defn plan-substitutions [bsm pattern subst-mask]
+  {:pre [(= 4 (count subst-mask))]}
+  (let [pattern (normalize-pattern pattern)
+        subst-list (for [[i p s] (map vector (range) pattern subst-mask)
+                         :when (= 1 s)
+                         :let [m (bsm p)]
+                         :when m]
+                     (assoc m :pattern-element-index i))]
+    (println subst-list)
+    (group-by :relation-index subst-list)))
+
+(defn substitute-relations [pattern rels plan]
+  (reduce (fn [patterns [relation-index group]]
+            (substitute-relation (nth rels relation-index)
+                                 patterns
+                                 group))
+          [pattern]
+          plan))
+
 (defn prepare-search [context pattern]
-  (let [bound-symbol-map (bound-symbol-map context)
-        mask (pattern-search-mask bound-symbol-map pattern)]
-    mask))
+  (let [rels (vec (:rels context))
+        bsm (bound-symbol-map rels)
+        plan (plan-substitutions bsm pattern '[1 1 1 1])]
+    (substitute-relations pattern rels plan)))
 
 (defn -resolve-clause*
   ([context clause]
