@@ -74,7 +74,7 @@
             ~(subst vsym v-strat nil)
             ~(subst tsym t-strat tx-bound))))
 
-(defn lookup-strategy-sub [eavt-symbols eavt-strats]
+(defn lookup-strategy-sub [index-key eavt-symbols eavt-strats]
   (let [[_ _ v-strat t-strat] eavt-strats
         [_ _ v-sym t-sym] eavt-symbols
         strat-set (set eavt-strats)
@@ -85,7 +85,7 @@
         _ (assert (every? #{'_ 'f 1} strat-set))
 
         has-substitution (contains? strat-set 1)
-        index-expr (gensym)
+        index-expr (symbol index-key)
 
         ;; Either get all datoms or a subset where some values in the
         ;; datom are fixed.
@@ -93,7 +93,7 @@
                       `(di/-slice ~index-expr
                                   ~(datom-expr eavt-symbols eavt-strats 'e0 'tx0)
                                   ~(datom-expr eavt-symbols eavt-strats 'emax 'txmax)
-                                  ~(keyword index-expr))
+                                  ~index-key)
                       `(di/-all ~index-expr))
 
         ;; Symbol type-hinted as Datom.
@@ -109,21 +109,22 @@
           `(filter (fn [~dexpr] (and ~@equalities)) ~lookup-expr)
           lookup-expr))))
 
-(defmacro lookup-strategy [index-expr & eavt-strats]
-  {:pre [(keyword? index-expr)]}
+(defmacro lookup-strategy [index-key & eavt-strats]
+  {:pre [(keyword? index-key)]}
   (let [pattern-symbols '[e a v tx]]
-    [index-expr
-     (lookup-strategy-sub pattern-symbols
+    [index-key
+     (lookup-strategy-sub index-key
+                          pattern-symbols
                           eavt-strats)]))
 
-(defn empty-strategy [eavt aevt avet [e a v tx]]
+(defn empty-strategy [db-index [e a v tx]]
   '())
 
 (defn- get-search-strategy [pattern indexed? temporal-db?]
   (validate-pattern pattern)
   (let [[e a v tx added?] pattern]
     (if (and (not temporal-db?) (false? added?))
-      empty-strategy
+      [nil empty-strategy]
 
       ;; Consider refactoring this to return a
       ;; function that performs the lookup.
@@ -147,12 +148,6 @@
         [_ _ _ t *] (lookup-strategy :eavt _ _ _ f)
         [_ _ _ _ *] (lookup-strategy :eavt _ _ _ _)))))
 
-#_(defn- search-indices
-  "Assumes correct pattern form, i.e. refs for ref-database"
-  [eavt aevt avet pattern indexed? temporal-db?]
-  (let [strategy (get-search-strategy pattern indexed? temporal-db?)]
-    (strategy eavt aevt avet pattern)))
-
 (defn search-current-indices [db pattern]
   (memoize-for db [:search pattern]
                #(let [[_ a _ _] pattern
@@ -160,17 +155,7 @@
                       (get-search-strategy pattern
                                            (dbu/indexing? db a)
                                            false)]
-                  (strategy (index-key db)
-                            #_(:eavt db)
-                            #_(:aevt db)
-                            #_(:avet db)
-                            pattern)
-                  #_(search-indices (:eavt db)
-                                  (:aevt db)
-                                  (:avet db)
-                                  pattern
-                                  (dbu/indexing? db a)
-                                  false))))
+                  (strategy (get db index-key) pattern))))
 
 (defn search-temporal-indices [db pattern]
   (memoize-for db [:temporal-search pattern]
@@ -182,14 +167,9 @@
                       result (strategy (case index-key
                                          :eavt (:temporal-eavt db)
                                          :aevt (:temporal-aevt db)
-                                         :avet (:temporal-avet db))
-                                       pattern)
-                      #_#_result (search-indices (:temporal-eavt db)
-                                                 (:temporal-aevt db)
-                                                 (:temporal-avet db)
-                                                 pattern
-                                                 (dbu/indexing? db a)
-                                                 true)]
+                                         :avet (:temporal-avet db)
+                                         nil)
+                                       pattern)]
                   (case added
                     true (filter datom-added result)
                     false (remove datom-added result)
