@@ -148,32 +148,50 @@
         [_ _ _ t *] (lookup-strategy :eavt _ _ _ f)
         [_ _ _ _ *] (lookup-strategy :eavt _ _ _ _)))))
 
-(defn search-current-indices [db pattern]
-  (memoize-for db [:search pattern]
-               #(let [[_ a _ _] pattern
-                      [index-key strategy]
-                      (get-search-strategy pattern
-                                           (dbu/indexing? db a)
-                                           false)]
-                  (strategy (get db index-key) pattern))))
+(defn current-search-strategy [db pattern]
+  (let [[_ a _ _] pattern
+        [index-key strategy]
+        (get-search-strategy pattern
+                             (dbu/indexing? db a)
+                             false)]
+    [(get db index-key) strategy]))
+
+(defn search-current-indices
+  ([db pattern]
+   (memoize-for
+    db [:search pattern]
+    #(let [[db-index strategy] (current-search-strategy db pattern)]
+       (strategy db-index pattern))))
+  ([db pattern strategy-data-fn]
+   (let [[db-index strategy] (current-search-strategy db pattern)]
+     (strategy db-index pattern strategy-data-fn))))
+
+(defn temporal-search-strategy [db pattern]
+  (let [[_ a _ _ _] pattern
+        [index-key strategy] (get-search-strategy
+                              pattern
+                              (dbu/indexing? db a)
+                              true)]
+    [(case index-key
+       :eavt (:temporal-eavt db)
+       :aevt (:temporal-aevt db)
+       :avet (:temporal-avet db)
+       nil) strategy]))
+
+(defn added? [[_ _ _ _ added]]
+  added)
+
+(defn filter-by-added [pattern result]
+  (case (added? pattern)
+    true (filter datom-added result)
+    false (remove datom-added result)
+    nil result))
 
 (defn search-temporal-indices [db pattern]
   (memoize-for db [:temporal-search pattern]
-               #(let [[_ a _ _ added] pattern
-                      [index-key strategy] (get-search-strategy
-                                            pattern
-                                            (dbu/indexing? db a)
-                                            true)
-                      result (strategy (case index-key
-                                         :eavt (:temporal-eavt db)
-                                         :aevt (:temporal-aevt db)
-                                         :avet (:temporal-avet db)
-                                         nil)
-                                       pattern)]
-                  (case added
-                    true (filter datom-added result)
-                    false (remove datom-added result)
-                    nil result))))
+               #(let [[db-index strategy] (temporal-search-strategy db pattern)
+                      result (strategy db-index pattern)]
+                  (filter-by-added pattern result))))
 
 (defn temporal-search [db pattern]
   (dbu/distinct-datoms db

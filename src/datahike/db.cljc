@@ -192,6 +192,8 @@
   dbi/ISearch
   (-search [db pattern]
     (dbs/search-current-indices db pattern))
+  (-contextual-search [db pattern-mask strategy-data-fn]
+    nil)
 
   dbi/IIndexAccess
   (-datoms [db index-type cs]

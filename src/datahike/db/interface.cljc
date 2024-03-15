@@ -3,7 +3,8 @@
 ;; Database Protocols
 
 (defprotocol ISearch
-  (-search [data pattern]))
+  (-search [data pattern])
+  (-contextual-search [data pattern-mask strategy-data-fn]))
 
 (defprotocol IIndexAccess
   (-datoms [db index components])
