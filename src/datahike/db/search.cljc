@@ -150,7 +150,7 @@
         [_ _ _ t *] (lookup-strategy eavt _ _ _ f)
         [_ _ _ _ *] (lookup-strategy eavt _ _ _ _)))))
 
-(defn- search-indices
+#_(defn- search-indices
   "Assumes correct pattern form, i.e. refs for ref-database"
   [eavt aevt avet pattern indexed? temporal-db?]
   (let [strategy (get-search-strategy pattern indexed? temporal-db?)]
@@ -159,14 +159,14 @@
 (defn search-current-indices [db pattern]
   (memoize-for db [:search pattern]
                #(let [[_ a _ _] pattern
-                      #_#_strategy (get-search-strategy pattern
+                      strategy (get-search-strategy pattern
                                                     (dbu/indexing? db a)
                                                     false)]
-                  #_(strategy (:eavt db)
+                  (strategy (:eavt db)
                             (:aevt db)
                             (:avet db)
                             pattern)
-                  (search-indices (:eavt db)
+                  #_(search-indices (:eavt db)
                                   (:aevt db)
                                   (:avet db)
                                   pattern
@@ -179,11 +179,11 @@
                       strategy (get-search-strategy pattern
                                                     (dbu/indexing? db a)
                                                     true)
-                      #_#_result (strategy (:temporal-eavt db)
+                      result (strategy (:temporal-eavt db)
                                        (:temporal-aevt db)
                                        (:temporal-avet db)
                                        pattern)
-                      result (search-indices (:temporal-eavt db)
+                      #_#_result (search-indices (:temporal-eavt db)
                                                  (:temporal-aevt db)
                                                  (:temporal-avet db)
                                                  pattern
