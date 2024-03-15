@@ -49,7 +49,9 @@
             (raw-array-compare a b))))
 
 
-#?(:clj (defn string-from-bytes [x]
+#?(:clj (defn string-from-bytes
+          "Represents a byte array as a string. Two byte arrays are said to be equal iff their corresponding values after applying this function are equal. That way, we rely on the equality and hash code implementations of the String class to compare byte arrays."
+          [x]
           (let [n (alength x)
                 dst (char-array n)]
             (dotimes [i n]
@@ -58,15 +60,13 @@
 
 (defrecord WrappedBytes [string-repr])
 
-(defn wrap-comparable [x]
+(defn wrap-comparable
+  "This functions is such that `(a= x y)` is equivalent to `(= (wrap-comparable x) (wrap-comparable y))`. This lets us also use these semantics in hash-sets or as keys in maps."
+  [x]
   (if (bytes? x)
     (WrappedBytes. #?(:clj (string-from-bytes x)
                       :cljs x))
     x))
-
-(defn a2= [a b]
-  (= (wrap-comparable a)
-     (wrap-comparable b)))
 
 (defn a=
   "Extension of Clojure's equality to things we also want to treat like values,

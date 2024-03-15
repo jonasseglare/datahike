@@ -594,15 +594,32 @@
        (filter (fn [[s _]] (free-var? s)))
        (into {})))
 
-(defn lookup-pattern-db [context db pattern orig-pattern]
-  ;; TODO optimize with bound attrs min/max values here
-  
-  (let [ ;; Create a map from free var to symbol
-        attr->prop (var-mapping orig-pattern ["e" "a" "v" "tx" "added"])
 
-        ;; Create a map from free var to index
+
+(defn map-consts [context orig-pattern datoms]
+  (let [;; Create a map from free var to index
         ;; for the positions in the pattern
         attr->idx (var-mapping orig-pattern (range))
+
+        idx->const (reduce-kv (fn [m k v]
+                                (if-let [c (k (:consts context))]
+                                  (if (= c (get (first datoms) v)) ;; All datoms have the same format and the same value at position v
+                                    m ;; -> avoid unnecessary translations
+                                    (assoc m v c))
+                                  m))
+                              {}
+                              attr->idx)]
+    (when (seq idx->const)
+      (Relation. attr->idx (map #(reduce (fn [datom [k v]]
+                                           (assoc datom k v))
+                                         (vec (seq %))
+                                         idx->const)
+                                datoms)))))
+
+(defn lookup-pattern-db [context db pattern orig-pattern]
+  ;; TODO optimize with bound attrs min/max values here
+  (let [ ;; Create a map from free var to symbol
+        attr->prop (var-mapping orig-pattern ["e" "a" "v" "tx" "added"])
 
         ;; Replace all unknowns by nil.
         search-pattern (mapv #(if (symbol? %) nil %) pattern)
@@ -612,22 +629,9 @@
                   (if-let [eid (dbu/entid db (first search-pattern))]
                     (dbi/-search db (assoc search-pattern 0 eid))
                     [])
-                  (dbi/-search db search-pattern))
-        idx->const (reduce-kv (fn [m k v]
-                                (if-let [c (k (:consts context))]
-                                  (if (= c (get (first datoms) v)) ;; All datoms have the same format and the same value at position v
-                                    m ;; -> avoid unnecessary translations
-                                    (assoc m v c))
-                                  m))
-                              {}
-                              attr->idx)]
-    (if (empty? idx->const)
-      (Relation. attr->prop datoms)
-      (Relation. attr->idx (map #(reduce (fn [datom [k v]]
-                                           (assoc datom k v))
-                                         (vec (seq %))
-                                         idx->const)
-                                datoms)))))
+                  (dbi/-search db search-pattern))]
+    (or (map-consts context orig-pattern datoms)
+        (Relation. attr->prop datoms))))
 
 (defn matches-pattern? [pattern tuple]
   (loop [tuple tuple
@@ -1236,6 +1240,10 @@ than doing no expansion at all."
 (defn prepare-search [context pattern]
   (let [rels (vec (:rels context))
         bsm (bound-symbol-map rels)
+
+        ;; Used to decide on the approach
+        _mask (pattern-search-mask bsm pattern)
+        
         plan (plan-substitutions bsm pattern '[1 1 1 1])]
     (substitute-relations pattern rels plan)))
 
