@@ -717,9 +717,6 @@
                     bsm pattern1 strategy0 subst-inds0)
         filt-inds1 (dq/filtering-relation-indices
                     bsm pattern1 strategy1 subst-inds1)]
-    (def the-pattern1 pattern1)
-    (def the-bsm bsm)
-    (def the-sim (dq/search-index-mapping bsm pattern1 strategy1 :substitute))
     (is (seq rels))
     (is (= '{?oc {:relation-index 0, :tuple-element-index 0},
              ?__auto__1 {:relation-index 1, :tuple-element-index 0}}
@@ -729,3 +726,31 @@
     (is (= #{} subst-inds1))
     (is (= #{} filt-inds0))
     (is (= #{0} filt-inds1))))
+
+
+
+
+(deftest test-new-search-strategy2
+  (let [pattern1 '[nil ?x ?y]
+        context '{:rels [{:attrs {?x 0
+                                  ?y 1}
+                          :tuples [[1 2]
+                                   [3 4]
+                                   [3 5]
+                                   [5 6]]}
+                         {:attrs {?z 0}
+                          :tuples [[9] [10] [11]]}]}
+        rels (vec (:rels context))
+        bsm (dq/bound-symbol-map rels)
+        strategy [nil :substitute :filter nil]
+        subst-inds (dq/substitution-relation-indices bsm pattern1 strategy)
+        filt-inds (dq/filtering-relation-indices bsm pattern1
+                                                 strategy subst-inds)]
+    (is (= #{0} subst-inds))
+    (is (= #{} filt-inds))
+    (is (= {'?x {:relation-index 0 :tuple-element-index 0}
+            '?y {:relation-index 0 :tuple-element-index 1}
+            '?z {:relation-index 1 :tuple-element-index 0}}
+           bsm))
+    (def the-plan (dq/substitution-plan bsm pattern1
+                                        strategy rels subst-inds))))

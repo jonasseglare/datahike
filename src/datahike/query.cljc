@@ -1217,13 +1217,13 @@ than doing no expansion at all."
        (bsm x) ::bound
        :else nil))))
 
-(defn search-index-mapping [bsm pattern subst-mask strat-symbol]
-  {:pre [(= 4 (count subst-mask))]}
+(defn search-index-mapping [bsm pattern strategy strat-symbol]
+  {:pre [(= 4 (count strategy))]}
   (let [pattern (normalize-pattern pattern)]
     (map-indexed
      (fn [i dst]
        (assoc dst :sim-index i))
-     (for [[i p s] (map vector (range) pattern subst-mask)
+     (for [[i p s] (map vector (range) pattern strategy)
            :when (= strat-symbol s)
            :let [m (bsm p)]
            :when m]
@@ -1240,13 +1240,67 @@ than doing no expansion at all."
               (remove subst-inds))
         (search-index-mapping bsm pattern subst-mask :filter)))
 
-(defn search-product [update-element relation current-product group]
-  (for [element current-product
-        {:keys [tuple-element-index] :as sim} group
-        tuple (:tuples relation)]
-    (update-element element sim (nth tuple tuple-element-index))))
+(defn select-inds [src inds]
+  (mapv #(nth src %) inds))
 
-(defn make-product [upd init rels sims]
+(defn relation-substs [rels rel-index subst-map filt-map]
+  (let [tuples (:tuples (nth rels rel-index))
+        subst (subst-map rel-index)
+        filt (filt-map rel-index)
+        subst-inds (map :tuple-element-index subst)
+        filt-inds (map :tuple-element-index filt)
+        subst-filt-map (reduce (fn [dst tuple]
+                                 (update
+                                  dst
+                                  (select-inds tuple subst-inds)
+                                  (fn [dst]
+                                    (conj (or dst #{})
+                                          (select-inds tuple filt-inds)))))
+                               {}
+                               tuples)]
+    {:subst-filt-map subst-filt-map
+     :subst-pos (map :pattern-element-index subst)
+     :filt-pos (map :pattern-element-index filt)}))
+
+(defn expand-substs [pattern-filt-data-pairs {:keys [subst-filt-map
+                                                     subst-pos
+                                                     filt-pos]}]
+  (for [[pattern filt-data] pattern-filt-data-pairs
+        [subst filt] subst-filt-map]
+    [(mapv (fn [pos v] (assoc pattern pos v))
+           subst-pos
+           subst)
+     (conj filt-data [filt-pos filt])]))
+
+(defn substitution-plan [bsm pattern strategy rels rel-inds]
+  {:pre [(map? bsm)
+         (vector? pattern)
+         (vector? strategy)
+         (vector? rels)
+         (set? rel-inds)]}
+  (let [compute-map (fn [strat-symbol]
+                      (->> strat-symbol
+                           (search-index-mapping bsm pattern strategy)
+                           (filter (comp rel-inds :relation-index))
+                           (group-by :relation-index)))
+        subst-map (compute-map :substitute)
+        filt-map (compute-map :filter)
+        per-relation-substs (for [rel-index rel-inds]
+                              (relation-substs rels rel-index
+                                               subst-map
+                                               filt-map))
+        substs (reduce expand-substs
+                       [[pattern []]]
+                       per-relation-substs)]
+    substs))
+
+#_(defn search-product [update-element relation current-product group]
+    (for [element current-product
+          {:keys [tuple-element-index] :as sim} group
+          tuple (:tuples relation)]
+      (update-element element sim (nth tuple tuple-element-index))))
+
+#_(defn make-product [upd init rels sims]
   (reduce (fn [prod [relation-index group]]
             (search-product upd
                             (nth rels relation-index)
@@ -1255,21 +1309,21 @@ than doing no expansion at all."
           [init]
           (group-by :relation-index sims)))
 
-(defn substitute-relations [pattern rels subst-sim]
+#_(defn substitute-relations [pattern rels subst-sim]
   (make-product (fn [pattern sim x]
                   (assoc pattern (:pattern-element-index sim) x))
                 pattern
                 rels
                 subst-sim))
 
-(defn make-filter-set [sfff rels filter-sim]
+#_(defn make-filter-set [sfff rels filter-sim]
   (make-product (fn [feature sim x]
                   (sfff feature (:sim-index sim) x))
                 (sfff)
                 rels
                 filter-sim))
 
-(defn search-filter-feature-fn [filter-sim]
+#_(defn search-filter-feature-fn [filter-sim]
   (let [n (count filter-sim)
         pattern-inds (map :pattern-element-index filter-sim)
         first-pattern-index (first pattern-inds)
@@ -1287,7 +1341,7 @@ than doing no expansion at all."
         ([dst dst-index x]
          (assoc dst dst-index (wrap-comparable x)))))))
 
-(defn prepare-search [context pattern strategy]
+#_(defn prepare-search [context pattern strategy]
   (let [rels (vec (:rels context))
         bsm (bound-symbol-map rels)
 
