@@ -1209,13 +1209,11 @@ than doing no expansion at all."
 (defn normalize-pattern [[e a v tx]]
   [e a v tx])
 
-(defn pattern-search-mask [bsm pattern]
+(defn replace-unbound-symbols-by-nil [bsm pattern]
   (normalize-pattern
-   (for [x pattern]
-     (cond
-       (not (symbol? x)) x
-       (bsm x) ::bound
-       :else nil))))
+   (mapv #(when-not (and (symbol? %) (not (contains? bsm %)))
+            %)
+         pattern)))
 
 (defn search-index-mapping [bsm pattern strategy strat-symbol]
   {:pre [(= 4 (count strategy))]}
@@ -1243,6 +1241,9 @@ than doing no expansion at all."
 (defn select-inds [src inds]
   (mapv #(nth src %) inds))
 
+(defn select-comparables-by-inds [src inds]
+  (mapv #(wrap-comparable (nth src %)) inds))
+
 (defn relation-substs [rels rel-index subst-map filt-map]
   (let [tuples (:tuples (nth rels rel-index))
         subst (subst-map rel-index)
@@ -1255,7 +1256,8 @@ than doing no expansion at all."
                                   (select-inds tuple subst-inds)
                                   (fn [dst]
                                     (conj (or dst #{})
-                                          (select-inds tuple filt-inds)))))
+                                          (select-comparables-by-inds
+                                           tuple filt-inds)))))
                                {}
                                tuples)]
     {:subst-filt-map subst-filt-map
@@ -1267,10 +1269,19 @@ than doing no expansion at all."
                                                      filt-pos]}]
   (for [[pattern filt-data] pattern-filt-data-pairs
         [subst filt] subst-filt-map]
-    [(mapv (fn [pos v] (assoc pattern pos v))
-           subst-pos
-           subst)
-     (conj filt-data [filt-pos filt])]))
+    [(reduce (fn [pattern [pos v]]
+               (assoc pattern pos v))
+             pattern
+             (map vector subst-pos subst))
+     (if (seq filt-pos)
+       (conj filt-data [filt-pos filt])
+       filt-data)]))
+
+(defn compute-per-rel-map [bsm pattern strategy rel-inds strat-symbol]
+  (->> strat-symbol
+       (search-index-mapping bsm pattern strategy)
+       (filter (comp rel-inds :relation-index))
+       (group-by :relation-index)))
 
 (defn substitution-plan [bsm pattern strategy rels rel-inds]
   {:pre [(map? bsm)
@@ -1278,21 +1289,37 @@ than doing no expansion at all."
          (vector? strategy)
          (vector? rels)
          (set? rel-inds)]}
-  (let [compute-map (fn [strat-symbol]
-                      (->> strat-symbol
-                           (search-index-mapping bsm pattern strategy)
-                           (filter (comp rel-inds :relation-index))
-                           (group-by :relation-index)))
-        subst-map (compute-map :substitute)
-        filt-map (compute-map :filter)
+  (let [subst-map (compute-per-rel-map bsm pattern strategy rel-inds :substitute)
+        filt-map (compute-per-rel-map bsm pattern strategy rel-inds :filter)
         per-relation-substs (for [rel-index rel-inds]
                               (relation-substs rels rel-index
                                                subst-map
-                                               filt-map))
-        substs (reduce expand-substs
-                       [[pattern []]]
-                       per-relation-substs)]
-    substs))
+                                               filt-map))]
+    (reduce expand-substs
+            [[pattern []]]
+            per-relation-substs)))
+
+(defn filtering-plan [bsm pattern strategy rels rel-inds]
+  (let [filt-map (compute-per-rel-map bsm pattern strategy rel-inds :filter)]
+    (into []
+          (map (fn [[rel-index ind-vec]]
+                 (let [tuples (:tuples (nth rels rel-index))
+                       pos-inds (map :pattern-element-index ind-vec)
+                       tup-inds (map :tuple-element-index ind-vec)]
+                   [pos-inds
+                    (into #{}
+                          (map #(select-comparables-by-inds % tup-inds))
+                          tuples)])))
+          filt-map)))
+
+(defn datom-filter [[filt-inds filt-set]]
+  (->> filt-inds
+       (select-comparables-by-inds datom)
+       (contains? filt-set)
+       (fn [datom])
+       filter))
+
+
 
 #_(defn search-product [update-element relation current-product group]
     (for [element current-product
@@ -1361,7 +1388,7 @@ than doing no expansion at all."
 (defn lookup-new-search [source context pattern1]
   (let [rels (vec (:rels context))
         bsm (bound-symbol-map rels)
-        mask (pattern-search-mask bsm pattern1)]
+        clean-pattern (replace-unbound-symbols-by-nil bsm pattern1)]
     #_(dbi/-batch-search )))
 
 (defn -resolve-clause*

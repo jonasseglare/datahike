@@ -730,7 +730,7 @@
 
 
 
-(deftest test-new-search-strategy2
+(deftest test-substitution-plan
   (let [pattern1 '[nil ?x ?y]
         context '{:rels [{:attrs {?x 0
                                   ?y 1}
@@ -745,12 +745,60 @@
         strategy [nil :substitute :filter nil]
         subst-inds (dq/substitution-relation-indices bsm pattern1 strategy)
         filt-inds (dq/filtering-relation-indices bsm pattern1
-                                                 strategy subst-inds)]
+                                                 strategy subst-inds)
+        subst-plan (dq/substitution-plan
+                    bsm pattern1 strategy rels subst-inds)]
     (is (= #{0} subst-inds))
     (is (= #{} filt-inds))
     (is (= {'?x {:relation-index 0 :tuple-element-index 0}
             '?y {:relation-index 0 :tuple-element-index 1}
             '?z {:relation-index 1 :tuple-element-index 0}}
            bsm))
-    (def the-plan (dq/substitution-plan bsm pattern1
-                                        strategy rels subst-inds))))
+    (is (= '([[nil 1 ?y] [[(2) #{[2]}]]]
+             [[nil 3 ?y] [[(2) #{[4] [5]}]]]
+             [[nil 5 ?y] [[(2) #{[6]}]]])
+           subst-plan))))
+
+(deftest test-filtering-plan
+  (let [pattern1 '[?w ?x ?y]
+        context '{:rels [{:attrs {?x 0}
+                          :tuples [[1]
+                                   [3]
+                                   [5]]}
+                         {:attrs {?y 0}
+                          :tuples [[2] [4] [6]]}
+                         {:attrs {?z 0}
+                          :tuples [[9] [10] [11]]}]}
+
+        rels (vec (:rels context))
+        bsm (dq/bound-symbol-map rels)
+        clean-pattern (dq/replace-unbound-symbols-by-nil bsm pattern1)
+        strategy [nil :substitute :filter nil]
+        subst-inds (dq/substitution-relation-indices bsm pattern1 strategy)
+        filt-inds (dq/filtering-relation-indices bsm clean-pattern
+                                                 strategy subst-inds)
+        subst-plan (dq/substitution-plan
+                    bsm clean-pattern strategy rels subst-inds)
+        filt-plan (dq/filtering-plan
+                   bsm clean-pattern strategy rels filt-inds)
+
+        dfilter (dq/datom-filter (first filt-plan))]
+    (is (= '[nil ?x ?y nil] clean-pattern))
+    (is (= #{0} subst-inds))
+    (is (= #{1} filt-inds))
+    (is (= {'?x {:relation-index 0 :tuple-element-index 0}
+            '?y {:relation-index 1 :tuple-element-index 0}
+            '?z {:relation-index 2 :tuple-element-index 0}}
+           bsm))
+    (is (= '([[nil 1 ?y nil] []]
+             [[nil 3 ?y nil] []]
+             [[nil 5 ?y nil] []])
+           subst-plan))
+    (is (= '[[(2) #{[4] [6] [2]}]] filt-plan))
+    (is (= [[1 3 2]]
+           (into []
+                 dfilter
+                 [[1 3 2]
+                  [1 9 7]])))))
+
+
