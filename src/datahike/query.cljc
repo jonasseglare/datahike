@@ -1206,15 +1206,16 @@ than doing no expansion at all."
              [sym {:relation-index rel-index
                    :tuple-element-index tup-index}])))
 
-(defn pattern-search-mask [bsm pattern]
-  (vec (for [x pattern]
-         (cond
-           (not (symbol? x)) x
-           (bsm x) ::bound
-           :else nil))))
-
 (defn normalize-pattern [[e a v tx]]
   [e a v tx])
+
+(defn pattern-search-mask [bsm pattern]
+  (normalize-pattern
+   (for [x pattern]
+     (cond
+       (not (symbol? x)) x
+       (bsm x) ::bound
+       :else nil))))
 
 (defn search-index-mapping [bsm pattern subst-mask strat-symbol]
   {:pre [(= 4 (count subst-mask))]}
@@ -1227,6 +1228,11 @@ than doing no expansion at all."
            :let [m (bsm p)]
            :when m]
        (assoc m :pattern-element-index i)))))
+
+(defn substitution-relation-indices [bsm pattern subst-mask]
+  (into #{}
+        (map :relation-index)
+        (search-index-mapping bsm pattern subst-mask :substitute)))
 
 (defn search-product [update-element relation current-product group]
   (for [element current-product
@@ -1280,12 +1286,14 @@ than doing no expansion at all."
         bsm (bound-symbol-map rels)
 
         ;; Used to decide on the approach
-        _mask (pattern-search-mask bsm pattern)
+        mask (pattern-search-mask bsm pattern)
         subst-sim (search-index-mapping bsm pattern strategy 1)
         filter-sim (search-index-mapping bsm pattern strategy 'f)
         sfff (search-filter-feature-fn filter-sim)
         filter-set (when sfff (make-filter-set sfff rels filter-sim))]
-    [:subst
+    [:mask
+     mask
+     :subst
      (substitute-relations pattern rels subst-sim)
      :filter
      filter-set]))
