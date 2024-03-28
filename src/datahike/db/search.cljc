@@ -162,23 +162,23 @@
 
 (defn current-search-strategy [db pattern]
   (let [[_ a _ _] pattern
-        [index-key _strategy-vec strategy-fn]
+        [index-key strategy-vec strategy-fn backend-fn]
         (get-search-strategy pattern
                              (dbu/indexing? db a)
                              false)]
-    [(get db index-key) strategy-fn]))
+    [(get db index-key) strategy-vec strategy-fn backend-fn]))
 
 (defn search-current-indices
   ([db pattern]
    (memoize-for
     db [:search pattern]
-    #(let [[db-index strategy] (current-search-strategy db pattern)]
-       (strategy db-index pattern))))
+    #(let [[db-index _ strategy-fn _] (current-search-strategy db pattern)]
+       (strategy-fn db-index pattern))))
 
   ;; For batches
   ([db pattern batch-fn]
-   (let [[db-index strategy] (current-search-strategy db pattern)]
-     (strategy db-index pattern batch-fn))))
+   (let [[_ strategy-vec _ backend-fn] (current-search-strategy db pattern)]
+     (batch-fn strategy-vec backend-fn))))
 
 (defn temporal-search-strategy [db pattern]
   (let [[_ a _ _ _] pattern
