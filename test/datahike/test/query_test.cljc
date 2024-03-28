@@ -732,7 +732,7 @@
 
 
 (deftest test-substitution-plan
-  (let [pattern1 '[nil ?x ?y]
+  (let [-pattern1 '[?w ?x ?y]
         context '{:rels [{:attrs {?x 0
                                   ?y 1}
                           :tuples [[1 2]
@@ -743,21 +743,23 @@
                           :tuples [[9] [10] [11]]}]}
         rels (vec (:rels context))
         bsm (dq/bound-symbol-map rels)
+        clean-pattern (dq/replace-unbound-symbols-by-nil bsm -pattern1)
         strategy [nil :substitute :filter nil]
-        subst-inds (dq/substitution-relation-indices bsm pattern1 strategy)
-        filt-inds (dq/filtering-relation-indices bsm pattern1
-                                                 strategy subst-inds)
+        subst-inds (dq/substitution-relation-indices
+                    bsm clean-pattern strategy)
+        filt-inds (dq/filtering-relation-indices
+                   bsm clean-pattern strategy subst-inds)
         subst-plan (dq/substitution-plan
-                    bsm pattern1 strategy rels subst-inds)]
+                    bsm clean-pattern strategy rels subst-inds)]
     (is (= #{0} subst-inds))
     (is (= #{} filt-inds))
     (is (= {'?x {:relation-index 0 :tuple-element-index 0}
             '?y {:relation-index 0 :tuple-element-index 1}
             '?z {:relation-index 1 :tuple-element-index 0}}
            bsm))
-    (is (= '([[nil 1 ?y] [[(2) #{[2]}]]]
-             [[nil 3 ?y] [[(2) #{[4] [5]}]]]
-             [[nil 5 ?y] [[(2) #{[6]}]]])
+    (is (= '([[nil 1 ?y nil] [[(2) #{[2]}]]]
+             [[nil 3 ?y nil] [[(2) #{[4] [5]}]]]
+             [[nil 5 ?y nil] [[(2) #{[6]}]]])
            subst-plan))))
 
 (deftest test-filtering-plan
