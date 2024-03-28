@@ -1411,8 +1411,9 @@ than doing no expansion at all."
 (defn lookup-new-search [source context pattern1]
   (let [rels (vec (:rels context))
         bsm (bound-symbol-map rels)
-        clean-pattern (replace-unbound-symbols-by-nil bsm pattern1)]
-    #_(dbi/-batch-search )))
+        clean-pattern (replace-unbound-symbols-by-nil bsm pattern1)
+        batch-fn (search-batch-fn bsm clean-pattern rels)]
+    (dbi/-batch-search source clean-pattern batch-fn)))
 
 (defn -resolve-clause*
   ([context clause]
