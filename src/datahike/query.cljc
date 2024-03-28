@@ -1234,6 +1234,12 @@ than doing no expansion at all."
         (map :relation-index)
         (search-index-mapping bsm pattern subst-mask :substitute)))
 
+(defn filtering-relation-indices [bsm pattern subst-mask subst-inds]
+  (into #{}
+        (comp (map :relation-index)
+              (remove subst-inds))
+        (search-index-mapping bsm pattern subst-mask :filter)))
+
 (defn search-product [update-element relation current-product group]
   (for [element current-product
         {:keys [tuple-element-index] :as sim} group

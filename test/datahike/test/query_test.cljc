@@ -707,7 +707,16 @@
         mask (dq/pattern-search-mask bsm pattern1)
 
         strategy0 [nil :substitute :substitute nil]
-        strategy1 [nil :substitute :filter nil]]
+        strategy1 [nil :substitute :filter nil]
+
+
+        subst-inds0 (dq/substitution-relation-indices bsm pattern1 strategy0)
+        subst-inds1 (dq/substitution-relation-indices bsm pattern1 strategy1)
+
+        filt-inds0 (dq/filtering-relation-indices
+                    bsm pattern1 strategy0 subst-inds0)
+        filt-inds1 (dq/filtering-relation-indices
+                    bsm pattern1 strategy1 subst-inds1)]
     (def the-pattern1 pattern1)
     (def the-bsm bsm)
     (def the-sim (dq/search-index-mapping bsm pattern1 strategy1 :substitute))
@@ -716,5 +725,7 @@
              ?__auto__1 {:relation-index 1, :tuple-element-index 0}}
            bsm))
     (is (= [nil 79 :datahike.query/bound nil] mask))
-    (is (= #{0} (dq/substitution-relation-indices bsm pattern1 strategy0)))
-    (is (= #{} (dq/substitution-relation-indices bsm pattern1 strategy1)))))
+    (is (= #{0} subst-inds0))
+    (is (= #{} subst-inds1))
+    (is (= #{} filt-inds0))
+    (is (= #{0} filt-inds1))))
