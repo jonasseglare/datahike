@@ -704,24 +704,25 @@
         {:keys [context pattern1]} ex1
         rels (vec (:rels context))
         bsm (dq/bound-symbol-map rels)
-        mask (dq/pattern-search-mask bsm pattern1)
+
+        clean-pattern (dq/replace-unbound-symbols-by-nil bsm pattern1)
 
         strategy0 [nil :substitute :substitute nil]
         strategy1 [nil :substitute :filter nil]
 
 
-        subst-inds0 (dq/substitution-relation-indices bsm pattern1 strategy0)
-        subst-inds1 (dq/substitution-relation-indices bsm pattern1 strategy1)
-
+        subst-inds0 (dq/substitution-relation-indices
+                     bsm clean-pattern strategy0)
+        subst-inds1 (dq/substitution-relation-indices
+                     bsm clean-pattern strategy1)
         filt-inds0 (dq/filtering-relation-indices
-                    bsm pattern1 strategy0 subst-inds0)
+                    bsm clean-pattern strategy0 subst-inds0)
         filt-inds1 (dq/filtering-relation-indices
-                    bsm pattern1 strategy1 subst-inds1)]
+                    bsm clean-pattern strategy1 subst-inds1)]
     (is (seq rels))
     (is (= '{?oc {:relation-index 0, :tuple-element-index 0},
              ?__auto__1 {:relation-index 1, :tuple-element-index 0}}
            bsm))
-    (is (= [nil 79 :datahike.query/bound nil] mask))
     (is (= #{0} subst-inds0))
     (is (= #{} subst-inds1))
     (is (= #{} filt-inds0))
