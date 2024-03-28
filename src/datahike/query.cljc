@@ -620,22 +620,25 @@
 (defn replace-symbols-by-nil [pattern]
   (mapv #(if (symbol? %) nil %) pattern))
 
+(defn resolve-pattern-eid [db search-pattern]
+  (if-let [first-p (first search-pattern)]
+    (when-let [eid (dbu/entid db first-p)]
+      (assoc search-pattern 0 eid))
+    search-pattern))
+
+(defn relation-from-datoms [context orig-pattern datoms]
+  (or (map-consts context orig-pattern datoms)
+      (Relation. (var-mapping orig-pattern ["e" "a" "v" "tx" "added"])
+                 datoms)))
+
 (defn lookup-pattern-db [context db pattern orig-pattern]
   ;; TODO optimize with bound attrs min/max values here
-  (let [ ;; Create a map from free var to symbol
-        attr->prop (var-mapping orig-pattern ["e" "a" "v" "tx" "added"])
-
-        ;; Replace all unknowns by nil.
+  (let [;; Replace all unknowns by nil.
         search-pattern (replace-symbols-by-nil pattern)
-
-        
-        datoms  (if (first search-pattern)
-                  (if-let [eid (dbu/entid db (first search-pattern))]
-                    (dbi/-search db (assoc search-pattern 0 eid))
-                    [])
-                  (dbi/-search db search-pattern))]
-    (or (map-consts context orig-pattern datoms)
-        (Relation. attr->prop datoms))))
+        datoms (if-let [search-pattern (resolve-pattern-eid db search-pattern)]
+                 (dbi/-search db search-pattern)
+                 [])]
+    (relation-from-datoms context orig-pattern datoms)))
 
 (defn matches-pattern? [pattern tuple]
   (loop [tuple tuple
@@ -1408,12 +1411,26 @@ than doing no expansion at all."
      :filter
      filter-set]))
 
-(defn lookup-new-search [source context pattern1]
+#_(defn lookup-pattern-db [context db pattern orig-pattern]
+  ;; TODO optimize with bound attrs min/max values here
+  (let [;; Replace all unknowns by nil.
+        search-pattern (replace-symbols-by-nil pattern)
+        datoms (if-let [search-pattern (resolve-pattern-eid db search-pattern)]
+                 (dbi/-search db search-pattern)
+                 [])]
+    (relation-from-datoms context orig-pattern datoms)))
+
+(defn lookup-new-search [source context orig-pattern pattern1]
   (let [rels (vec (:rels context))
         bsm (bound-symbol-map rels)
         clean-pattern (replace-unbound-symbols-by-nil bsm pattern1)
-        batch-fn (search-batch-fn bsm clean-pattern rels)]
-    (dbi/-batch-search source clean-pattern batch-fn)))
+        datoms (if-let [clean-pattern (resolve-pattern-eid source clean-pattern)]
+                 (dbi/-batch-search source clean-pattern
+                                    (search-batch-fn
+                                     bsm clean-pattern rels))
+                 [])
+        relation (relation-from-datoms context orig-pattern datoms)]
+    (update context :rels collapse-rels relation)))
 
 (defn -resolve-clause*
   ([context clause]
@@ -1514,11 +1531,14 @@ than doing no expansion at all."
            pattern0 (replace (:consts context) clause)
            pattern1 (resolve-pattern-lookup-refs source pattern0)
 
+           ;; New impl
+           new-context (lookup-new-search source context clause pattern1)
 
-           #_#_new-result-set (lookup-new-search source context pattern1)
-           
-           constrained-patterns (expand-constrained-patterns source context pattern1)
-           context-constrained (lookup-patterns context clause pattern1 constrained-patterns)]
+           ;; Old impl
+           constrained-patterns (expand-constrained-patterns
+                                 source context pattern1)
+           context-constrained (lookup-patterns
+                                context clause pattern1 constrained-patterns)]
        (log-example {:source source
                      :pattern1 pattern1
                      :context context
