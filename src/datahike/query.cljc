@@ -1294,9 +1294,19 @@ than doing no expansion at all."
         per-relation-substs (for [rel-index rel-inds]
                               (relation-substs rels rel-index
                                                subst-map
-                                               filt-map))]
+                                               filt-map))
+        subst-pattern-positions (into #{}
+                                      (comp cat (map :pattern-element-index))
+                                      (vals subst-map))
+        clean-pattern (into []
+                            (map-indexed (fn [i x]
+                                           (cond
+                                             (subst-pattern-positions i) x
+                                             (symbol? x) nil
+                                             :else x)))
+                            pattern)]
     (reduce expand-substs
-            [[pattern []]]
+            [[clean-pattern []]]
             per-relation-substs)))
 
 (defn filtering-plan [bsm pattern strategy rels rel-inds]
@@ -1318,6 +1328,19 @@ than doing no expansion at all."
        (contains? filt-set)
        (fn [datom])
        filter))
+
+(defn search-batch-fn [bsm clean-pattern rels]
+  (fn [strategy]
+    (let [subst-inds (substitution-relation-indices
+                      bsm clean-pattern strategy)
+          filt-inds (filtering-relation-indices
+                     bsm clean-pattern strategy subst-inds)]
+      {:substitution-plan
+       (substitution-plan
+        bsm clean-pattern strategy rels subst-inds)
+       :filtering-plan
+       (filtering-plan
+        bsm clean-pattern strategy rels filt-inds)})))
 
 
 

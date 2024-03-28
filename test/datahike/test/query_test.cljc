@@ -757,9 +757,9 @@
             '?y {:relation-index 0 :tuple-element-index 1}
             '?z {:relation-index 1 :tuple-element-index 0}}
            bsm))
-    (is (= '([[nil 1 ?y nil] [[(2) #{[2]}]]]
-             [[nil 3 ?y nil] [[(2) #{[4] [5]}]]]
-             [[nil 5 ?y nil] [[(2) #{[6]}]]])
+    (is (= '([[nil 1 nil nil] [[(2) #{[2]}]]]
+             [[nil 3 nil nil] [[(2) #{[4] [5]}]]]
+             [[nil 5 nil nil] [[(2) #{[6]}]]])
            subst-plan))))
 
 (deftest test-filtering-plan
@@ -785,7 +785,9 @@
         filt-plan (dq/filtering-plan
                    bsm clean-pattern strategy rels filt-inds)
 
-        dfilter (dq/datom-filter (first filt-plan))]
+        dfilter (dq/datom-filter (first filt-plan))
+
+        bfn (dq/search-batch-fn bsm clean-pattern rels)]
     (is (= '[nil ?x ?y nil] clean-pattern))
     (is (= #{0} subst-inds))
     (is (= #{1} filt-inds))
@@ -793,15 +795,18 @@
             '?y {:relation-index 1 :tuple-element-index 0}
             '?z {:relation-index 2 :tuple-element-index 0}}
            bsm))
-    (is (= '([[nil 1 ?y nil] []]
-             [[nil 3 ?y nil] []]
-             [[nil 5 ?y nil] []])
+    (is (= '([[nil 1 nil nil] []]
+             [[nil 3 nil nil] []]
+             [[nil 5 nil nil] []])
            subst-plan))
     (is (= '[[(2) #{[4] [6] [2]}]] filt-plan))
     (is (= [[1 3 2]]
            (into []
                  dfilter
                  [[1 3 2]
-                  [1 9 7]])))))
+                  [1 9 7]])))
+    (is (= {:substitution-plan subst-plan
+            :filtering-plan filt-plan}
+           (bfn strategy)))))
 
 
