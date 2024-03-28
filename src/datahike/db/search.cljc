@@ -87,7 +87,6 @@
         strat-set (set eavt-strats)
         has-substitution (contains? strat-set :substitute)
         index-expr (symbol index-key)
-        batch-fn-sym (gensym)
 
         ;; Either get all datoms or a subset where some values in the
         ;; datom are fixed.
@@ -106,21 +105,26 @@
                                    `(a= ~v-sym (.-v ~dexpr)))
                                  (when (= :filter t-strat)
                                    `(= ~t-sym (datom-tx ~dexpr)))])]
-    `(fn
-       ([~index-expr ~eavt-symbols]
+    `[~index-key
+
+      ~(vec eavt-strats)
+      
+      ;; Used by the old implementation
+      (fn [~index-expr ~eavt-symbols]
         ~(if (seq equalities)
            `(filter (fn [~dexpr] (and ~@equalities)) ~lookup-expr)
            lookup-expr))
-       ([~index-expr ~eavt-symbols ~batch-fn-sym]
-        ))))
+
+      ;; Used by the batch implementation
+      (fn [~index-expr ~eavt-symbols]
+        ~lookup-expr)]))
 
 (defmacro lookup-strategy [index-key & eavt-strats]
   {:pre [(keyword? index-key)]}
   (let [pattern-symbols '[e a v tx]]
-    [index-key
-     (lookup-strategy-sub index-key
-                          pattern-symbols
-                          (map short-hand->strat-symbol eavt-strats))]))
+    (lookup-strategy-sub index-key
+                         pattern-symbols
+                         (map short-hand->strat-symbol eavt-strats))))
 
 (defn empty-strategy
   ([_db-index [_e _a _v _tx]]
@@ -158,11 +162,11 @@
 
 (defn current-search-strategy [db pattern]
   (let [[_ a _ _] pattern
-        [index-key strategy]
+        [index-key _strategy-vec strategy-fn]
         (get-search-strategy pattern
                              (dbu/indexing? db a)
                              false)]
-    [(get db index-key) strategy]))
+    [(get db index-key) strategy-fn]))
 
 (defn search-current-indices
   ([db pattern]
@@ -170,9 +174,11 @@
     db [:search pattern]
     #(let [[db-index strategy] (current-search-strategy db pattern)]
        (strategy db-index pattern))))
-  ([db pattern strategy-data-fn]
+
+  ;; For batches
+  ([db pattern batch-fn]
    (let [[db-index strategy] (current-search-strategy db pattern)]
-     (strategy db-index pattern strategy-data-fn))))
+     (strategy db-index pattern batch-fn))))
 
 (defn temporal-search-strategy [db pattern]
   (let [[_ a _ _ _] pattern
