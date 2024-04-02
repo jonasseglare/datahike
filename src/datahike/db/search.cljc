@@ -159,6 +159,9 @@
     [_ _ _ t *] (lookup-strategy :eavt _ _ _ f)
     [_ _ _ _ *] (lookup-strategy :eavt _ _ _ _)))
 
+(def get-search-strategy-impl-memoized
+  (memoize get-search-strategy-impl))
+
 (defn- get-search-strategy [pattern indexed? temporal-db?]
   (validate-pattern pattern true)
   (let [[e a v tx added?] pattern]
@@ -167,11 +170,12 @@
 
       ;; Consider refactoring this to return a
       ;; function that performs the lookup.
-      (get-search-strategy-impl (boolean e)
-                                (boolean a)
-                                (some? v)
-                                (boolean tx)
-                                (boolean indexed?)))))
+      (get-search-strategy-impl-memoized
+       (boolean e)
+       (boolean a)
+       (some? v)
+       (boolean tx)
+       (boolean indexed?)))))
 
 (defn current-search-strategy [db pattern]
   (let [[_ a _ _] pattern
