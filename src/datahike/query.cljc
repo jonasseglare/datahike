@@ -1375,10 +1375,15 @@ than doing no expansion at all."
                             (if (datom-predicate datom)
                               (step dst datom)
                               dst))
-                          step)]
+                          step)
+             datoms (try
+                      (backend-fn pattern)
+                      (catch Exception e
+                        (println "FAILED PATTERN" pattern)
+                        (throw e)))]
          (reduce inner-step
                  dst
-                 (backend-fn pattern)))))))
+                 datoms))))))
 
 (defn search-batch-fn [bsm clean-pattern rels]
   (fn [strategy-vec backend-fn]
@@ -1403,13 +1408,11 @@ than doing no expansion at all."
           clean-pattern (->> pattern1
                              (replace-unbound-symbols-by-nil bsm)
                              (resolve-pattern-eid source))
-          _ (println "CLEAN PATTERN" clean-pattern)
           datoms (if clean-pattern
                    (dbi/-batch-search source clean-pattern
                                       (search-batch-fn
                                        bsm clean-pattern rels))
                    [])
-          _ (println "GOOD")
           relation (relation-from-datoms context orig-pattern datoms)]
       (update context :rels collapse-rels relation))
     (println "TODO: lookup-new-search for coll")))
