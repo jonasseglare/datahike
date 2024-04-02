@@ -1306,17 +1306,6 @@ than doing no expansion at all."
                  dst
                  subst-filt-map))))))
 
-#_(defn expand-substs [{:keys [subst-filt-map subst-pos filt-pos]}]
-  (for [[pattern filt-data] pattern-filt-data-pairs
-        [subst filt] subst-filt-map]
-    [(reduce (fn [pattern [pos v]]
-               (assoc pattern pos v))
-             pattern
-             (map vector subst-pos subst))
-     (if (seq filt-pos)
-       (conj filt-data [filt-pos filt])
-       filt-data)]))
-
 (defn compute-per-rel-map [bsm pattern strategy rel-inds strat-symbol]
   (->> strat-symbol
        (search-index-mapping bsm pattern strategy)
@@ -1375,27 +1364,39 @@ than doing no expansion at all."
       (filter pred)
       identity)))
 
+(defn backend-xform [backend-fn]
+  (fn [step]
+    (fn
+      ([] (step))
+      ([dst] (step dst))
+      ([dst [pattern datom-predicate]]
+       (let [inner-step (if datom-predicate
+                          (fn [dst datom]
+                            (if (datom-predicate datom)
+                              (step dst datom)
+                              dst))
+                          step)]
+         (reduce inner-step
+                 dst
+                 (backend-fn pattern)))))))
+
 (defn search-batch-fn [bsm clean-pattern rels]
   (fn [strategy-vec backend-fn]
     (let [subst-inds (substitution-relation-indices
                       bsm clean-pattern strategy-vec)
           filt-inds (filtering-relation-indices
                      bsm clean-pattern strategy-vec subst-inds)
-          #_#_subst-plan (substitution-plan
-                      bsm clean-pattern strategy-vec rels subst-inds)
-          filt-plan (filtering-plan
-                     bsm clean-pattern strategy-vec rels filt-inds)]
-
-      ;;(println "subst-plan" subst-plan)
-      (println "filt-plan" filt-plan)
-      
-      []
-      #_(into []
-              #_(comp (map (fn [[eavt filter-data]])))
-              subst-plan))))
+          [init-coll subst-xform] (substitution-xform
+                                   bsm clean-pattern strategy-vec rels subst-inds)
+          filt-xform (datom-filter-xform
+                      bsm clean-pattern strategy-vec rels filt-inds)]
+      (into []
+            (comp subst-xform
+                  (backend-xform backend-fn)
+                  filt-xform)
+            init-coll))))
 
 (defn lookup-new-search [source context orig-pattern pattern1]
-
   (if (dbu/db? source)
     (let [rels (vec (:rels context))
           bsm (bound-symbol-map rels)
