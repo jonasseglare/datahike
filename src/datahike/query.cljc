@@ -1255,13 +1255,28 @@ than doing no expansion at all."
     1 (fn [x] (wrap-comparable (nth x (first inds))))
     (fn [x] (mapv #(wrap-comparable (nth x %)) inds))))
 
-(defn relation-substs [rels rel-index subst-map filt-map]
+(defn substitute [pattern inds vals]
+  (if (empty? inds)
+    pattern
+    (recur (assoc pattern (first inds) (first vals))
+           (rest inds)
+           (rest vals))))
+
+(defn extend-predicate [predicate feature-extractor features]
+  (fn [datom]
+    (if (contains? features (feature-extractor datom))
+      (predicate datom)
+      false)))
+
+(defn single-substitution-xform [rels rel-index subst-map filt-map]
   (let [tuples (:tuples (nth rels rel-index))
         subst (subst-map rel-index)
         filt (filt-map rel-index)
         subst-inds (map :tuple-element-index subst)
         filt-inds (map :tuple-element-index filt)
         feature-extractor (index-feature-extractor filt-inds)
+
+        ;; Map what filtering needs to be done for every substitution
         subst-filt-map (reduce (fn [dst tuple]
                                  (update
                                   dst
@@ -1270,14 +1285,21 @@ than doing no expansion at all."
                                     (conj (or dst #{})
                                           (feature-extractor tuple)))))
                                {}
-                               tuples)]
-    {:subst-filt-map subst-filt-map
-     :subst-pos (map :pattern-element-index subst)
-     :filt-pos (map :pattern-element-index filt)}))
+                               tuples)
+        subst-pos (map :pattern-element-index subst)
+        filt-extractor (index-feature-extractor (map :pattern-element-index filt))]
+    (fn [step]
+      (fn
+        ([] (step))
+        ([dst] (step dst))
+        ([dst [pattern datom-pred]]
+         (reduce (fn [dst [subst filt]]
+                   (step dst [(substitute pattern subst-pos subst)
+                              (extend-predicate datom-pred filt-extractor filt)]))
+                 dst
+                 subst-filt-map))))))
 
-(defn expand-substs [pattern-filt-data-pairs {:keys [subst-filt-map
-                                                     subst-pos
-                                                     filt-pos]}]
+#_(defn expand-substs [{:keys [subst-filt-map subst-pos filt-pos]}]
   (for [[pattern filt-data] pattern-filt-data-pairs
         [subst filt] subst-filt-map]
     [(reduce (fn [pattern [pos v]]
@@ -1294,7 +1316,20 @@ than doing no expansion at all."
        (filter (comp rel-inds :relation-index))
        (group-by :relation-index)))
 
-(defn substitution-plan [bsm pattern strategy rels rel-inds]
+
+(defn clean-pattern-before-substitution [pattern subst-map]
+  (let [subst-pattern-positions (into #{}
+                                      (comp cat (map :pattern-element-index))
+                                      (vals subst-map))]
+    (into []
+          (map-indexed (fn [i x]
+                         (cond
+                           (subst-pattern-positions i) x
+                           (symbol? x) nil
+                           :else x)))
+          pattern)))
+
+(defn substitution-xform [bsm pattern strategy rels rel-inds]
   {:pre [(map? bsm)
          (vector? pattern)
          (vector? strategy)
@@ -1302,23 +1337,14 @@ than doing no expansion at all."
          (set? rel-inds)]}
   (let [subst-map (compute-per-rel-map bsm pattern strategy rel-inds :substitute)
         filt-map (compute-per-rel-map bsm pattern strategy rel-inds :filter)
-        per-relation-substs (for [rel-index rel-inds]
-                              (relation-substs rels rel-index
-                                               subst-map
-                                               filt-map))
-        subst-pattern-positions (into #{}
-                                      (comp cat (map :pattern-element-index))
-                                      (vals subst-map))
-        clean-pattern (into []
-                            (map-indexed (fn [i x]
-                                           (cond
-                                             (subst-pattern-positions i) x
-                                             (symbol? x) nil
-                                             :else x)))
-                            pattern)]
-    (reduce expand-substs
-            [[clean-pattern []]]
-            per-relation-substs)))
+        subst-xforms (for [rel-index rel-inds]
+                       (single-substitution-xform
+                        rels rel-index
+                        subst-map
+                        filt-map))
+        init-coll [[(clean-pattern-before-substitution pattern subst-map)
+                    (fn [_datom] true)]]]
+    [init-coll (apply comp subst-xforms)]))
 
 (defn filtering-plan [bsm pattern strategy rels rel-inds]
   (let [filt-map (compute-per-rel-map bsm pattern strategy rel-inds :filter)]
@@ -1344,93 +1370,18 @@ than doing no expansion at all."
                       bsm clean-pattern strategy-vec)
           filt-inds (filtering-relation-indices
                      bsm clean-pattern strategy-vec subst-inds)
-          subst-plan (substitution-plan
+          #_#_subst-plan (substitution-plan
                       bsm clean-pattern strategy-vec rels subst-inds)
           filt-plan (filtering-plan
                      bsm clean-pattern strategy-vec rels filt-inds)]
 
-      (println "subst-plan" subst-plan)
+      ;;(println "subst-plan" subst-plan)
       (println "filt-plan" filt-plan)
       
       []
       #_(into []
               #_(comp (map (fn [[eavt filter-data]])))
               subst-plan))))
-
-
-
-#_(defn search-product [update-element relation current-product group]
-    (for [element current-product
-          {:keys [tuple-element-index] :as sim} group
-          tuple (:tuples relation)]
-      (update-element element sim (nth tuple tuple-element-index))))
-
-#_(defn make-product [upd init rels sims]
-  (reduce (fn [prod [relation-index group]]
-            (search-product upd
-                            (nth rels relation-index)
-                            prod
-                            group))
-          [init]
-          (group-by :relation-index sims)))
-
-#_(defn substitute-relations [pattern rels subst-sim]
-  (make-product (fn [pattern sim x]
-                  (assoc pattern (:pattern-element-index sim) x))
-                pattern
-                rels
-                subst-sim))
-
-#_(defn make-filter-set [sfff rels filter-sim]
-  (make-product (fn [feature sim x]
-                  (sfff feature (:sim-index sim) x))
-                (sfff)
-                rels
-                filter-sim))
-
-#_(defn search-filter-feature-fn [filter-sim]
-  (let [n (count filter-sim)
-        pattern-inds (map :pattern-element-index filter-sim)
-        first-pattern-index (first pattern-inds)
-        empty-vec (vec (repeat n nil))]
-    (case n
-      0 nil
-      1 (fn
-          ([] nil)
-          ([datom] (wrap-comparable (nth datom first-pattern-index)))
-          ([_dst _dst-index x] (wrap-comparable x)))
-      (fn
-        ([] empty-vec)
-        ([datom]
-         (mapv #(wrap-comparable (nth datom %)) pattern-inds))
-        ([dst dst-index x]
-         (assoc dst dst-index (wrap-comparable x)))))))
-
-#_(defn prepare-search [context pattern strategy]
-  (let [rels (vec (:rels context))
-        bsm (bound-symbol-map rels)
-
-        ;; Used to decide on the approach
-        mask (pattern-search-mask bsm pattern)
-        subst-sim (search-index-mapping bsm pattern strategy 1)
-        filter-sim (search-index-mapping bsm pattern strategy 'f)
-        sfff (search-filter-feature-fn filter-sim)
-        filter-set (when sfff (make-filter-set sfff rels filter-sim))]
-    [:mask
-     mask
-     :subst
-     (substitute-relations pattern rels subst-sim)
-     :filter
-     filter-set]))
-
-#_(defn lookup-pattern-db [context db pattern orig-pattern]
-  ;; TODO optimize with bound attrs min/max values here
-  (let [;; Replace all unknowns by nil.
-        search-pattern (replace-symbols-by-nil pattern)
-        datoms (if-let [search-pattern (resolve-pattern-eid db search-pattern)]
-                 (dbi/-search db search-pattern)
-                 [])]
-    (relation-from-datoms context orig-pattern datoms)))
 
 (defn lookup-new-search [source context orig-pattern pattern1]
 
