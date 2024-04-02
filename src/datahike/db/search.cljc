@@ -131,12 +131,6 @@
                          pattern-symbols
                          (map short-hand->strat-symbol eavt-strats))))
 
-(defn empty-strategy
-  ([_db-index [_e _a _v _tx]]
-   '())
-  ([_db-index [_e _a _v _tx] _batch-fn]
-   '()))
-
 
 (defn- get-search-strategy-impl [e a v t i]
   (match-vector [e a v t i]
@@ -162,14 +156,19 @@
 (def get-search-strategy-impl-memoized
   (memoize get-search-strategy-impl))
 
+(defn empty-lookup-fn
+  ([_db-index [_e _a _v _tx]]
+   '())
+  ([_db-index [_e _a _v _tx] _batch-fn]
+   '()))
+
+(def empty-strategy [nil [nil nil nil nil] empty-lookup-fn empty-lookup-fn])
+
 (defn- get-search-strategy [pattern indexed? temporal-db?]
   (validate-pattern pattern true)
   (let [[e a v tx added?] pattern]
     (if (and (not temporal-db?) (false? added?))
-      [nil [nil nil nil nil] empty-strategy empty-strategy]
-
-      ;; Consider refactoring this to return a
-      ;; function that performs the lookup.
+      empty-strategy
       (get-search-strategy-impl-memoized
        (boolean e)
        (boolean a)

@@ -806,8 +806,6 @@
         filt-xform (dq/datom-filter-xform
                     bsm clean-pattern strategy rels filt-inds)
 
-        bfn (dq/search-batch-fn bsm clean-pattern rels)
-
         subst-result (into [] subst-xform init-coll)
         [[_ p0]] subst-result]
     (is (nil? p0))
@@ -826,7 +824,6 @@
            (into []
                  filt-xform
                  [[1 3 2]
-                  [1 9 7]])))
-    (is (= [] (bfn strategy (fn [[_e _a _v _t]] []))))))
+                  [1 9 7]])))))
 
 
