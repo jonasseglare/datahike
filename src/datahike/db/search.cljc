@@ -26,28 +26,33 @@
 
 (defn validate-pattern
   "Checks if database pattern is valid"
-  [pattern]
-  (let [[e a v tx added?] pattern]
+  [pattern can-have-vars]
+  (let [bound-var? (if can-have-vars symbol? (fn [_] false))
+        [e a v tx added?] pattern]
 
     (when-not (or (number? e)
                   (nil? e)
+                  (bound-var? e)
                   (and (vector? e) (= 2 (count e))))
       (raise "Bad format for entity-id in pattern, must be a number, nil or vector of two elements."
              {:error :search/pattern :e e :pattern pattern}))
 
     (when-not (or (number? a)
                   (keyword? a)
+                  (bound-var? a)
                   (nil? a))
       (raise "Bad format for attribute in pattern, must be a number, nil or a keyword."
              {:error :search/pattern :a a :pattern pattern}))
 
     (when-not (or (not (vector? v))
                   (nil? v)
+                  (bound-var? v)
                   (and (vector? v) (= 2 (count v))))
       (raise "Bad format for value in pattern, must be a scalar, nil or a vector of two elements."
              {:error :search/pattern :v v :pattern pattern}))
 
     (when-not (or (nil? tx)
+                  (bound-var? tx)
                   (number? tx))
       (raise "Bad format for transaction ID in pattern, must be a number or nil."
              {:error :search/pattern :tx tx :pattern pattern}))
@@ -132,33 +137,41 @@
   ([_db-index [_e _a _v _tx] _batch-fn]
    '()))
 
+
+(defn- get-search-strategy-impl [e a v t i]
+  (match-vector [e a v t i]
+    [e a v t *] (lookup-strategy :eavt 1 1 1 1)
+    [e a v _ *] (lookup-strategy :eavt 1 1 1 _)
+    [e a _ t *] (lookup-strategy :eavt 1 1 _ f)
+    [e a _ _ *] (lookup-strategy :eavt 1 1 _ _)
+    [e _ v t *] (lookup-strategy :eavt 1 _ f f)
+    [e _ v _ *] (lookup-strategy :eavt 1 _ f _)
+    [e _ _ t *] (lookup-strategy :eavt 1 _ _ f)
+    [e _ _ _ *] (lookup-strategy :eavt 1 _ _ _)
+    [_ a v t i] (lookup-strategy :avet _ 1 1 f)
+    [_ a v t _] (lookup-strategy :aevt _ 1 f f)
+    [_ a v _ i] (lookup-strategy :avet _ 1 1 _)
+    [_ a v _ _] (lookup-strategy :aevt _ 1 f _)
+    [_ a _ t *] (lookup-strategy :aevt _ 1 _ f)
+    [_ a _ _ *] (lookup-strategy :aevt _ 1 _ _)
+    [_ _ v t *] (lookup-strategy :eavt _ _ f f)
+    [_ _ v _ *] (lookup-strategy :eavt _ _ f _)
+    [_ _ _ t *] (lookup-strategy :eavt _ _ _ f)
+    [_ _ _ _ *] (lookup-strategy :eavt _ _ _ _)))
+
 (defn- get-search-strategy [pattern indexed? temporal-db?]
-  (validate-pattern pattern)
+  (validate-pattern pattern true)
   (let [[e a v tx added?] pattern]
     (if (and (not temporal-db?) (false? added?))
       [nil empty-strategy]
 
       ;; Consider refactoring this to return a
       ;; function that performs the lookup.
-      (match-vector [e a (some? v) tx indexed?]
-        [e a v t *] (lookup-strategy :eavt 1 1 1 1)
-        [e a v _ *] (lookup-strategy :eavt 1 1 1 _)
-        [e a _ t *] (lookup-strategy :eavt 1 1 _ f)
-        [e a _ _ *] (lookup-strategy :eavt 1 1 _ _)
-        [e _ v t *] (lookup-strategy :eavt 1 _ f f)
-        [e _ v _ *] (lookup-strategy :eavt 1 _ f _)
-        [e _ _ t *] (lookup-strategy :eavt 1 _ _ f)
-        [e _ _ _ *] (lookup-strategy :eavt 1 _ _ _)
-        [_ a v t i] (lookup-strategy :avet _ 1 1 f)
-        [_ a v t _] (lookup-strategy :aevt _ 1 f f)
-        [_ a v _ i] (lookup-strategy :avet _ 1 1 _)
-        [_ a v _ _] (lookup-strategy :aevt _ 1 f _)
-        [_ a _ t *] (lookup-strategy :aevt _ 1 _ f)
-        [_ a _ _ *] (lookup-strategy :aevt _ 1 _ _)
-        [_ _ v t *] (lookup-strategy :eavt _ _ f f)
-        [_ _ v _ *] (lookup-strategy :eavt _ _ f _)
-        [_ _ _ t *] (lookup-strategy :eavt _ _ _ f)
-        [_ _ _ _ *] (lookup-strategy :eavt _ _ _ _)))))
+      (get-search-strategy-impl (boolean e)
+                                (boolean a)
+                                (some? v)
+                                (boolean tx)
+                                (boolean indexed?)))))
 
 (defn current-search-strategy [db pattern]
   (let [[_ a _ _] pattern

@@ -621,10 +621,12 @@
   (mapv #(if (symbol? %) nil %) pattern))
 
 (defn resolve-pattern-eid [db search-pattern]
-  (if-let [first-p (first search-pattern)]
-    (when-let [eid (dbu/entid db first-p)]
-      (assoc search-pattern 0 eid))
-    search-pattern))
+  (let [first-p (first search-pattern)]
+    (if (and (some? first-p)
+             (not (free-var? first-p)))
+      (when-let [eid (dbu/entid db first-p)]
+        (assoc search-pattern 0 eid))
+      search-pattern)))
 
 (defn relation-from-datoms [context orig-pattern datoms]
   (or (map-consts context orig-pattern datoms)
@@ -1423,16 +1425,21 @@ than doing no expansion at all."
     (relation-from-datoms context orig-pattern datoms)))
 
 (defn lookup-new-search [source context orig-pattern pattern1]
-  (let [rels (vec (:rels context))
-        bsm (bound-symbol-map rels)
-        clean-pattern (replace-unbound-symbols-by-nil bsm pattern1)
-        datoms (if-let [clean-pattern (resolve-pattern-eid source clean-pattern)]
-                 (dbi/-batch-search source clean-pattern
-                                    (search-batch-fn
-                                     bsm clean-pattern rels))
-                 [])
-        relation (relation-from-datoms context orig-pattern datoms)]
-    (update context :rels collapse-rels relation)))
+
+  (if (dbu/db? source)
+    (let [rels (vec (:rels context))
+          bsm (bound-symbol-map rels)
+          clean-pattern (replace-unbound-symbols-by-nil bsm pattern1)
+          _ (println "Clean pattern" clean-pattern)
+          datoms (if-let [clean-pattern (resolve-pattern-eid source clean-pattern)]
+                   (dbi/-batch-search source clean-pattern
+                                      (search-batch-fn
+                                       bsm clean-pattern rels))
+                   [])
+          relation (relation-from-datoms context orig-pattern datoms)]
+      (println "Done")
+      (update context :rels collapse-rels relation))
+    (println "TODO: lookup-new-search for coll")))
 
 (defn -resolve-clause*
   ([context clause]
