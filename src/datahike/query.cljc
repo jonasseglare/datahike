@@ -1249,9 +1249,9 @@ than doing no expansion at all."
 (defn select-inds [src inds]
   (mapv #(nth src %) inds))
 
-(defn index-feature-extractor [inds]
+(defn index-feature-extractor [inds include-empty?]
   (case (count inds)
-    0 (fn [_] nil)
+    0 (when include-empty? (fn [_] nil))
     1 (fn [x] (wrap-comparable (nth x (first inds))))
     (fn [x] (mapv #(wrap-comparable (nth x %)) inds))))
 
@@ -1263,10 +1263,15 @@ than doing no expansion at all."
            (rest vals))))
 
 (defn extend-predicate [predicate feature-extractor features]
-  (fn [datom]
-    (if (contains? features (feature-extractor datom))
-      (predicate datom)
-      false)))
+  (if (nil? feature-extractor)
+    predicate
+    (if predicate
+      (fn [datom]
+        (if (contains? features (feature-extractor datom))
+          (predicate datom)
+          false))
+      (fn [datom]
+        (contains? features (feature-extractor datom))))))
 
 (defn single-substitution-xform [rels rel-index subst-map filt-map]
   (let [tuples (:tuples (nth rels rel-index))
@@ -1274,7 +1279,7 @@ than doing no expansion at all."
         filt (filt-map rel-index)
         subst-inds (map :tuple-element-index subst)
         filt-inds (map :tuple-element-index filt)
-        feature-extractor (index-feature-extractor filt-inds)
+        feature-extractor (index-feature-extractor filt-inds true)
 
         ;; Map what filtering needs to be done for every substitution
         subst-filt-map (reduce (fn [dst tuple]
@@ -1287,7 +1292,9 @@ than doing no expansion at all."
                                {}
                                tuples)
         subst-pos (map :pattern-element-index subst)
-        filt-extractor (index-feature-extractor (map :pattern-element-index filt))]
+        filt-extractor (index-feature-extractor
+                        (map :pattern-element-index filt)
+                        false)]
     (fn [step]
       (fn
         ([] (step))
@@ -1343,26 +1350,30 @@ than doing no expansion at all."
                         subst-map
                         filt-map))
         init-coll [[(clean-pattern-before-substitution pattern subst-map)
-                    (fn [_datom] true)]]]
+                    nil]]]
     [init-coll (apply comp subst-xforms)]))
 
-(defn filtering-plan [bsm pattern strategy rels rel-inds]
-  (let [filt-map (compute-per-rel-map bsm pattern strategy rel-inds :filter)]
-    (into []
-          (map (fn [[rel-index ind-vec]]
-                 (let [tuples (:tuples (nth rels rel-index))
-                       pos-inds (map :pattern-element-index ind-vec)
-                       tup-inds (map :tuple-element-index ind-vec)
-                       feature-extractor (index-feature-extractor tup-inds)]
-                   [(index-feature-extractor pos-inds)
-                    (into #{}
-                          (map feature-extractor)
-                          tuples)])))
-          filt-map)))
-
-(defn datom-filter [[feature-extractor filt-set]]
-  (filter (fn [datom]
-            (contains? filt-set (feature-extractor datom)))))
+(defn datom-filter-xform [bsm pattern strategy rels rel-inds]
+  (let [filt-map (compute-per-rel-map bsm pattern strategy rel-inds :filter)
+        pred (reduce (fn [predicate [rel-index ind-vec]]
+                       (let [tuples (:tuples (nth rels rel-index))
+                             pos-inds (map :pattern-element-index ind-vec)
+                             tup-inds (map :tuple-element-index ind-vec)
+                             tuple-feature-extractor
+                             (index-feature-extractor tup-inds true)
+                             features (into #{}
+                                            (map tuple-feature-extractor)
+                                            tuples)
+                             datom-feature-extractor
+                             (index-feature-extractor pos-inds false)]
+                         (extend-predicate predicate
+                                           datom-feature-extractor
+                                           features)))
+                     nil
+                     filt-map)]
+    (if pred
+      (filter pred)
+      identity)))
 
 (defn search-batch-fn [bsm clean-pattern rels]
   (fn [strategy-vec backend-fn]

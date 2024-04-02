@@ -772,15 +772,16 @@
     (is (not (p2 [1 2 5])))))
 
 (deftest test-index-feature-extractor
-  (let [e (dq/index-feature-extractor [1])]
+  (let [e (dq/index-feature-extractor [1] true)]
     (is (= 3 (e [119 3])))
     (is (= 4 (e [120 4 9 3]))))
-  (let [e (dq/index-feature-extractor [1 0])]
+  (let [e (dq/index-feature-extractor [1 0] true)]
     (is (= [3 119] (e [119 3])))
     (is (= [4 120] (e [120 4 9 3]))))
-  (let [e (dq/index-feature-extractor [])]
+  (let [e (dq/index-feature-extractor [] true)]
     (is (nil? (e [119 3])))
-    (is (nil? (e [120 4 9 3])))))
+    (is (nil? (e [120 4 9 3]))))
+  (is (nil? (dq/index-feature-extractor [] false))))
 
 (deftest test-filtering-plan
   (let [pattern1 '[?w ?x ?y]
@@ -802,15 +803,14 @@
                                                  strategy subst-inds)
         [init-coll subst-xform] (dq/substitution-xform
                                  bsm clean-pattern strategy rels subst-inds)
-        filt-plan (dq/filtering-plan
-                   bsm clean-pattern strategy rels filt-inds)
-
-        dfilter (dq/datom-filter (first filt-plan))
+        filt-xform (dq/datom-filter-xform
+                    bsm clean-pattern strategy rels filt-inds)
 
         bfn (dq/search-batch-fn bsm clean-pattern rels)
 
         subst-result (into [] subst-xform init-coll)
         [[_ p0]] subst-result]
+    (is (nil? p0))
     (is (= '[nil ?x ?y nil] clean-pattern))
     (is (= #{0} subst-inds))
     (is (= #{1} filt-inds))
@@ -818,16 +818,13 @@
             '?y {:relation-index 1 :tuple-element-index 0}
             '?z {:relation-index 2 :tuple-element-index 0}}
            bsm))
-    (is (p0 [1 2 3]))
-    (is (p0 [2334234 10234 980988]))
     (is (= '([nil 1 nil nil]
              [nil 3 nil nil]
              [nil 5 nil nil])
            (map first subst-result)))
-    (is (= '[#{4 6 2}] (map second filt-plan)))
     (is (= [[1 3 2]]
            (into []
-                 dfilter
+                 filt-xform
                  [[1 3 2]
                   [1 9 7]])))
     (is (= [] (bfn strategy (fn [[_e _a _v _t]] []))))))
