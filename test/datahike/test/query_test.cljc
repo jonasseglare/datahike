@@ -809,7 +809,8 @@
 
         bfn (dq/search-batch-fn bsm clean-pattern rels)
 
-        subst-result (into [] subst-xform init-coll)]
+        subst-result (into [] subst-xform init-coll)
+        [[_ p0]] subst-result]
     (is (= '[nil ?x ?y nil] clean-pattern))
     (is (= #{0} subst-inds))
     (is (= #{1} filt-inds))
@@ -817,6 +818,8 @@
             '?y {:relation-index 1 :tuple-element-index 0}
             '?z {:relation-index 2 :tuple-element-index 0}}
            bsm))
+    (is (p0 [1 2 3]))
+    (is (p0 [2334234 10234 980988]))
     (is (= '([nil 1 nil nil]
              [nil 3 nil nil]
              [nil 5 nil nil])
