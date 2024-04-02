@@ -757,10 +757,21 @@
             '?y {:relation-index 0 :tuple-element-index 1}
             '?z {:relation-index 1 :tuple-element-index 0}}
            bsm))
-    (is (= '([[nil 1 nil nil] [[(2) #{[2]}]]]
-             [[nil 3 nil nil] [[(2) #{[4] [5]}]]]
-             [[nil 5 nil nil] [[(2) #{[6]}]]])
+    (is (= '([[nil 1 nil nil] [[(2) #{2}]]]
+             [[nil 3 nil nil] [[(2) #{4 5}]]]
+             [[nil 5 nil nil] [[(2) #{6}]]])
            subst-plan))))
+
+(deftest test-index-feature-extractor
+  (let [e (dq/index-feature-extractor [1])]
+    (is (= 3 (e [119 3])))
+    (is (= 4 (e [120 4 9 3]))))
+  (let [e (dq/index-feature-extractor [1 0])]
+    (is (= [3 119] (e [119 3])))
+    (is (= [4 120] (e [120 4 9 3]))))
+  (let [e (dq/index-feature-extractor [])]
+    (is (nil? (e [119 3])))
+    (is (nil? (e [120 4 9 3])))))
 
 (deftest test-filtering-plan
   (let [pattern1 '[?w ?x ?y]
@@ -799,7 +810,7 @@
              [[nil 3 nil nil] []]
              [[nil 5 nil nil] []])
            subst-plan))
-    (is (= '[[(2) #{[4] [6] [2]}]] filt-plan))
+    (is (= '[#{4 6 2}] (map second filt-plan)))
     (is (= [[1 3 2]]
            (into []
                  dfilter

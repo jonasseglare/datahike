@@ -498,6 +498,9 @@
 (defn resolve-ins [context bindings values]
   (reduce resolve-in context (zipmap bindings values)))
 
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; TODO: WHAT ABOUT THIS????
 (def ^{:dynamic true
        :doc "List of symbols in current pattern that might potentially be resolved to refs"}
   *lookup-attrs* nil)
@@ -1246,8 +1249,11 @@ than doing no expansion at all."
 (defn select-inds [src inds]
   (mapv #(nth src %) inds))
 
-(defn select-comparables-by-inds [src inds]
-  (mapv #(wrap-comparable (nth src %)) inds))
+(defn index-feature-extractor [inds]
+  (case (count inds)
+    0 (fn [_] nil)
+    1 (fn [x] (wrap-comparable (nth x (first inds))))
+    (fn [x] (mapv #(wrap-comparable (nth x %)) inds))))
 
 (defn relation-substs [rels rel-index subst-map filt-map]
   (let [tuples (:tuples (nth rels rel-index))
@@ -1255,14 +1261,14 @@ than doing no expansion at all."
         filt (filt-map rel-index)
         subst-inds (map :tuple-element-index subst)
         filt-inds (map :tuple-element-index filt)
+        feature-extractor (index-feature-extractor filt-inds)
         subst-filt-map (reduce (fn [dst tuple]
                                  (update
                                   dst
                                   (select-inds tuple subst-inds)
                                   (fn [dst]
                                     (conj (or dst #{})
-                                          (select-comparables-by-inds
-                                           tuple filt-inds)))))
+                                          (feature-extractor tuple)))))
                                {}
                                tuples)]
     {:subst-filt-map subst-filt-map
@@ -1320,19 +1326,17 @@ than doing no expansion at all."
           (map (fn [[rel-index ind-vec]]
                  (let [tuples (:tuples (nth rels rel-index))
                        pos-inds (map :pattern-element-index ind-vec)
-                       tup-inds (map :tuple-element-index ind-vec)]
-                   [pos-inds
+                       tup-inds (map :tuple-element-index ind-vec)
+                       feature-extractor (index-feature-extractor tup-inds)]
+                   [(index-feature-extractor pos-inds)
                     (into #{}
-                          (map #(select-comparables-by-inds % tup-inds))
+                          (map feature-extractor)
                           tuples)])))
           filt-map)))
 
-(defn datom-filter [[filt-inds filt-set]]
-  (->> filt-inds
-       (select-comparables-by-inds datom)
-       (contains? filt-set)
-       (fn [datom])
-       filter))
+(defn datom-filter [[feature-extractor filt-set]]
+  (filter (fn [datom]
+            (contains? filt-set (feature-extractor datom)))))
 
 (defn search-batch-fn [bsm clean-pattern rels]
   (fn [strategy-vec backend-fn]
@@ -1344,6 +1348,10 @@ than doing no expansion at all."
                       bsm clean-pattern strategy-vec rels subst-inds)
           filt-plan (filtering-plan
                      bsm clean-pattern strategy-vec rels filt-inds)]
+
+      (println "subst-plan" subst-plan)
+      (println "filt-plan" filt-plan)
+      
       []
       #_(into []
               #_(comp (map (fn [[eavt filter-data]])))
