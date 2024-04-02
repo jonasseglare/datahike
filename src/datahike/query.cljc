@@ -626,7 +626,7 @@
 (defn resolve-pattern-eid [db search-pattern]
   (let [first-p (first search-pattern)]
     (if (and (some? first-p)
-             (not (free-var? first-p)))
+             (not (symbol? first-p)))
       (when-let [eid (dbu/entid db first-p)]
         (assoc search-pattern 0 eid))
       search-pattern)))
@@ -1400,12 +1400,16 @@ than doing no expansion at all."
   (if (dbu/db? source)
     (let [rels (vec (:rels context))
           bsm (bound-symbol-map rels)
-          clean-pattern (replace-unbound-symbols-by-nil bsm pattern1)
-          datoms (if-let [clean-pattern (resolve-pattern-eid source clean-pattern)]
+          clean-pattern (->> pattern1
+                             (replace-unbound-symbols-by-nil bsm)
+                             (resolve-pattern-eid source))
+          _ (println "CLEAN PATTERN" clean-pattern)
+          datoms (if clean-pattern
                    (dbi/-batch-search source clean-pattern
                                       (search-batch-fn
                                        bsm clean-pattern rels))
                    [])
+          _ (println "GOOD")
           relation (relation-from-datoms context orig-pattern datoms)]
       (update context :rels collapse-rels relation))
     (println "TODO: lookup-new-search for coll")))
