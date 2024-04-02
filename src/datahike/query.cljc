@@ -1401,7 +1401,6 @@ than doing no expansion at all."
     (let [rels (vec (:rels context))
           bsm (bound-symbol-map rels)
           clean-pattern (replace-unbound-symbols-by-nil bsm pattern1)
-          _ (println "Clean pattern" clean-pattern)
           datoms (if-let [clean-pattern (resolve-pattern-eid source clean-pattern)]
                    (dbi/-batch-search source clean-pattern
                                       (search-batch-fn

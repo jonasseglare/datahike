@@ -826,4 +826,32 @@
                  [[1 3 2]
                   [1 9 7]])))))
 
+(defn pcmp [x y]
+  (or (nil? x) (= x y)))
+
+(defn mock-backend-fn [datoms]
+  (fn [[e0 a0 v0 t0]]
+    (filter (fn [[e1 a1 v1 t1]]
+              (and (pcmp e0 e1)
+                   (pcmp a0 a1)
+                   (pcmp v0 v1)
+                   (pcmp t0 t1)))
+            datoms)))
+
+(deftest test-full-lookup-pipeline
+  (let [pattern1 '[?x ?w ?y]
+        context '{:rels [{:attrs {?x 0}
+                          :tuples [[1] [3] [5]]}
+                         {:attrs {?y 0}
+                          :tuples [[4] [5] [6]]}]}
+        strategy-vec [:substitute nil :filter nil]
+        rels (vec (:rels context))
+        bsm (dq/bound-symbol-map rels)
+        clean-pattern (dq/replace-unbound-symbols-by-nil bsm pattern1)
+        sfn (dq/search-batch-fn bsm clean-pattern rels)
+        result (sfn strategy-vec (mock-backend-fn [[0 :abc 5]
+                                                   [5 :xyz 6]
+                                                   [1 :k 4]
+                                                   [5 :p 7]]))]
+    (is (= #{[1 :k 4] [5 :xyz 6]} (set result)))))
 
