@@ -1549,7 +1549,7 @@ than doing no expansion at all."
            pattern1 (resolve-pattern-lookup-refs source pattern0)
 
            ;; New impl
-           new-context (lookup-new-search source context clause pattern1)
+           ;;new-context (lookup-new-search source context clause pattern1)
 
            ;; Old impl
            constrained-patterns (expand-constrained-patterns

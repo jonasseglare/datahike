@@ -166,7 +166,7 @@
   (validate-pattern pattern true)
   (let [[e a v tx added?] pattern]
     (if (and (not temporal-db?) (false? added?))
-      [nil empty-strategy]
+      [nil [nil nil nil nil] empty-strategy empty-strategy]
 
       ;; Consider refactoring this to return a
       ;; function that performs the lookup.
@@ -200,15 +200,15 @@
 
 (defn temporal-search-strategy [db pattern]
   (let [[_ a _ _ _] pattern
-        [index-key strategy] (get-search-strategy
-                              pattern
-                              (dbu/indexing? db a)
-                              true)]
+        [index-key _ strategy-fn] (get-search-strategy
+                                   pattern
+                                   (dbu/indexing? db a)
+                                   true)]
     [(case index-key
        :eavt (:temporal-eavt db)
        :aevt (:temporal-aevt db)
        :avet (:temporal-avet db)
-       nil) strategy]))
+       nil) strategy-fn]))
 
 (defn added? [[_ _ _ _ added]]
   added)
