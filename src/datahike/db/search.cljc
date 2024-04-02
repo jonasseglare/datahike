@@ -193,8 +193,8 @@
 
   ;; For batches
   ([db pattern batch-fn]
-   (let [[index-key strategy-vec _ backend-fn] (current-search-strategy db pattern)
-         db-index (get db index-key)]
+   (let [[db-index strategy-vec _ backend-fn] (current-search-strategy db pattern)]
+     (assert db-index)
      (batch-fn strategy-vec #(backend-fn db-index %)))))
 
 (defn temporal-search-strategy [db pattern]

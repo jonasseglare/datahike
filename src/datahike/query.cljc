@@ -1407,7 +1407,6 @@ than doing no expansion at all."
                                        bsm clean-pattern rels))
                    [])
           relation (relation-from-datoms context orig-pattern datoms)]
-      (println "Done")
       (update context :rels collapse-rels relation))
     (println "TODO: lookup-new-search for coll")))
 
@@ -1511,7 +1510,7 @@ than doing no expansion at all."
            pattern1 (resolve-pattern-lookup-refs source pattern0)
 
            ;; New impl
-           ;;new-context (lookup-new-search source context clause pattern1)
+           new-context (lookup-new-search source context clause pattern1)
 
            ;; Old impl
            constrained-patterns (expand-constrained-patterns
