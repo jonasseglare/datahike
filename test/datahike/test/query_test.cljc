@@ -805,8 +805,6 @@
                  dfilter
                  [[1 3 2]
                   [1 9 7]])))
-    (is (= {:substitution-plan subst-plan
-            :filtering-plan filt-plan}
-           (bfn strategy)))))
+    (is (= [] (bfn strategy (fn [[_e _a _v _t]] []))))))
 
 

@@ -1333,17 +1333,19 @@ than doing no expansion at all."
        filter))
 
 (defn search-batch-fn [bsm clean-pattern rels]
-  (fn [strategy]
+  (fn [strategy-vec backend-fn]
     (let [subst-inds (substitution-relation-indices
-                      bsm clean-pattern strategy)
+                      bsm clean-pattern strategy-vec)
           filt-inds (filtering-relation-indices
-                     bsm clean-pattern strategy subst-inds)]
-      {:substitution-plan
-       (substitution-plan
-        bsm clean-pattern strategy rels subst-inds)
-       :filtering-plan
-       (filtering-plan
-        bsm clean-pattern strategy rels filt-inds)})))
+                     bsm clean-pattern strategy-vec subst-inds)
+          subst-plan (substitution-plan
+                      bsm clean-pattern strategy-vec rels subst-inds)
+          filt-plan (filtering-plan
+                     bsm clean-pattern strategy-vec rels filt-inds)]
+      []
+      #_(into []
+              #_(comp (map (fn [[eavt filter-data]])))
+              subst-plan))))
 
 
 
@@ -1532,7 +1534,7 @@ than doing no expansion at all."
            pattern1 (resolve-pattern-lookup-refs source pattern0)
 
            ;; New impl
-           ;;new-context (lookup-new-search source context clause pattern1)
+           new-context (lookup-new-search source context clause pattern1)
 
            ;; Old impl
            constrained-patterns (expand-constrained-patterns

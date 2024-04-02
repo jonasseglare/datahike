@@ -177,8 +177,9 @@
 
   ;; For batches
   ([db pattern batch-fn]
-   (let [[_ strategy-vec _ backend-fn] (current-search-strategy db pattern)]
-     (batch-fn strategy-vec backend-fn))))
+   (let [[index-key strategy-vec _ backend-fn] (current-search-strategy db pattern)
+         db-index (get db index-key)]
+     (batch-fn strategy-vec #(backend-fn db-index %)))))
 
 (defn temporal-search-strategy [db pattern]
   (let [[_ a _ _ _] pattern
