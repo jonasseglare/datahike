@@ -1219,7 +1219,7 @@ than doing no expansion at all."
 
 (defn replace-unbound-symbols-by-nil [bsm pattern]
   (normalize-pattern
-   (mapv #(when-not (and (symbol? %) (not (contains? bsm %)))
+   (mapv #(when-not (and (free-var? %) (not (contains? bsm %)))
             %)
          pattern)))
 
