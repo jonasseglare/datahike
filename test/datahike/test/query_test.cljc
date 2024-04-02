@@ -754,7 +754,6 @@
 
         result (into [] subst-xform init-coll)
         [[_ p0] [_ p1] [_ p2]] result]
-    (def the-result result)
     (is (= #{0} subst-inds))
     (is (= #{} filt-inds))
     (is (= {'?x {:relation-index 0 :tuple-element-index 0}
@@ -764,10 +763,13 @@
     (is (= [[nil 1 nil nil]
             [nil 3 nil nil]
             [nil 5 nil nil]] (map first result)))
-    #_(is (= '([[nil 1 nil nil] [[(2) #{2}]]]
-               [[nil 3 nil nil] [[(2) #{4 5}]]]
-               [[nil 5 nil nil] [[(2) #{6}]]])
-             subst-plan))))
+    (is (p0 [1 2 2]))
+    (is (not (p0 [1 2 3])))
+    (is (p1 [1 2 4]))
+    (is (p1 [1 2 5]))
+    (is (not (p1 [1 2 6])))
+    (is (p2 [1 2 6]))
+    (is (not (p2 [1 2 5])))))
 
 (deftest test-index-feature-extractor
   (let [e (dq/index-feature-extractor [1])]
@@ -780,7 +782,7 @@
     (is (nil? (e [119 3])))
     (is (nil? (e [120 4 9 3])))))
 
-#_(deftest test-filtering-plan
+(deftest test-filtering-plan
   (let [pattern1 '[?w ?x ?y]
         context '{:rels [{:attrs {?x 0}
                           :tuples [[1]
@@ -798,14 +800,16 @@
         subst-inds (dq/substitution-relation-indices bsm pattern1 strategy)
         filt-inds (dq/filtering-relation-indices bsm clean-pattern
                                                  strategy subst-inds)
-        subst-plan (dq/substitution-plan
-                    bsm clean-pattern strategy rels subst-inds)
+        [init-coll subst-xform] (dq/substitution-xform
+                                 bsm clean-pattern strategy rels subst-inds)
         filt-plan (dq/filtering-plan
                    bsm clean-pattern strategy rels filt-inds)
 
         dfilter (dq/datom-filter (first filt-plan))
 
-        bfn (dq/search-batch-fn bsm clean-pattern rels)]
+        bfn (dq/search-batch-fn bsm clean-pattern rels)
+
+        subst-result (into [] subst-xform init-coll)]
     (is (= '[nil ?x ?y nil] clean-pattern))
     (is (= #{0} subst-inds))
     (is (= #{1} filt-inds))
@@ -813,10 +817,10 @@
             '?y {:relation-index 1 :tuple-element-index 0}
             '?z {:relation-index 2 :tuple-element-index 0}}
            bsm))
-    (is (= '([[nil 1 nil nil] []]
-             [[nil 3 nil nil] []]
-             [[nil 5 nil nil] []])
-           subst-plan))
+    (is (= '([nil 1 nil nil]
+             [nil 3 nil nil]
+             [nil 5 nil nil])
+           (map first subst-result)))
     (is (= '[#{4 6 2}] (map second filt-plan)))
     (is (= [[1 3 2]]
            (into []
