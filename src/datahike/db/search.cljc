@@ -134,10 +134,10 @@
 
 (defn- get-search-strategy-impl [e a v t i]
   (match-vector [e a v t i]
-    [e a v t *] (lookup-strategy :eavt 1 1 1 1)
+    [e a v t *] (lookup-strategy :eavt 1 1 1 1) ;; <-- är detta rätt?
     [e a v _ *] (lookup-strategy :eavt 1 1 1 _)
     [e a _ t *] (lookup-strategy :eavt 1 1 _ f)
-    [e a _ _ *] (lookup-strategy :eavt 1 1 _ _)
+    [e a _ _ *] (lookup-strategy :eavt 1 1 _ _) ;; <--- här smäller det
     [e _ v t *] (lookup-strategy :eavt 1 _ f f)
     [e _ v _ *] (lookup-strategy :eavt 1 _ f _)
     [e _ _ t *] (lookup-strategy :eavt 1 _ _ f)
