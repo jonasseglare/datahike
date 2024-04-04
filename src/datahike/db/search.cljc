@@ -109,56 +109,49 @@
         equalities (remove nil? [(when (= :filter v-strat)
                                    `(a= ~v-sym (.-v ~dexpr)))
                                  (when (= :filter t-strat)
-                                   `(= ~t-sym (datom-tx ~dexpr)))])
-
-        info `(println "EAVT-strats" ~index-key ~(vec eavt-strats))]
+                                   `(= ~t-sym (datom-tx ~dexpr)))])]
     `[~index-key
 
       ~(vec eavt-strats)
       
       ;; Used by the old implementation
       (fn [~index-expr ~eavt-symbols]
-        ~info
         ~(if (seq equalities)
            `(filter (fn [~dexpr] (and ~@equalities)) ~lookup-expr)
            lookup-expr))
 
       ;; Used by the batch implementation
       (fn [~index-expr ~eavt-symbols]
-        ~info        
         ~lookup-expr)]))
 
 (defmacro lookup-strategy [index-key & eavt-strats]
   {:pre [(keyword? index-key)]}
   (let [pattern-symbols '[e a v tx]]
-    `(do
-       (println "EAVT-STRATS" (quote ~eavt-strats))
-       ~(lookup-strategy-sub index-key
-                             pattern-symbols
-                             (map short-hand->strat-symbol eavt-strats)))))
+    (lookup-strategy-sub index-key
+                         pattern-symbols
+                         (map short-hand->strat-symbol eavt-strats))))
 
 
 (defn- get-search-strategy-impl [e a v t i]
-  (println "GET THE SEARCH STRATEGY")
   (match-vector [e a v t i]
-    [e a v t *] (do (println 0) (lookup-strategy :eavt 1 1 1 1)) ;; <-- är detta rätt?
-    [e a v _ *] (do (println 1) (lookup-strategy :eavt 1 1 1 _))
-    [e a _ t *] (do (println 2) (lookup-strategy :eavt 1 1 _ f))
-    [e a _ _ *] (do (println 3) (lookup-strategy :eavt 1 1 _ _)) ;; <--- här smäller det
-    [e _ v t *] (do (println 4) (lookup-strategy :eavt 1 _ f f))
-    [e _ v _ *] (do (println 5) (lookup-strategy :eavt 1 _ f _))
-    [e _ _ t *] (do (println 6) (lookup-strategy :eavt 1 _ _ f))
-    [e _ _ _ *] (do (println 7) (lookup-strategy :eavt 1 _ _ _))
-    [_ a v t i] (do (println 8) (lookup-strategy :avet _ 1 1 f))
-    [_ a v t _] (do (println 9) (lookup-strategy :aevt _ 1 f f))
-    [_ a v _ i] (do (println 10) (lookup-strategy :avet _ 1 1 _))
-    [_ a v _ _] (do (println 11) (lookup-strategy :aevt _ 1 f _))
-    [_ a _ t *] (do (println 12) (lookup-strategy :aevt _ 1 _ f))
-    [_ a _ _ *] (do (println 13) (lookup-strategy :aevt _ 1 _ _))
-    [_ _ v t *] (do (println 14) (lookup-strategy :eavt _ _ f f))
-    [_ _ v _ *] (do (println 15) (lookup-strategy :eavt _ _ f _))
-    [_ _ _ t *] (do (println 16) (lookup-strategy :eavt _ _ _ f))
-    [_ _ _ _ *] (do (println 17) (lookup-strategy :eavt _ _ _ _))))
+    [e a v t *] (lookup-strategy :eavt 1 1 1 1)
+    [e a v _ *] (lookup-strategy :eavt 1 1 1 _)
+    [e a _ t *] (lookup-strategy :eavt 1 1 _ f)
+    [e a _ _ *] (lookup-strategy :eavt 1 1 _ _)
+    [e _ v t *] (lookup-strategy :eavt 1 _ f f)
+    [e _ v _ *] (lookup-strategy :eavt 1 _ f _)
+    [e _ _ t *] (lookup-strategy :eavt 1 _ _ f)
+    [e _ _ _ *] (lookup-strategy :eavt 1 _ _ _)
+    [_ a v t i] (lookup-strategy :avet _ 1 1 f)
+    [_ a v t _] (lookup-strategy :aevt _ 1 f f)
+    [_ a v _ i] (lookup-strategy :avet _ 1 1 _)
+    [_ a v _ _] (lookup-strategy :aevt _ 1 f _)
+    [_ a _ t *] (lookup-strategy :aevt _ 1 _ f)
+    [_ a _ _ *] (lookup-strategy :aevt _ 1 _ _)
+    [_ _ v t *] (lookup-strategy :eavt _ _ f f)
+    [_ _ v _ *] (lookup-strategy :eavt _ _ f _)
+    [_ _ _ t *] (lookup-strategy :eavt _ _ _ f)
+    [_ _ _ _ *] (lookup-strategy :eavt _ _ _ _)))
 
 #_(def get-search-strategy-impl-memoized
   (memoize get-search-strategy-impl))
