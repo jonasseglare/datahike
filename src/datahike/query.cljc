@@ -1219,7 +1219,7 @@ than doing no expansion at all."
 
 (defn replace-unbound-symbols-by-nil [bsm pattern]
   (normalize-pattern
-   (mapv #(when-not (and (free-var? %) (not (contains? bsm %)))
+   (mapv #(when-not (and (symbol? %) (not (contains? bsm %)))
             %)
          pattern)))
 
@@ -1376,16 +1376,19 @@ than doing no expansion at all."
                               (step dst datom)
                               dst))
                           step)
+             _ (println "BEGIN")
              datoms (try
                       (backend-fn pattern)
                       (catch Exception e
                         (println "FAILED PATTERN" pattern)
-                        (throw e)))]
+                        (throw e)))
+             _ (println "END")]
          (reduce inner-step
                  dst
                  datoms))))))
 
 (defn search-batch-fn [bsm clean-pattern rels]
+  (println "search-batch-fn clean-pattern" clean-pattern)
   (fn [strategy-vec backend-fn]
     (let [subst-inds (substitution-relation-indices
                       bsm clean-pattern strategy-vec)
@@ -1395,6 +1398,7 @@ than doing no expansion at all."
                                    bsm clean-pattern strategy-vec rels subst-inds)
           filt-xform (datom-filter-xform
                       bsm clean-pattern strategy-vec rels filt-inds)]
+      (println "inner clean-pattern" clean-pattern)
       (into []
             (comp subst-xform
                   (backend-xform backend-fn)
@@ -1403,7 +1407,8 @@ than doing no expansion at all."
 
 (defn lookup-new-search [source context orig-pattern pattern1]
   (if (dbu/db? source)
-    (let [rels (vec (:rels context))
+    (let [_ (println "\n\nBEGIN LOOKUP")
+          rels (vec (:rels context))
           bsm (bound-symbol-map rels)
           clean-pattern (->> pattern1
                              (replace-unbound-symbols-by-nil bsm)
@@ -1413,7 +1418,8 @@ than doing no expansion at all."
                                       (search-batch-fn
                                        bsm clean-pattern rels))
                    [])
-          relation (relation-from-datoms context orig-pattern datoms)]
+          relation (relation-from-datoms context orig-pattern datoms)
+          _ (println "END LOOKUP\n\n")]
       (update context :rels collapse-rels relation))
     (println "TODO: lookup-new-search for coll")))
 
