@@ -187,8 +187,21 @@
                              false)]
     [(get db index-key) strategy-vec strategy-fn backend-fn]))
 
+(defn temporal-search-strategy [db pattern]
+  ;; TODO: Handle empty!!!
+  (let [[_ a _ _ _] pattern
+        [index-key strategy-vec strategy-fn backend-fn] (get-search-strategy
+                                   pattern
+                                   (dbu/indexing? db a)
+                                   true)]
+    [(case index-key
+       :eavt (:temporal-eavt db)
+       :aevt (:temporal-aevt db)
+       :avet (:temporal-avet db)
+       nil) strategy-vec strategy-fn backend-fn]))
+
 (defn search-current-indices
-    ;; TODO: Handle empty!!!
+  ;; TODO: Handle empty!!!
   ([db pattern]
    (memoize-for
     db [:search pattern]
@@ -202,19 +215,6 @@
      (assert db-index)
      (batch-fn strategy-vec #(backend-fn db-index %)))))
 
-(defn temporal-search-strategy [db pattern]
-  ;; TODO: Handle empty!!!
-  (let [[_ a _ _ _] pattern
-        [index-key _ strategy-fn] (get-search-strategy
-                                   pattern
-                                   (dbu/indexing? db a)
-                                   true)]
-    [(case index-key
-       :eavt (:temporal-eavt db)
-       :aevt (:temporal-aevt db)
-       :avet (:temporal-avet db)
-       nil) strategy-fn]))
-
 (defn added? [[_ _ _ _ added]]
   added)
 
@@ -227,12 +227,12 @@
 (defn search-temporal-indices
   ([db pattern]
    (memoize-for db [:temporal-search pattern]
-                #(let [[db-index strategy] (temporal-search-strategy db pattern)
-                       result (strategy db-index pattern)]
+                #(let [[db-index _ strategy-fn _] (temporal-search-strategy db pattern)
+                       result (strategy-fn db-index pattern)]
                    (filter-by-added pattern result))))
   ([db pattern batch-fn]
-   (let [[db-index strategy] (temporal-search-strategy db pattern)
-         result (strategy db-index pattern batch-fn)]
+   (let [[db-index strategy-vec _ backend-fn] (temporal-search-strategy db pattern)
+         result (batch-fn strategy-vec #(backend-fn db-index %))]
      (filter-by-added pattern result))))
 
 (defn temporal-search
