@@ -1223,17 +1223,19 @@ than doing no expansion at all."
             %)
          pattern)))
 
-(defn search-index-mapping [bsm pattern strategy strat-symbol]
+(defn search-index-mapping [bsm pattern strategy selected-strategy-symbol]
   {:pre [(= 4 (count strategy))]}
   (let [pattern (normalize-pattern pattern)]
     (map-indexed
      (fn [i dst]
        (assoc dst :sim-index i))
-     (for [[i p s] (map vector (range) pattern strategy)
-           :when (= strat-symbol s)
-           :let [m (bsm p)]
+     (for [[pattern-element-index
+            pattern-var
+            strategy-symbol] (map vector (range) pattern strategy)
+           :when (= selected-strategy-symbol strategy-symbol)
+           :let [m (bsm pattern-var)]
            :when m]
-       (assoc m :pattern-element-index i)))))
+       (assoc m :pattern-element-index pattern-element-index)))))
 
 (defn substitution-relation-indices [bsm pattern subst-mask]
   (into #{}
@@ -1273,15 +1275,17 @@ than doing no expansion at all."
       (fn [datom]
         (contains? features (feature-extractor datom))))))
 
-(defn single-substitution-xform [rels rel-index subst-map filt-map]
-  (let [tuples (:tuples (nth rels rel-index))
-        subst (subst-map rel-index)
-        filt (filt-map rel-index)
+(defn single-substitution-xform [source rels relation-index subst-map filt-map]
+  (let [tuples (:tuples (nth rels relation-index))
+        subst (subst-map relation-index)
+        filt (filt-map relation-index)
         subst-inds (map :tuple-element-index subst)
         filt-inds (map :tuple-element-index filt)
         feature-extractor (index-feature-extractor filt-inds true)
 
-        ;; Map what filtering needs to be done for every substitution
+        ;; A map where
+        ;; * Every key is a vector of values to substitute
+        ;; * Every value is a set of values to filter on
         subst-filt-map (reduce (fn [dst tuple]
                                  (update
                                   dst
@@ -1291,7 +1295,9 @@ than doing no expansion at all."
                                           (feature-extractor tuple)))))
                                {}
                                tuples)
-        subst-pos (map :pattern-element-index subst)
+
+        ;; 
+        substitution-pattern-element-inds (map :pattern-element-index subst)
         filt-extractor (index-feature-extractor
                         (map :pattern-element-index filt)
                         false)]
@@ -1300,8 +1306,10 @@ than doing no expansion at all."
         ([] (step))
         ([dst] (step dst))
         ([dst [pattern datom-pred]]
-         (reduce (fn [dst [subst filt]]
-                   (step dst [(substitute pattern subst-pos subst)
+         (reduce (fn [dst [substitution-value-vector filt]]
+                   (step dst [(substitute pattern
+                                          substitution-pattern-element-inds
+                                          substitution-value-vector)
                               (extend-predicate datom-pred filt-extractor filt)]))
                  dst
                  subst-filt-map))))))
@@ -1325,7 +1333,7 @@ than doing no expansion at all."
                            :else x)))
           pattern)))
 
-(defn substitution-xform [bsm pattern strategy rels rel-inds]
+(defn substitution-xform [source bsm pattern strategy rels rel-inds]
   {:pre [(map? bsm)
          (vector? pattern)
          (vector? strategy)
@@ -1335,6 +1343,7 @@ than doing no expansion at all."
         filt-map (compute-per-rel-map bsm pattern strategy rel-inds :filter)
         subst-xforms (for [rel-index rel-inds]
                        (single-substitution-xform
+                        source
                         rels rel-index
                         subst-map
                         filt-map))
@@ -1392,7 +1401,8 @@ than doing no expansion at all."
           filt-inds (filtering-relation-indices
                      bsm clean-pattern strategy-vec subst-inds)
           [init-coll subst-xform] (substitution-xform
-                                   bsm clean-pattern strategy-vec rels subst-inds)
+                                   nil bsm clean-pattern strategy-vec
+                                   rels subst-inds)
           filt-xform (datom-filter-xform
                       bsm clean-pattern strategy-vec rels filt-inds)]
       (into []

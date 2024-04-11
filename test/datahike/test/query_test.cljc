@@ -750,7 +750,12 @@
         filt-inds (dq/filtering-relation-indices
                    bsm clean-pattern strategy subst-inds)
         [init-coll subst-xform] (dq/substitution-xform
-                                 bsm clean-pattern strategy rels subst-inds)
+                                 nil
+                                 bsm
+                                 clean-pattern
+                                 strategy
+                                 rels
+                                 subst-inds)
 
         result (into [] subst-xform init-coll)
         [[_ p0] [_ p1] [_ p2]] result]
@@ -802,6 +807,7 @@
         filt-inds (dq/filtering-relation-indices bsm clean-pattern
                                                  strategy subst-inds)
         [init-coll subst-xform] (dq/substitution-xform
+                                 nil
                                  bsm clean-pattern strategy rels subst-inds)
         filt-xform (dq/datom-filter-xform
                     bsm clean-pattern strategy rels filt-inds)
