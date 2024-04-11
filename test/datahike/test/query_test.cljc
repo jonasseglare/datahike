@@ -854,7 +854,9 @@
         rels (vec (:rels context))
         bsm (dq/bound-symbol-map rels)
         clean-pattern (dq/replace-unbound-symbols-by-nil bsm pattern1)
-        sfn (dq/search-batch-fn bsm clean-pattern rels)
+        sfn (dq/search-batch-fn {:bsm bsm
+                                 :clean-pattern clean-pattern
+                                 :rels rels})
         result (sfn strategy-vec (mock-backend-fn [[0 :abc 5]
                                                    [5 :xyz 6]
                                                    [1 :k 4]

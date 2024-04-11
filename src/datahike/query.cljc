@@ -1275,13 +1275,34 @@ than doing no expansion at all."
       (fn [datom]
         (contains? features (feature-extractor datom))))))
 
+(defn resolve-pattern-lookup-ref-at-index
+  [source clean-pattern pattern-index pattern-value error-code]
+  (let [[_ a _ _] clean-pattern]
+    (if (dbu/db? source)
+      (case pattern-index
+        0 (resolve-pattern-lookup-entity-id source pattern-value error-code)
+        1 (if (and (:attribute-refs? (dbi/-config source)) (keyword? pattern-value))
+            (dbi/-ref-for source pattern-value)
+            pattern-value)
+        2 (if (and pattern-value
+                   (attr? a)
+                   (dbu/ref? source a)
+                   (or (lookup-ref? pattern-value) (attr? pattern-value)))
+            (dbu/entid-strict source pattern-value error-code)
+            pattern-value)
+        3 (if (lookup-ref? pattern-value)
+            (dbu/entid-strict source pattern-value error-code)
+            pattern-value)
+        4 pattern-value)
+      pattern-value)))
+
 (defn single-substitution-xform [source rels relation-index subst-map filt-map]
   (let [tuples (:tuples (nth rels relation-index))
         subst (subst-map relation-index)
         filt (filt-map relation-index)
-        subst-inds (map :tuple-element-index subst)
-        filt-inds (map :tuple-element-index filt)
-        feature-extractor (index-feature-extractor filt-inds true)
+        pattern-substitution-inds (map :tuple-element-index subst)
+        pattern-filter-inds (map :tuple-element-index filt)
+        feature-extractor (index-feature-extractor pattern-filter-inds true)
 
         ;; A map where
         ;; * Every key is a vector of values to substitute
@@ -1289,10 +1310,9 @@ than doing no expansion at all."
         subst-filt-map (reduce (fn [dst tuple]
                                  (update
                                   dst
-                                  (select-inds tuple subst-inds)
-                                  (fn [dst]
-                                    (conj (or dst #{})
-                                          (feature-extractor tuple)))))
+                                  (select-inds tuple pattern-substitution-inds)
+                                  #(conj (or % #{})
+                                         (feature-extractor tuple))))
                                {}
                                tuples)
 
@@ -1394,7 +1414,7 @@ than doing no expansion at all."
                  dst
                  datoms))))))
 
-(defn search-batch-fn [bsm clean-pattern rels]
+(defn search-batch-fn [{:keys [bsm clean-pattern rels]}]
   (fn [strategy-vec backend-fn]
     (let [subst-inds (substitution-relation-indices
                       bsm clean-pattern strategy-vec)
@@ -1418,10 +1438,15 @@ than doing no expansion at all."
           clean-pattern (->> pattern1
                              (replace-unbound-symbols-by-nil bsm)
                              (resolve-pattern-eid source))
+          search-context {:source source
+                          :bsm bsm
+                          :clean-pattern clean-pattern
+                          :rels rels}
           datoms (if clean-pattern
                    (dbi/-batch-search source clean-pattern
-                                      (search-batch-fn
-                                       bsm clean-pattern rels))
+                                      (search-batch-fn search-context
+                                                       ;bsm clean-pattern rels
+                                                       ))
                    [])
           relation (relation-from-datoms context orig-pattern datoms)]
       (update context :rels collapse-rels relation))
