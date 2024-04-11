@@ -1263,10 +1263,11 @@ than doing no expansion at all."
   ([inds include-empty?]
    (index-feature-extractor inds include-empty? (fn [_ x] x)))
   ([inds include-empty? replacer]
-   (case (count inds)
-     0 (when include-empty? (fn [_] nil))
-     1 (fn [x] (wrap-comparable (replacer 0 (nth x (first inds)))))
-     (fn [x] (mapv #(wrap-comparable (replacer % (nth x %))) inds)))))
+   (let [first-index (first inds)]
+     (case (count inds)
+       0 (when include-empty? (fn [_] nil))
+       1 (fn [x] (wrap-comparable (replacer first-index (nth x first-index))))
+       (fn [x] (mapv #(wrap-comparable (replacer % (nth x %))) inds))))))
 
 (defn substitute [pattern inds vals]
   (if (empty? inds)
@@ -1276,6 +1277,7 @@ than doing no expansion at all."
            (rest vals))))
 
 (defn extend-predicate [predicate feature-extractor features]
+  {:pre [(set? features)]}
   (if (nil? feature-extractor)
     predicate
     (if predicate
@@ -1311,6 +1313,7 @@ than doing no expansion at all."
   (let [[_ a _ _] clean-pattern]
     (if source
       (fn [i x]
+        (println "lookup-ref-replacer i =" i "   x =" x)
         (let [y (resolve-pattern-lookup-ref-at-index source a i x ::error)]
           (when (= ::error y)
             (println "FAILED TO REPLACE REF" x))
@@ -1491,9 +1494,9 @@ than doing no expansion at all."
                    inds
                    false
                    (lookup-ref-replacer search-context))]
-    (println "inds =" inds)
+    (println "constant inds =" inds)
     (if extractor
-      (extend-predicate predicate extractor [clean-pattern])
+      (extend-predicate predicate extractor #{(extractor clean-pattern)})
       predicate)))
 
 (defn search-batch-fn [search-context #_{:keys [bsm clean-pattern rels]}]
