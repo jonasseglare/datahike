@@ -1422,27 +1422,36 @@ than doing no expansion at all."
     (println "NUMBER OF SUBST FORMS" (count subst-xforms))
     [init-coll (apply comp subst-xforms)]))
 
-(defn datom-filter-xform [search-context rel-inds]
+(defn datom-filter-predicate [search-context rel-inds]
   (let [filt-map (compute-per-rel-map search-context rel-inds :filter)
-        pred (reduce (fn [predicate [rel-index ind-vec]]
-                       (let [tuples (:tuples (nth (:rels search-context) rel-index))
-                             pos-inds (map :pattern-element-index ind-vec)
-                             tup-inds (map :tuple-element-index ind-vec)
-                             tuple-feature-extractor
-                             (index-feature-extractor tup-inds true)
-                             features (into #{}
-                                            (map tuple-feature-extractor)
-                                            tuples)
-                             datom-feature-extractor
-                             (index-feature-extractor pos-inds false)]
-                         (extend-predicate predicate
-                                           datom-feature-extractor
-                                           features)))
-                     nil
-                     filt-map)]
-    (if pred
-      (filter pred)
-      identity)))
+        rels (:rels search-context)]
+    (reduce (fn [predicate [rel-index ind-vec]]
+              (let [tuples (:tuples (nth rels rel-index))
+                    pos-inds (map :pattern-element-index ind-vec)
+                    tup-inds (map :tuple-element-index ind-vec)
+                    tuple-feature-extractor
+                    (index-feature-extractor tup-inds true)
+                    features (into #{}
+                                   (map tuple-feature-extractor)
+                                   tuples)
+                    datom-feature-extractor
+                    (index-feature-extractor pos-inds false)]
+                (extend-predicate predicate
+                                  datom-feature-extractor
+                                  features)))
+            nil
+            filt-map)))
+
+(defn filter-from-predicate [pred]
+  (if pred
+    (filter pred)
+    identity))
+
+(defn datom-filter-xform [search-context rel-inds]
+  (filter-from-predicate
+   (datom-filter-predicate
+    search-context
+    rel-inds)))
 
 (defn backend-xform [backend-fn]
   (fn [step]
@@ -1450,23 +1459,46 @@ than doing no expansion at all."
       ([] (step))
       ([dst] (step dst))
       ([dst [pattern datom-predicate]]
+       (println "backend-xform pattern" pattern)
        (let [inner-step (if datom-predicate
                           (fn [dst datom]
+                            (println "got datom" datom)
                             (if (datom-predicate datom)
-                              (step dst datom)
-                              dst))
+                              (do (println "   include")
+                                  (step dst datom))
+                              (do (println "   exclude")
+                                  dst)))
                           step)
              datoms (try
                       (backend-fn pattern)
                       (catch Exception e
                         (println "FAILED PATTERN" pattern)
                         (throw e)))]
+         (println "datoms received" datoms)
          (reduce inner-step
                  dst
                  datoms))))))
 
+(defn extend-predicate-for-pattern-constants
+  [predicate {:keys [strategy-vec clean-pattern] :as search-context}]
+  (let [inds (for [[i strategy pattern-value] (mapv vector (range)
+                                                    strategy-vec
+                                                    clean-pattern)
+                   :when (= :filter strategy)
+                   :when (some? pattern-value)]
+               i)
+        extractor (index-feature-extractor
+                   inds
+                   false
+                   (lookup-ref-replacer search-context))]
+    (println "inds =" inds)
+    (if extractor
+      (extend-predicate predicate extractor [clean-pattern])
+      predicate)))
+
 (defn search-batch-fn [search-context #_{:keys [bsm clean-pattern rels]}]
   (fn [strategy-vec backend-fn]
+    (println "Strategy" strategy-vec)
     (let [search-context (merge search-context {:strategy-vec strategy-vec
                                                 :backend-fn backend-fn})
           subst-inds (substitution-relation-indices search-context)
@@ -1474,19 +1506,25 @@ than doing no expansion at all."
           search-context (merge search-context {:subst-inds subst-inds
                                                 :filt-inds filt-inds})
           [init-coll subst-xform] (substitution-xform search-context subst-inds)
-          filt-xform (datom-filter-xform search-context filt-inds)]
+          filt-predicate (datom-filter-predicate search-context filt-inds)
+          filt-predicate (extend-predicate-for-pattern-constants
+                          filt-predicate search-context)]
+      (println "subst-inds" subst-inds)
+      (println "filt-inds" filt-inds)
       (into []
             (comp subst-xform
                   (backend-xform backend-fn)
-                  filt-xform)
+                  (filter-from-predicate filt-predicate))
             init-coll))))
 
 (defn lookup-new-search [source context orig-pattern pattern1]
+  (println "Lookup new search:" pattern1)
   (update context
           :rels
           collapse-rels
           (if (dbu/db? source)
             (let [rels (vec (:rels context))
+                  _ (println "INPUT RELS" rels)
                   bsm (bound-symbol-map rels)
                   clean-pattern (->> pattern1
                                      (replace-unbound-symbols-by-nil bsm)
@@ -1497,10 +1535,9 @@ than doing no expansion at all."
                                   :rels rels}
                   datoms (if clean-pattern
                            (dbi/-batch-search source clean-pattern
-                                              (search-batch-fn search-context
-                                        ;bsm clean-pattern rels
-                                                               ))
+                                              (search-batch-fn search-context))
                            [])]
+              (println "DATOMS" datoms)
               (relation-from-datoms context orig-pattern datoms))
             (lookup-pattern-coll source pattern1 orig-pattern))))
 

@@ -76,6 +76,19 @@
                     :where [?e ?a ?v ?t :db/retract]] db)
              #{[1 :age 39 999]})))))
 
+(defn demo-test-q-in []
+  (let [db (-> (db/empty-db)
+               (d/db-with [{:db/id 1, :name "Ivan", :age 15}
+                           {:db/id 2, :name "Petr", :age 37}
+                           {:db/id 3, :name "Ivan", :age 37}]))
+        query '{:find  [?e]
+                :in    [$ ?attr ?value]
+                :where [[?e ?attr ?value]]}]
+    (assert (= (d/q query db :name "Ivan")
+           #{[1] [3]}))
+    #_(is (= (d/q query db :age 37)
+           #{[2] [3]}))))
+
 (deftest test-q-in
   (let [db (-> (db/empty-db)
                (d/db-with [{:db/id 1, :name "Ivan", :age 15}
