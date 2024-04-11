@@ -37,6 +37,24 @@
              [3 3 "Ivan"]
              [3 2 "Petr"]}))))
 
+(defn demo-test-q-many []
+  (let [db (-> (db/empty-db {:aka {:db/cardinality :db.cardinality/many}})
+               (d/db-with [[:db/add 1 :name "Ivan"]
+                           [:db/add 1 :aka  "ivolga"]
+                           [:db/add 1 :aka  "pi"]
+                           [:db/add 2 :name "Petr"]
+                           [:db/add 2 :aka  "porosenok"]
+                           [:db/add 2 :aka  "pi"]]))]
+    (assert (= (d/q '[:find  ?n1 ?n2
+                      :where [?e1 :aka ?x]
+                      [?e2 :aka ?x]
+                      [?e1 :name ?n1]
+                      [?e2 :name ?n2]] db)
+               #{["Ivan" "Ivan"]
+                 ["Petr" "Petr"]
+                 ["Ivan" "Petr"]
+                 ["Petr" "Ivan"]}))))
+
 (deftest test-q-many
   (let [db (-> (db/empty-db {:aka {:db/cardinality :db.cardinality/many}})
                (d/db-with [[:db/add 1 :name "Ivan"]
@@ -75,19 +93,6 @@
       (is (= (d/q '[:find  ?e ?a ?v ?t
                     :where [?e ?a ?v ?t :db/retract]] db)
              #{[1 :age 39 999]})))))
-
-(defn demo-test-q-in []
-  (let [db (-> (db/empty-db)
-               (d/db-with [{:db/id 1, :name "Ivan", :age 15}
-                           {:db/id 2, :name "Petr", :age 37}
-                           {:db/id 3, :name "Ivan", :age 37}]))
-        query '{:find  [?e]
-                :in    [$ ?attr ?value]
-                :where [[?e ?attr ?value]]}]
-    (assert (= (d/q query db :name "Ivan")
-           #{[1] [3]}))
-    #_(is (= (d/q query db :age 37)
-           #{[2] [3]}))))
 
 (deftest test-q-in
   (let [db (-> (db/empty-db)

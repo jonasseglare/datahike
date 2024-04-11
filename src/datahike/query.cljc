@@ -1313,7 +1313,6 @@ than doing no expansion at all."
   (let [[_ a _ _] clean-pattern]
     (if source
       (fn [i x]
-        (println "lookup-ref-replacer i =" i "   x =" x)
         (let [y (resolve-pattern-lookup-ref-at-index source a i x ::error)]
           (when (= ::error y)
             (println "FAILED TO REPLACE REF" x))
@@ -1363,10 +1362,6 @@ than doing no expansion at all."
                         (map :pattern-element-index filt)
                         false
                         lookup-ref-replacer)]
-    ;;(println "context" search-context)
-    ;;(println "RELS" (:rels search-context))
-    ;;(println "TUPLES" tuples)
-    ;;(println "subst-filt-map" subst-filt-map)
     (fn [step]
       (fn
         ([] (step))
@@ -1422,7 +1417,6 @@ than doing no expansion at all."
         init-coll [[(clean-pattern-before-substitution
                      (:clean-pattern search-context) subst-map)
                     nil]]]
-    (println "NUMBER OF SUBST FORMS" (count subst-xforms))
     [init-coll (apply comp subst-xforms)]))
 
 (defn datom-filter-predicate [search-context rel-inds]
@@ -1462,22 +1456,17 @@ than doing no expansion at all."
       ([] (step))
       ([dst] (step dst))
       ([dst [pattern datom-predicate]]
-       (println "backend-xform pattern" pattern)
        (let [inner-step (if datom-predicate
                           (fn [dst datom]
-                            (println "got datom" datom)
                             (if (datom-predicate datom)
-                              (do (println "   include")
-                                  (step dst datom))
-                              (do (println "   exclude")
-                                  dst)))
+                              (step dst datom)
+                              dst))
                           step)
              datoms (try
                       (backend-fn pattern)
                       (catch Exception e
                         (println "FAILED PATTERN" pattern)
                         (throw e)))]
-         (println "datoms received" datoms)
          (reduce inner-step
                  dst
                  datoms))))))
@@ -1494,14 +1483,12 @@ than doing no expansion at all."
                    inds
                    false
                    (lookup-ref-replacer search-context))]
-    (println "constant inds =" inds)
     (if extractor
       (extend-predicate predicate extractor #{(extractor clean-pattern)})
       predicate)))
 
 (defn search-batch-fn [search-context #_{:keys [bsm clean-pattern rels]}]
   (fn [strategy-vec backend-fn]
-    (println "Strategy" strategy-vec)
     (let [search-context (merge search-context {:strategy-vec strategy-vec
                                                 :backend-fn backend-fn})
           subst-inds (substitution-relation-indices search-context)
@@ -1512,8 +1499,6 @@ than doing no expansion at all."
           filt-predicate (datom-filter-predicate search-context filt-inds)
           filt-predicate (extend-predicate-for-pattern-constants
                           filt-predicate search-context)]
-      (println "subst-inds" subst-inds)
-      (println "filt-inds" filt-inds)
       (into []
             (comp subst-xform
                   (backend-xform backend-fn)
@@ -1521,13 +1506,11 @@ than doing no expansion at all."
             init-coll))))
 
 (defn lookup-new-search [source context orig-pattern pattern1]
-  (println "Lookup new search:" pattern1)
   (update context
           :rels
           collapse-rels
           (if (dbu/db? source)
             (let [rels (vec (:rels context))
-                  _ (println "INPUT RELS" rels)
                   bsm (bound-symbol-map rels)
                   clean-pattern (->> pattern1
                                      (replace-unbound-symbols-by-nil bsm)
@@ -1540,7 +1523,6 @@ than doing no expansion at all."
                            (dbi/-batch-search source clean-pattern
                                               (search-batch-fn search-context))
                            [])]
-              (println "DATOMS" datoms)
               (relation-from-datoms context orig-pattern datoms))
             (lookup-pattern-coll source pattern1 orig-pattern))))
 
@@ -1557,6 +1539,8 @@ than doing no expansion at all."
   (let [rels-a (normalize-rels (:rels a))
         rels-b (normalize-rels (:rels b))]
     (when-not (= rels-a rels-b)
+      (println "A" rels-a)
+      (println "B" rels-b)
       (def the-a a)
       (def the-b b)
       (throw (ex-info "Different contexts" {})))))
