@@ -1368,26 +1368,26 @@ than doing no expansion at all."
                            :else x)))
           pattern)))
 
-(defn substitution-xform [context rel-inds]
-  {:pre [(map? context)
+(defn substitution-xform [search-context rel-inds]
+  {:pre [(map? search-context)
          (set? rel-inds)]}
-  (let [subst-map (compute-per-rel-map context rel-inds :substitute)
-        filt-map (compute-per-rel-map context rel-inds :filter)
+  (let [subst-map (compute-per-rel-map search-context rel-inds :substitute)
+        filt-map (compute-per-rel-map search-context rel-inds :filter)
         subst-xforms (for [rel-index rel-inds]
                        (single-substitution-xform
-                        context rel-index
+                        search-context rel-index
                         subst-map
                         filt-map))
         init-coll [[(clean-pattern-before-substitution
-                     (:clean-pattern context) subst-map)
+                     (:clean-pattern search-context) subst-map)
                     nil]]]
     (println "NUMBER OF SUBST FORMS" (count subst-xforms))
     [init-coll (apply comp subst-xforms)]))
 
-(defn datom-filter-xform [context rel-inds]
-  (let [filt-map (compute-per-rel-map context rel-inds :filter)
+(defn datom-filter-xform [search-context rel-inds]
+  (let [filt-map (compute-per-rel-map search-context rel-inds :filter)
         pred (reduce (fn [predicate [rel-index ind-vec]]
-                       (let [tuples (:tuples (nth (:rels context) rel-index))
+                       (let [tuples (:tuples (nth (:rels search-context) rel-index))
                              pos-inds (map :pattern-element-index ind-vec)
                              tup-inds (map :tuple-element-index ind-vec)
                              tuple-feature-extractor
@@ -1427,16 +1427,16 @@ than doing no expansion at all."
                  dst
                  datoms))))))
 
-(defn search-batch-fn [context #_{:keys [bsm clean-pattern rels]}]
+(defn search-batch-fn [search-context #_{:keys [bsm clean-pattern rels]}]
   (fn [strategy-vec backend-fn]
-    (let [context (merge context {:strategy-vec strategy-vec
-                                  :backend-fn backend-fn})
-          subst-inds (substitution-relation-indices context)
-          filt-inds (filtering-relation-indices context subst-inds)
-          context (merge context {:subst-inds subst-inds
-                                  :filt-inds filt-inds})
-          [init-coll subst-xform] (substitution-xform context subst-inds)
-          filt-xform (datom-filter-xform context filt-inds)]
+    (let [search-context (merge search-context {:strategy-vec strategy-vec
+                                                :backend-fn backend-fn})
+          subst-inds (substitution-relation-indices search-context)
+          filt-inds (filtering-relation-indices search-context subst-inds)
+          search-context (merge search-context {:subst-inds subst-inds
+                                                :filt-inds filt-inds})
+          [init-coll subst-xform] (substitution-xform search-context subst-inds)
+          filt-xform (datom-filter-xform search-context filt-inds)]
       (into []
             (comp subst-xform
                   (backend-xform backend-fn)
