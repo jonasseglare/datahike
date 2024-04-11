@@ -1060,7 +1060,9 @@ in those cases.
 
 (defn tuple-var-mapper [rel]
   (let [attrs (:attrs rel)
-        key-fn-pairs (into [] (map (juxt identity (partial getter-fn attrs))) (keys attrs))]
+        key-fn-pairs (into []
+                           (map (juxt identity (partial getter-fn attrs)))
+                           (keys attrs))]
     (fn [tuple]
       (into {}
             (map (fn [[k f]] [k (f tuple)]))
@@ -1480,25 +1482,44 @@ than doing no expansion at all."
             init-coll))))
 
 (defn lookup-new-search [source context orig-pattern pattern1]
-  (if (dbu/db? source)
-    (let [rels (vec (:rels context))
-          bsm (bound-symbol-map rels)
-          clean-pattern (->> pattern1
-                             (replace-unbound-symbols-by-nil bsm)
-                             (resolve-pattern-eid source))
-          search-context {:source source
-                          :bsm bsm
-                          :clean-pattern clean-pattern
-                          :rels rels}
-          datoms (if clean-pattern
-                   (dbi/-batch-search source clean-pattern
-                                      (search-batch-fn search-context
-                                                       ;bsm clean-pattern rels
-                                                       ))
-                   [])
-          relation (relation-from-datoms context orig-pattern datoms)]
-      (update context :rels collapse-rels relation))
-    (println "TODO: lookup-new-search for coll")))
+  (update context
+          :rels
+          collapse-rels
+          (if (dbu/db? source)
+            (let [rels (vec (:rels context))
+                  bsm (bound-symbol-map rels)
+                  clean-pattern (->> pattern1
+                                     (replace-unbound-symbols-by-nil bsm)
+                                     (resolve-pattern-eid source))
+                  search-context {:source source
+                                  :bsm bsm
+                                  :clean-pattern clean-pattern
+                                  :rels rels}
+                  datoms (if clean-pattern
+                           (dbi/-batch-search source clean-pattern
+                                              (search-batch-fn search-context
+                                        ;bsm clean-pattern rels
+                                                               ))
+                           [])]
+              (relation-from-datoms context orig-pattern datoms))
+            (lookup-pattern-coll source pattern1 orig-pattern))))
+
+
+(defn normalize-rel [rel]
+  (let [m (tuple-var-mapper rel)]
+    (into #{} (map m) (:tuples rel))))
+
+(defn normalize-rels [rels]
+  (into #{} (map normalize-rel) rels))
+
+;; (update context :rels collapse-rels relation)
+(defn compare-contexts [a b]
+  (let [rels-a (normalize-rels (:rels a))
+        rels-b (normalize-rels (:rels b))]
+    (when-not (= rels-a rels-b)
+      (def the-a a)
+      (def the-b b)
+      (throw (ex-info "Different contexts" {})))))
 
 (defn -resolve-clause*
   ([context clause]
@@ -1607,6 +1628,9 @@ than doing no expansion at all."
                                  source context pattern1)
            context-constrained (lookup-patterns
                                 context clause pattern1 constrained-patterns)]
+       (compare-contexts
+        context-constrained
+        new-context)
        (log-example {:source source
                      :pattern1 pattern1
                      :context context
