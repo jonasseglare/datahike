@@ -5,6 +5,7 @@
    #?(:clj [clojure.string :as str])
    [clojure.walk :as walk]
    [datahike.db.interface :as dbi]
+   [clojure.pprint :as pp]
    [datahike.db.utils :as dbu]
    [datahike.array :refer [wrap-comparable]]
    [datahike.impl.entity :as de]
@@ -1519,10 +1520,14 @@ than doing no expansion at all."
                                   :bsm bsm
                                   :clean-pattern clean-pattern
                                   :rels rels}
+                  _ (println "Search context")
+                  _ (pp/pprint search-context)
+
                   datoms (if clean-pattern
                            (dbi/-batch-search source clean-pattern
                                               (search-batch-fn search-context))
                            [])]
+              
               (relation-from-datoms context orig-pattern datoms))
             (lookup-pattern-coll source pattern1 orig-pattern))))
 

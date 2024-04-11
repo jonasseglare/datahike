@@ -46,7 +46,8 @@
                            [:db/add 2 :aka  "porosenok"]
                            [:db/add 2 :aka  "pi"]]))]
     (assert (= (d/q '[:find  ?n1 ?n2
-                      :where [?e1 :aka ?x]
+                      :where
+                      [?e1 :aka ?x]
                       [?e2 :aka ?x]
                       [?e1 :name ?n1]
                       [?e2 :name ?n2]] db)
