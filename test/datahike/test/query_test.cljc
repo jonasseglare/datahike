@@ -756,15 +756,21 @@
         clean-pattern (dq/replace-unbound-symbols-by-nil bsm -pattern1)
         strategy [nil :substitute :filter nil]
         subst-inds (dq/substitution-relation-indices
-                    bsm clean-pattern strategy)
+                    {:bsm bsm
+                     :clean-pattern clean-pattern
+                     :strategy-vec strategy
+                     :rels rels})
         filt-inds (dq/filtering-relation-indices
-                   bsm clean-pattern strategy subst-inds)
+                   {:bsm bsm
+                    :clean-pattern clean-pattern
+                    :strategy-vec strategy
+                    :rels rels}
+                   subst-inds)
         [init-coll subst-xform] (dq/substitution-xform
-                                 nil
-                                 bsm
-                                 clean-pattern
-                                 strategy
-                                 rels
+                                 {:bsm bsm
+                                  :clean-pattern clean-pattern
+                                  :strategy-vec strategy
+                                  :rels rels}
                                  subst-inds)
 
         result (into [] subst-xform init-coll)
