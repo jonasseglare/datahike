@@ -1223,30 +1223,31 @@ than doing no expansion at all."
             %)
          pattern)))
 
-(defn search-index-mapping [bsm pattern strategy selected-strategy-symbol]
-  {:pre [(= 4 (count strategy))]}
-  (let [pattern (normalize-pattern pattern)]
+(defn search-index-mapping [{:keys [strategy-vec clean-pattern bsm]}
+                            selected-strategy-symbol]
+  {:pre [(= 4 (count strategy-vec))]}
+  (let [pattern (normalize-pattern clean-pattern)]
     (map-indexed
      (fn [i dst]
        (assoc dst :sim-index i))
      (for [[pattern-element-index
             pattern-var
-            strategy-symbol] (map vector (range) pattern strategy)
+            strategy-symbol] (map vector (range) pattern strategy-vec)
            :when (= selected-strategy-symbol strategy-symbol)
            :let [m (bsm pattern-var)]
            :when m]
        (assoc m :pattern-element-index pattern-element-index)))))
 
-(defn substitution-relation-indices [bsm pattern subst-mask]
+(defn substitution-relation-indices [context]
   (into #{}
         (map :relation-index)
-        (search-index-mapping bsm pattern subst-mask :substitute)))
+        (search-index-mapping context :substitute)))
 
-(defn filtering-relation-indices [bsm pattern subst-mask subst-inds]
+(defn filtering-relation-indices [context subst-inds]
   (into #{}
         (comp (map :relation-index)
               (remove subst-inds))
-        (search-index-mapping bsm pattern subst-mask :filter)))
+        (search-index-mapping context :filter)))
 
 (defn select-inds [src inds]
   (mapv #(nth src %) inds))
@@ -1296,8 +1297,8 @@ than doing no expansion at all."
         4 pattern-value)
       pattern-value)))
 
-(defn single-substitution-xform [source rels relation-index subst-map filt-map]
-  (let [tuples (:tuples (nth rels relation-index))
+(defn single-substitution-xform [context relation-index subst-map filt-map]
+  (let [tuples (:tuples (nth (:rels context) relation-index))
         subst (subst-map relation-index)
         filt (filt-map relation-index)
         pattern-substitution-inds (map :tuple-element-index subst)
@@ -1334,9 +1335,9 @@ than doing no expansion at all."
                  dst
                  subst-filt-map))))))
 
-(defn compute-per-rel-map [bsm pattern strategy rel-inds strat-symbol]
+(defn compute-per-rel-map [context rel-inds strat-symbol]
   (->> strat-symbol
-       (search-index-mapping bsm pattern strategy)
+       (search-index-mapping context)
        (filter (comp rel-inds :relation-index))
        (group-by :relation-index)))
 
@@ -1353,28 +1354,25 @@ than doing no expansion at all."
                            :else x)))
           pattern)))
 
-(defn substitution-xform [source bsm pattern strategy rels rel-inds]
-  {:pre [(map? bsm)
-         (vector? pattern)
-         (vector? strategy)
-         (vector? rels)
+(defn substitution-xform [context rel-inds]
+  {:pre [(map? context)
          (set? rel-inds)]}
-  (let [subst-map (compute-per-rel-map bsm pattern strategy rel-inds :substitute)
-        filt-map (compute-per-rel-map bsm pattern strategy rel-inds :filter)
+  (let [subst-map (compute-per-rel-map context rel-inds :substitute)
+        filt-map (compute-per-rel-map context rel-inds :filter)
         subst-xforms (for [rel-index rel-inds]
                        (single-substitution-xform
-                        source
-                        rels rel-index
+                        context rel-index
                         subst-map
                         filt-map))
-        init-coll [[(clean-pattern-before-substitution pattern subst-map)
+        init-coll [[(clean-pattern-before-substitution
+                     (:clean-pattern context) subst-map)
                     nil]]]
     [init-coll (apply comp subst-xforms)]))
 
-(defn datom-filter-xform [bsm pattern strategy rels rel-inds]
-  (let [filt-map (compute-per-rel-map bsm pattern strategy rel-inds :filter)
+(defn datom-filter-xform [context rel-inds]
+  (let [filt-map (compute-per-rel-map context rel-inds :filter)
         pred (reduce (fn [predicate [rel-index ind-vec]]
-                       (let [tuples (:tuples (nth rels rel-index))
+                       (let [tuples (:tuples (nth (:rels context) rel-index))
                              pos-inds (map :pattern-element-index ind-vec)
                              tup-inds (map :tuple-element-index ind-vec)
                              tuple-feature-extractor
@@ -1414,17 +1412,16 @@ than doing no expansion at all."
                  dst
                  datoms))))))
 
-(defn search-batch-fn [{:keys [bsm clean-pattern rels]}]
+(defn search-batch-fn [context #_{:keys [bsm clean-pattern rels]}]
   (fn [strategy-vec backend-fn]
-    (let [subst-inds (substitution-relation-indices
-                      bsm clean-pattern strategy-vec)
-          filt-inds (filtering-relation-indices
-                     bsm clean-pattern strategy-vec subst-inds)
-          [init-coll subst-xform] (substitution-xform
-                                   nil bsm clean-pattern strategy-vec
-                                   rels subst-inds)
-          filt-xform (datom-filter-xform
-                      bsm clean-pattern strategy-vec rels filt-inds)]
+    (let [context (merge context {:strategy-vec strategy-vec
+                                  :backend-fn backend-fn})
+          subst-inds (substitution-relation-indices context)
+          filt-inds (filtering-relation-indices context subst-inds)
+          context (merge context {:subst-inds subst-inds
+                                  :filt-inds filt-inds})
+          [init-coll subst-xform] (substitution-xform context subst-inds)
+          filt-xform (datom-filter-xform context filt-inds)]
       (into []
             (comp subst-xform
                   (backend-xform backend-fn)

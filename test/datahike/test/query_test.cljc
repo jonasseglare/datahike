@@ -712,13 +712,23 @@
 
 
         subst-inds0 (dq/substitution-relation-indices
-                     bsm clean-pattern strategy0)
+                     {:bsm bsm
+                      :clean-pattern clean-pattern
+                      :strategy-vec  strategy0})
         subst-inds1 (dq/substitution-relation-indices
-                     bsm clean-pattern strategy1)
+                     {:bsm bsm
+                      :clean-pattern clean-pattern
+                      :strategy-vec  strategy1})
         filt-inds0 (dq/filtering-relation-indices
-                    bsm clean-pattern strategy0 subst-inds0)
+                    {:bsm bsm
+                     :clean-pattern clean-pattern
+                     :strategy-vec  strategy0}
+                    subst-inds0)
         filt-inds1 (dq/filtering-relation-indices
-                    bsm clean-pattern strategy1 subst-inds1)]
+                    {:bsm bsm
+                     :clean-pattern clean-pattern
+                     :strategy-vec  strategy0}
+                    subst-inds1)]
     (is (seq rels))
     (is (= '{?oc {:relation-index 0, :tuple-element-index 0},
              ?__auto__1 {:relation-index 1, :tuple-element-index 0}}
@@ -803,14 +813,26 @@
         bsm (dq/bound-symbol-map rels)
         clean-pattern (dq/replace-unbound-symbols-by-nil bsm pattern1)
         strategy [nil :substitute :filter nil]
-        subst-inds (dq/substitution-relation-indices bsm pattern1 strategy)
-        filt-inds (dq/filtering-relation-indices bsm clean-pattern
-                                                 strategy subst-inds)
+        subst-inds (dq/substitution-relation-indices
+                    {:bsm bsm
+                     :clean-pattern pattern1
+                     :strategy-vec strategy})
+        filt-inds (dq/filtering-relation-indices
+                   {:bsm bsm
+                    :clean-pattern clean-pattern
+                    :strategy-vec strategy}
+                   subst-inds)
         [init-coll subst-xform] (dq/substitution-xform
-                                 nil
-                                 bsm clean-pattern strategy rels subst-inds)
+                                 {:bsm bsm
+                                  :clean-pattern clean-pattern
+                                  :strategy-vec strategy}
+                                 subst-inds)
         filt-xform (dq/datom-filter-xform
-                    bsm clean-pattern strategy rels filt-inds)
+                    {:bsm bsm
+                     :clean-pattern clean-pattern
+                     :strategy-vec strategy
+                     :rels rels}
+                    filt-inds)
 
         subst-result (into [] subst-xform init-coll)
         [[_ p0]] subst-result]
