@@ -979,6 +979,11 @@
        added added)
      pattern)))
 
+(defn good-lookup-refs? [pattern]
+  (if (coll? pattern)
+    (not-any? #(= % ::error) pattern)
+    (not= ::error pattern)))
+
 (defn resolve-pattern-lookup-refs-or-nil
   "This function works just like `resolve-pattern-lookup-refs` but if there is an error it returns `nil` instead of throwing an exception. This is used to reject patterns with variables substituted for invalid values.
 
@@ -1010,7 +1015,7 @@ in those cases.
 "
   [source pattern]
   (let [result (resolve-pattern-lookup-refs source pattern ::error)]
-    (when (not-any? #(= % ::error) result)
+    (when (good-lookup-refs? result)
       result)))
 
 (defn dynamic-lookup-attrs [source pattern]
@@ -1252,11 +1257,14 @@ than doing no expansion at all."
 (defn select-inds [src inds]
   (mapv #(nth src %) inds))
 
-(defn index-feature-extractor [inds include-empty?]
-  (case (count inds)
-    0 (when include-empty? (fn [_] nil))
-    1 (fn [x] (wrap-comparable (nth x (first inds))))
-    (fn [x] (mapv #(wrap-comparable (nth x %)) inds))))
+(defn index-feature-extractor
+  ([inds include-empty?]
+   (index-feature-extractor inds include-empty? (fn [_ x] x)))
+  ([inds include-empty? replacer]
+   (case (count inds)
+     0 (when include-empty? (fn [_] nil))
+     1 (fn [x] (wrap-comparable (replacer 0 (nth x (first inds)))))
+     (fn [x] (mapv #(wrap-comparable (replacer % (nth x %))) inds)))))
 
 (defn substitute [pattern inds vals]
   (if (empty? inds)
@@ -1277,8 +1285,8 @@ than doing no expansion at all."
         (contains? features (feature-extractor datom))))))
 
 (defn resolve-pattern-lookup-ref-at-index
-  [source clean-pattern pattern-index pattern-value error-code]
-  (let [[_ a _ _] clean-pattern]
+  [source clean-attribute pattern-index pattern-value error-code]
+  (let [a clean-attribute]
     (if (dbu/db? source)
       (case pattern-index
         0 (resolve-pattern-lookup-entity-id source pattern-value error-code)
@@ -1297,13 +1305,26 @@ than doing no expansion at all."
         4 pattern-value)
       pattern-value)))
 
+(defn lookup-ref-replacer [{:keys [source clean-pattern]}]
+  (let [[_ a _ _] clean-pattern]
+    (if source
+      (fn [i x]
+        (let [y (resolve-pattern-lookup-ref-at-index source a i x ::error)]
+          (when (= ::error y)
+            (println "FAILED TO REPLACE REF" x))
+          y))
+      (fn [_ x] x))))
+
 (defn single-substitution-xform [search-context relation-index subst-map filt-map]
-  (let [tuples (:tuples (nth (:rels search-context) relation-index))
+  (let [lookup-ref-replacer (lookup-ref-replacer search-context)
+        tuples (:tuples (nth (:rels search-context) relation-index))
         subst (subst-map relation-index)
         filt (filt-map relation-index)
         pattern-substitution-inds (map :tuple-element-index subst)
         pattern-filter-inds (map :tuple-element-index filt)
-        feature-extractor (index-feature-extractor pattern-filter-inds true)
+        feature-extractor (index-feature-extractor pattern-filter-inds
+                                                   true
+                                                   lookup-ref-replacer)
 
         ;; A map where
         ;; * Every key is a vector of values to substitute
@@ -1312,20 +1333,35 @@ than doing no expansion at all."
                                  (update
                                   dst
                                   (select-inds tuple pattern-substitution-inds)
-                                  #(conj (or % #{})
-                                         (feature-extractor tuple))))
+                                  (fn [dst]
+                                    (let [feature (feature-extractor tuple)]
+                                      (if (good-lookup-refs? feature)
+                                        (conj (or dst #{}) feature)
+                                        dst)))))
                                {}
                                tuples)
 
-        ;; 
         substitution-pattern-element-inds (map :pattern-element-index subst)
+
+        ;; Replace the lookup refs
+        subst-filt-map (into {}
+                             (keep (fn [[k v]]
+                                     (let [k2 (mapv lookup-ref-replacer
+                                                    substitution-pattern-element-inds
+                                                    k)]
+                                       (when (good-lookup-refs? k2)
+                                         [k2 v]))))
+                             subst-filt-map)
+
+
         filt-extractor (index-feature-extractor
                         (map :pattern-element-index filt)
-                        false)]
-    ;(println "context" search-context)
-    ;(println "RELS" (:rels search-context))
-    ;(println "TUPLES" tuples)
-    ;(println "subst-filt-map" subst-filt-map)
+                        false
+                        lookup-ref-replacer)]
+    ;;(println "context" search-context)
+    ;;(println "RELS" (:rels search-context))
+    ;;(println "TUPLES" tuples)
+    ;;(println "subst-filt-map" subst-filt-map)
     (fn [step]
       (fn
         ([] (step))
