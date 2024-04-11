@@ -1297,8 +1297,8 @@ than doing no expansion at all."
         4 pattern-value)
       pattern-value)))
 
-(defn single-substitution-xform [context relation-index subst-map filt-map]
-  (let [tuples (:tuples (nth (:rels context) relation-index))
+(defn single-substitution-xform [search-context relation-index subst-map filt-map]
+  (let [tuples (:tuples (nth (:rels search-context) relation-index))
         subst (subst-map relation-index)
         filt (filt-map relation-index)
         pattern-substitution-inds (map :tuple-element-index subst)
@@ -1322,6 +1322,10 @@ than doing no expansion at all."
         filt-extractor (index-feature-extractor
                         (map :pattern-element-index filt)
                         false)]
+    ;(println "context" search-context)
+    ;(println "RELS" (:rels search-context))
+    ;(println "TUPLES" tuples)
+    ;(println "subst-filt-map" subst-filt-map)
     (fn [step]
       (fn
         ([] (step))
@@ -1335,9 +1339,19 @@ than doing no expansion at all."
                  dst
                  subst-filt-map))))))
 
-(defn compute-per-rel-map [context rel-inds strat-symbol]
+(defn search-context? [x]
+  (assert (map? x))
+  (let [{:keys [bsm clean-pattern rels strategy-vec]} x]
+    (assert bsm)
+    (assert clean-pattern)
+    (assert rels)
+    (assert strategy-vec))
+  true)
+
+(defn compute-per-rel-map [search-context rel-inds strat-symbol]
+  {:pre [(search-context? search-context)]}
   (->> strat-symbol
-       (search-index-mapping context)
+       (search-index-mapping search-context)
        (filter (comp rel-inds :relation-index))
        (group-by :relation-index)))
 
@@ -1367,6 +1381,7 @@ than doing no expansion at all."
         init-coll [[(clean-pattern-before-substitution
                      (:clean-pattern context) subst-map)
                     nil]]]
+    (println "NUMBER OF SUBST FORMS" (count subst-xforms))
     [init-coll (apply comp subst-xforms)]))
 
 (defn datom-filter-xform [context rel-inds]

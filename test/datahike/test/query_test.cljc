@@ -727,7 +727,7 @@
         filt-inds1 (dq/filtering-relation-indices
                     {:bsm bsm
                      :clean-pattern clean-pattern
-                     :strategy-vec  strategy0}
+                     :strategy-vec  strategy1}
                     subst-inds1)]
     (is (seq rels))
     (is (= '{?oc {:relation-index 0, :tuple-element-index 0},
@@ -825,7 +825,8 @@
         [init-coll subst-xform] (dq/substitution-xform
                                  {:bsm bsm
                                   :clean-pattern clean-pattern
-                                  :strategy-vec strategy}
+                                  :strategy-vec strategy
+                                  :rels rels}
                                  subst-inds)
         filt-xform (dq/datom-filter-xform
                     {:bsm bsm
