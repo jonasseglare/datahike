@@ -1279,14 +1279,11 @@ than doing no expansion at all."
 
 (defn extend-predicate [predicate feature-extractor features]
   {:pre [(set? features)]}
-  (println "Extend predicate for" features)
   (if (nil? feature-extractor)
     predicate
     (if predicate
       (fn [datom]
-        (println "Filter datom" datom)
         (let [feature (feature-extractor datom)]
-          (println "Feature" feature "Features" features)
           (if (contains? features feature)
             (predicate datom)
             false)))
@@ -1427,7 +1424,6 @@ than doing no expansion at all."
 (defn datom-filter-predicate [search-context rel-inds]
   (let [filt-map (compute-per-rel-map search-context rel-inds :filter)
         rels (:rels search-context)]
-    (println "filt-map" filt-map)
     (reduce (fn [predicate [rel-index ind-vec]]
               (let [tuples (:tuples (nth rels rel-index))
                     pos-inds (map :pattern-element-index ind-vec)
@@ -1439,8 +1435,6 @@ than doing no expansion at all."
                                    tuples)
                     datom-feature-extractor
                     (index-feature-extractor pos-inds false)]
-                (println "Filter pos-inds" pos-inds)
-                (println "Features" features)
                 (extend-predicate predicate
                                   datom-feature-extractor
                                   features)))
@@ -1464,23 +1458,17 @@ than doing no expansion at all."
       ([] (step))
       ([dst] (step dst))
       ([dst [pattern datom-predicate]]
-       (println "Backend xform" pattern)
        (let [inner-step (if datom-predicate
                           (fn [dst datom]
                             (if (datom-predicate datom)
-                              (do (println "Accept" datom)
-                                  (step dst datom))
-                              (do (println "Reject" datom)
-                                  dst)))
-                          (do (println "Just step it!")
-                              step))
+                              (step dst datom)
+                              dst))
+                          step)
              datoms (try
                       (backend-fn pattern)
                       (catch Exception e
                         (println "FAILED PATTERN" pattern)
                         (throw e)))]
-         (println "DATOMS from backend")
-         (pp/pprint datoms)
          (reduce inner-step
                  dst
                  datoms))))))
@@ -1504,7 +1492,6 @@ than doing no expansion at all."
 
 (defn search-batch-fn [search-context]
   (fn [strategy-vec backend-fn]
-    (println "----STRATEGY" strategy-vec)
     (let [search-context (merge search-context {:strategy-vec strategy-vec
                                                 :backend-fn backend-fn})
           subst-inds (substitution-relation-indices search-context)
@@ -1521,10 +1508,10 @@ than doing no expansion at all."
                              (filter-from-predicate filt-predicate)
                              )
                        init-coll)]
-      (println "init-coll" init-coll)
-      (println "subst-inds" subst-inds)
-      (println "RESULT")
-      (pp/pprint result)
+      #_(println "init-coll" init-coll)
+      #_(println "subst-inds" subst-inds)
+      #_(println "RESULT")
+      #_(pp/pprint result)
       result)))
 
 (defn lookup-new-search [source context orig-pattern pattern1]
@@ -1541,9 +1528,6 @@ than doing no expansion at all."
                                   :bsm bsm
                                   :clean-pattern clean-pattern
                                   :rels rels}
-                  _ (println "Search context")
-                  _ (pp/pprint search-context)
-
                   datoms (if clean-pattern
                            (dbi/-batch-search source clean-pattern
                                               (search-batch-fn search-context))
