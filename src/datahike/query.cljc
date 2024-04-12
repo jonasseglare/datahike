@@ -1457,17 +1457,23 @@ than doing no expansion at all."
       ([] (step))
       ([dst] (step dst))
       ([dst [pattern datom-predicate]]
+       (println "Backend xform" pattern)
        (let [inner-step (if datom-predicate
                           (fn [dst datom]
                             (if (datom-predicate datom)
-                              (step dst datom)
-                              dst))
-                          step)
+                              (do (println "Accept" datom)
+                                  (step dst datom))
+                              (do (println "Reject" datom)
+                                  dst)))
+                          (do (println "Just step it!")
+                              step))
              datoms (try
                       (backend-fn pattern)
                       (catch Exception e
                         (println "FAILED PATTERN" pattern)
                         (throw e)))]
+         (println "DATOMS from backend")
+         (pp/pprint datoms)
          (reduce inner-step
                  dst
                  datoms))))))
@@ -1488,7 +1494,7 @@ than doing no expansion at all."
       (extend-predicate predicate extractor #{(extractor clean-pattern)})
       predicate)))
 
-(defn search-batch-fn [search-context #_{:keys [bsm clean-pattern rels]}]
+(defn search-batch-fn [search-context]
   (fn [strategy-vec backend-fn]
     (let [search-context (merge search-context {:strategy-vec strategy-vec
                                                 :backend-fn backend-fn})
@@ -1499,12 +1505,18 @@ than doing no expansion at all."
           [init-coll subst-xform] (substitution-xform search-context subst-inds)
           filt-predicate (datom-filter-predicate search-context filt-inds)
           filt-predicate (extend-predicate-for-pattern-constants
-                          filt-predicate search-context)]
-      (into []
-            (comp subst-xform
-                  (backend-xform backend-fn)
-                  (filter-from-predicate filt-predicate))
-            init-coll))))
+                          filt-predicate search-context)
+          result (into []
+                       (comp subst-xform
+                             (backend-xform backend-fn)
+                             ;(filter-from-predicate filt-predicate)
+                             )
+                       init-coll)]
+      (println "init-coll" init-coll)
+      (println "subst-inds" subst-inds)
+      (println "RESULT")
+      (pp/pprint result)
+      result)))
 
 (defn lookup-new-search [source context orig-pattern pattern1]
   (update context
