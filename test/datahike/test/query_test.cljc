@@ -37,7 +37,30 @@
              [3 3 "Ivan"]
              [3 2 "Petr"]}))))
 
+(defn my-assert [x]
+  (println (if x "SUCCESS" "FAILURE")))
+
 (defn demo-test-q-many []
+  (let [db (-> (db/empty-db {:aka {:db/cardinality :db.cardinality/many}})
+               (d/db-with [[:db/add 1 :name "Ivan"]
+                           [:db/add 1 :aka  "ivolga"]
+                           [:db/add 1 :aka  "pi"]
+                           [:db/add 2 :name "Petr"]
+                           [:db/add 2 :aka  "porosenok"]
+                           [:db/add 2 :aka  "pi"]]))]
+    (my-assert
+     (= (d/q '[:find  ?n1 ?n2
+               :where
+               [?e1 :aka ?x]
+               [?e2 :aka ?x]
+               [?e1 :name ?n1]
+               [?e2 :name ?n2]] db)
+        #{["Ivan" "Ivan"]
+          ["Petr" "Petr"]
+          ["Ivan" "Petr"]
+          ["Petr" "Ivan"]}))))
+
+(deftest test-q-many
   (let [db (-> (db/empty-db {:aka {:db/cardinality :db.cardinality/many}})
                (d/db-with [[:db/add 1 :name "Ivan"]
                            [:db/add 1 :aka  "ivolga"]
@@ -55,25 +78,6 @@
                  ["Petr" "Petr"]
                  ["Ivan" "Petr"]
                  ["Petr" "Ivan"]}))))
-
-(deftest test-q-many
-  (let [db (-> (db/empty-db {:aka {:db/cardinality :db.cardinality/many}})
-               (d/db-with [[:db/add 1 :name "Ivan"]
-                           [:db/add 1 :aka  "ivolga"]
-                           [:db/add 1 :aka  "pi"]
-                           [:db/add 2 :name "Petr"]
-                           [:db/add 2 :aka  "porosenok"]
-                           [:db/add 2 :aka  "pi"]]))]
-    (is (= (d/q '[:find  ?n1 ?n2
-                  :where
-                  [?e1 :aka ?x]
-                  [?e2 :aka ?x]
-                  [?e1 :name ?n1]
-                  [?e2 :name ?n2]] db)
-           #{["Ivan" "Ivan"]
-             ["Petr" "Petr"]
-             ["Ivan" "Petr"]
-             ["Petr" "Ivan"]}))))
 
 (deftest test-q-coll
   (let [db [[1 :name "Ivan"]

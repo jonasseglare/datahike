@@ -1279,13 +1279,17 @@ than doing no expansion at all."
 
 (defn extend-predicate [predicate feature-extractor features]
   {:pre [(set? features)]}
+  (println "Extend predicate for" features)
   (if (nil? feature-extractor)
     predicate
     (if predicate
       (fn [datom]
-        (if (contains? features (feature-extractor datom))
-          (predicate datom)
-          false))
+        (println "Filter datom" datom)
+        (let [feature (feature-extractor datom)]
+          (println "Feature" feature "Features" features)
+          (if (contains? features feature)
+            (predicate datom)
+            false)))
       (fn [datom]
         (contains? features (feature-extractor datom))))))
 
@@ -1423,6 +1427,7 @@ than doing no expansion at all."
 (defn datom-filter-predicate [search-context rel-inds]
   (let [filt-map (compute-per-rel-map search-context rel-inds :filter)
         rels (:rels search-context)]
+    (println "filt-map" filt-map)
     (reduce (fn [predicate [rel-index ind-vec]]
               (let [tuples (:tuples (nth rels rel-index))
                     pos-inds (map :pattern-element-index ind-vec)
@@ -1434,6 +1439,8 @@ than doing no expansion at all."
                                    tuples)
                     datom-feature-extractor
                     (index-feature-extractor pos-inds false)]
+                (println "Filter pos-inds" pos-inds)
+                (println "Features" features)
                 (extend-predicate predicate
                                   datom-feature-extractor
                                   features)))
@@ -1484,7 +1491,8 @@ than doing no expansion at all."
                                                     strategy-vec
                                                     clean-pattern)
                    :when (= :filter strategy)
-                   :when (some? pattern-value)]
+                   :when (and (some? pattern-value)
+                              (not (symbol? pattern-value)))]
                i)
         extractor (index-feature-extractor
                    inds
@@ -1496,6 +1504,7 @@ than doing no expansion at all."
 
 (defn search-batch-fn [search-context]
   (fn [strategy-vec backend-fn]
+    (println "----STRATEGY" strategy-vec)
     (let [search-context (merge search-context {:strategy-vec strategy-vec
                                                 :backend-fn backend-fn})
           subst-inds (substitution-relation-indices search-context)
@@ -1509,7 +1518,7 @@ than doing no expansion at all."
           result (into []
                        (comp subst-xform
                              (backend-xform backend-fn)
-                             ;(filter-from-predicate filt-predicate)
+                             (filter-from-predicate filt-predicate)
                              )
                        init-coll)]
       (println "init-coll" init-coll)
