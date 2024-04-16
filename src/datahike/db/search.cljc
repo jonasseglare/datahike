@@ -206,16 +206,17 @@
   ([db pattern]
    (memoize-for
     db [:search pattern]
-    #(let [[db-index _ strategy-fn _] (current-search-strategy db pattern)]
-       (strategy-fn db-index pattern))))
+    #(if-let [[db-index _ strategy-fn _] (current-search-strategy db pattern)]
+       (strategy-fn db-index pattern)
+       [])))
 
   ;; For batches
   ([db pattern batch-fn]
    (println "SEARCH CURRENT")
    ;; TODO: Handle empty!!!
-   (let [[db-index strategy-vec _ backend-fn] (current-search-strategy db pattern)]
-     ;(assert db-index)
-     (batch-fn strategy-vec #(backend-fn db-index %)))))
+   (if-let [[db-index strategy-vec _ backend-fn] (current-search-strategy db pattern)]
+     (batch-fn strategy-vec #(backend-fn db-index %))
+     [])))
 
 (defn added? [[_ _ _ _ added]]
   added)
