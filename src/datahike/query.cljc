@@ -1685,6 +1685,8 @@ than doing no expansion at all."
                context-constrained (lookup-patterns
                                 context clause pattern1 constrained-patterns)]
            context-constrained))
+
+       ;;;; Just for debugging
        #_(compare-contexts
           context-constrained
           new-context)
