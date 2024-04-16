@@ -1683,19 +1683,21 @@ than doing no expansion at all."
            new-context (lookup-new-search source context clause pattern1)
 
            ;; Old impl
-           constrained-patterns (expand-constrained-patterns
+           #_#_constrained-patterns (expand-constrained-patterns
                                  source context pattern1)
-           context-constrained (lookup-patterns
+           #_#_context-constrained (lookup-patterns
                                 context clause pattern1 constrained-patterns)]
-       (compare-contexts
+       #_(compare-contexts
         context-constrained
         new-context)
-       (log-example {:source source
+       #_(log-example {:source source
                      :pattern1 pattern1
                      :context context
                      :clause clause
                      :constrained-patterns constrained-patterns})
-       context-constrained))))
+       new-context
+       ;context-constrained
+       ))))
 
 (defn -resolve-clause
   ([context clause]

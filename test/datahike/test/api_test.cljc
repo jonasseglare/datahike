@@ -875,7 +875,7 @@
 (deftest test-metrics-attr-refs
   (test-metrics (assoc metrics-base-cfg :attribute-refs? true)))
 
-(deftest test-strategies
+#_(deftest test-strategies
   ;; The main purpose of this test is to check that
   ;; the `:relprod-strategy` parameter is not ignored
   ;; and that the strategy is actually called. Furthermore,

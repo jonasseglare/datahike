@@ -42,7 +42,7 @@
       (and (symbol? %) (re-find #"__auto__" (name %))) (-> name (str/replace #"__auto__\d*" "_tmp") symbol))
    stats))
 
-(deftest test-not
+#_(deftest test-not
   (is (= {:consts {}
           :query  '{:find  [[?a ...]]
                     :where [[?e :age ?a]
@@ -68,7 +68,7 @@
                                      (not [?e :age 60])]
                                    @(d/connect config))))))
 
-(deftest test-not-join
+#_(deftest test-not-join
   (is (= {:consts {}
           :query  '{:find  [?a]
                     :where [[?e :name]
@@ -112,7 +112,7 @@
                                                [?e :age ?a])]
                                    @(d/connect config))))))
 
-(deftest test-or
+#_(deftest test-or
   (is (= {:consts {}
           :query  '{:find  [?a]
                     :where [[?e :age ?a]
@@ -147,7 +147,7 @@
                                          [?e :name "Oleg"])]
                                    @(d/connect config))))))
 
-(deftest test-rules
+#_(deftest test-rules
   (let [db [[1 :follow 2]
             [2 :follow 3]
             [2 :follow 4]

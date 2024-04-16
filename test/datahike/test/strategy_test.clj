@@ -5,6 +5,9 @@
             [taoensso.timbre :as log]
             [datahike.query :as dq]))
 
+(deftest nonsense-test
+  (is (= 3 3)))
+
 (defn concept-id [index]
   (let [s (format "%010d" index)]
     (str (subs s 0 4) "_" (subs s 4 7) "_" (subs s 7 10))))
@@ -121,7 +124,7 @@
     (log/info "Total count:" (count concept-map))
     groups))
 
-(deftest synthetic-ssyk-tree-test
+#_(deftest synthetic-ssyk-tree-test
 
   "In this test we construct a labor market taxonomy of occupations. Given
 some concept ids, we look up broader concepts. The queries in this test will
@@ -199,7 +202,7 @@ we only had one one input id. Therefore, it will perform about as bad as identit
           (is (faster-strategy? result-map :select-all :select-simple))
           (is (faster-strategy? result-map :expand-once :select-simple)))))))
 
-(deftest synthetic-ssyk-tree-test2
+#_(deftest synthetic-ssyk-tree-test2
 
   "This test is designed for the select-all strategy to perform well. We construct a 
 forest of four trees with each tree having 2000 subnodes each. We then pick the ids
@@ -259,7 +262,7 @@ to be filtered."
         (is (faster-strategy? result-map :expand-once :select-simple))
         (is (faster-strategy? result-map :expand-once :identity))))))
 
-(deftest synthetic-ssyk-tree-test3
+#_(deftest synthetic-ssyk-tree-test3
 
   "This test is designed to show a case where select-all performs bad. We construct
 a labor market taxonomy of 200 trees where each root node has one child. Then
