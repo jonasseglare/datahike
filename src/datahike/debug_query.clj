@@ -105,7 +105,7 @@
   (update query :args (fn [args] (into [db] args))))
 
 (defn set-strategy [query strategy]
-  (assoc-in query [:settings :relprod-strategy] strategy))
+  (assoc-in query [:settings :search-strategy] strategy))
 
 (defn query2 [conn strategy]
   (-> (dq/normalize-q-input
@@ -282,7 +282,7 @@
                    (pp/pprint (mapv #(crop-example % 10) the-examples))))
            (count result)))))))
 
-(defn demo0 [] (run-example dq/select-all #_dq/expand-once query2))
+(defn demo0 [] (run-example :old #_dq/expand-once query2))
 
 (defn load-examples []
   (-> "query_examples.edn"

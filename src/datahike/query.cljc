@@ -1678,8 +1678,8 @@ than doing no expansion at all."
      (let [source *implicit-source*
            pattern0 (replace (:consts context) clause)
            pattern1 (resolve-pattern-lookup-refs source pattern0)]
-       (if false
-         (lookup-new-search source context clause pattern1)
+       (case (-> context :settings :search-strategy)
+         :new (lookup-new-search source context clause pattern1)
          (let [constrained-patterns (expand-constrained-patterns
                                  source context pattern1)
                context-constrained (lookup-patterns
