@@ -1224,8 +1224,8 @@ than doing no expansion at all."
              [sym {:relation-index rel-index
                    :tuple-element-index tup-index}])))
 
-(defn normalize-pattern [[e a v tx]]
-  [e a v tx])
+(defn normalize-pattern [[e a v tx added?]]
+  [e a v tx added?])
 
 (defn replace-unbound-symbols-by-nil [bsm pattern]
   (normalize-pattern
@@ -1471,6 +1471,7 @@ than doing no expansion at all."
       ([] (step))
       ([dst] (step dst))
       ([dst [pattern datom-predicate]]
+       (println "LOOKUP PATTERN" pattern)
        (let [inner-step (if datom-predicate
                           (fn [dst datom]
                             (if (datom-predicate datom)
@@ -1481,6 +1482,7 @@ than doing no expansion at all."
                       (backend-fn pattern)
                       (catch Exception e
                         (throw e)))]
+         (println "DATOMS" datoms)
          (reduce inner-step
                  dst
                  datoms))))))
@@ -1539,6 +1541,11 @@ than doing no expansion at all."
                                         :bsm bsm
                                         :clean-pattern clean-pattern
                                         :rels rels}
+                        _ (println "PATTERN1" pattern1)
+                        _ (println "ORIG PATTERN" orig-pattern)
+                        _ (println "RREPL" (replace-unbound-symbols-by-nil
+                                            bsm pattern1))
+                        _ (println "CLEAN PATTERN" clean-pattern)
                         datoms (if clean-pattern
                                  (dbi/-batch-search source clean-pattern
                                                     (search-batch-fn search-context))

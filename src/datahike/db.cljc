@@ -193,6 +193,7 @@
   (-search [db pattern]
     (dbs/search-current-indices db pattern))
   (-batch-search [db pattern-mask batch-fn]
+    (println "Batch search DB")
     (dbs/search-current-indices db pattern-mask batch-fn))
 
   dbi/IIndexAccess
@@ -288,6 +289,7 @@
   (-search [db pattern]
     (filter (.-pred db) (dbi/-search unfiltered-db pattern)))
   (-batch-search [db pattern-mask batch-fn]
+    (println "Batch search filtered DB")
     (filter (.-pred db) (dbi/-batch-search unfiltered-db pattern-mask batch-fn)))
 
   dbi/IIndexAccess
@@ -354,6 +356,7 @@
   (-search [db pattern]
     (dbs/temporal-search origin-db pattern))
   (-batch-search [db pattern-mask batch-fn]
+    (println "Batch search HistoricalDB")
     (dbs/temporal-search origin-db pattern-mask batch-fn))
 
   dbi/IIndexAccess
@@ -454,6 +457,7 @@
     (-> (dbs/temporal-search origin-db pattern)
         (filter-as-of-datoms time-point origin-db)))
   (-batch-search [db pattern batch-fn]
+    (println "Batch search AsOfDB")
     (-> (dbs/temporal-search origin-db pattern batch-fn)
         (filter-as-of-datoms time-point origin-db)))
 
@@ -536,6 +540,7 @@
     (-> (dbs/temporal-search origin-db pattern)
         (filter-since time-point origin-db)))
   (-batch-search [db pattern batch-fn]
+    (println "Batch serach SinceDB")
     (-> (dbs/temporal-search origin-db pattern batch-fn)
         (filter-since time-point origin-db)))
 

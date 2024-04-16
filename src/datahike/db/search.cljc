@@ -170,7 +170,8 @@
   (validate-pattern pattern true)
   (let [[e a v tx added?] pattern]
     (if (and (not temporal-db?) (false? added?))
-      empty-strategy
+      (do (println "EMPTY strategy!!!")
+          empty-strategy)
       (get-search-strategy-impl-memoized
        (boolean e)
        (boolean a)
@@ -191,9 +192,9 @@
   ;; TODO: Handle empty!!!
   (let [[_ a _ _ _] pattern
         [index-key strategy-vec strategy-fn backend-fn] (get-search-strategy
-                                   pattern
-                                   (dbu/indexing? db a)
-                                   true)]
+                                                         pattern
+                                                         (dbu/indexing? db a)
+                                                         true)]
     [(case index-key
        :eavt (:temporal-eavt db)
        :aevt (:temporal-aevt db)
@@ -210,6 +211,7 @@
 
   ;; For batches
   ([db pattern batch-fn]
+   (println "SEARCH CURRENT")
    ;; TODO: Handle empty!!!
    (let [[db-index strategy-vec _ backend-fn] (current-search-strategy db pattern)]
      (assert db-index)
@@ -231,8 +233,11 @@
                        result (strategy-fn db-index pattern)]
                    (filter-by-added pattern result))))
   ([db pattern batch-fn]
+   (println "SEARCH TEMPORAL")
    (let [[db-index strategy-vec _ backend-fn] (temporal-search-strategy db pattern)
          result (batch-fn strategy-vec #(backend-fn db-index %))]
+     (println "search-temporal-indices pattern =" pattern)
+     (println "result =" result)
      (filter-by-added pattern result))))
 
 (defn temporal-search
