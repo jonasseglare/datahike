@@ -1582,7 +1582,10 @@ than doing no expansion at all."
                                                     (search-batch-fn search-context))
                                  [])
                         new-rel (relation-from-datoms context orig-pattern datoms)
-                        base-rel (Relation. (var-mapping pattern1 (range)) [])
+                        base-rel (Relation. (var-mapping orig-pattern (range)) [])
+                        _ (println "base-rel" base-rel)
+                        _ (println "orig-pattern" orig-pattern "pattern1" pattern1)
+                        
                         full-rel (simplify-rel (sum-rel base-rel new-rel))]
                     (println "Datoms" datoms)
                     (println "full-rel" full-rel)
