@@ -1677,25 +1677,22 @@ than doing no expansion at all."
      '[*] ;; pattern
      (let [source *implicit-source*
            pattern0 (replace (:consts context) clause)
-           pattern1 (resolve-pattern-lookup-refs source pattern0)
-
-           ;; New impl
-           new-context (lookup-new-search source context clause pattern1)
-
-           ;; Old impl
-           #_#_constrained-patterns (expand-constrained-patterns
+           pattern1 (resolve-pattern-lookup-refs source pattern0)]
+       (if false
+         (lookup-new-search source context clause pattern1)
+         (let [constrained-patterns (expand-constrained-patterns
                                  source context pattern1)
-           #_#_context-constrained (lookup-patterns
+               context-constrained (lookup-patterns
                                 context clause pattern1 constrained-patterns)]
+           context-constrained))
        #_(compare-contexts
-        context-constrained
-        new-context)
+          context-constrained
+          new-context)
        #_(log-example {:source source
                      :pattern1 pattern1
                      :context context
                      :clause clause
                      :constrained-patterns constrained-patterns})
-       new-context
        ;context-constrained
        ))))
 
