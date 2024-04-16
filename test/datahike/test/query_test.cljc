@@ -782,9 +782,9 @@
             '?y {:relation-index 0 :tuple-element-index 1}
             '?z {:relation-index 1 :tuple-element-index 0}}
            bsm))
-    (is (= [[nil 1 nil nil]
-            [nil 3 nil nil]
-            [nil 5 nil nil]] (map first result)))
+    (is (= [[nil 1 nil nil nil]
+            [nil 3 nil nil nil]
+            [nil 5 nil nil nil]] (map first result)))
     (is (p0 [1 2 2]))
     (is (not (p0 [1 2 3])))
     (is (p1 [1 2 4]))
@@ -845,16 +845,16 @@
         subst-result (into [] subst-xform init-coll)
         [[_ p0]] subst-result]
     (is (nil? p0))
-    (is (= '[nil ?x ?y nil] clean-pattern))
+    (is (= '[nil ?x ?y nil nil] clean-pattern))
     (is (= #{0} subst-inds))
     (is (= #{1} filt-inds))
     (is (= {'?x {:relation-index 0 :tuple-element-index 0}
             '?y {:relation-index 1 :tuple-element-index 0}
             '?z {:relation-index 2 :tuple-element-index 0}}
            bsm))
-    (is (= '([nil 1 nil nil]
-             [nil 3 nil nil]
-             [nil 5 nil nil])
+    (is (= '([nil 1 nil nil nil]
+             [nil 3 nil nil nil]
+             [nil 5 nil nil nil])
            (map first subst-result)))
     (is (= [[1 3 2]]
            (into []

@@ -1471,7 +1471,6 @@ than doing no expansion at all."
       ([] (step))
       ([dst] (step dst))
       ([dst [pattern datom-predicate]]
-       (println "LOOKUP PATTERN" pattern)
        (let [inner-step (if datom-predicate
                           (fn [dst datom]
                             (if (datom-predicate datom)
@@ -1482,7 +1481,6 @@ than doing no expansion at all."
                       (backend-fn pattern)
                       (catch Exception e
                         (throw e)))]
-         (println "DATOMS" datoms)
          (reduce inner-step
                  dst
                  datoms))))))
@@ -1541,11 +1539,6 @@ than doing no expansion at all."
                                         :bsm bsm
                                         :clean-pattern clean-pattern
                                         :rels rels}
-                        _ (println "PATTERN1" pattern1)
-                        _ (println "ORIG PATTERN" orig-pattern)
-                        _ (println "RREPL" (replace-unbound-symbols-by-nil
-                                            bsm pattern1))
-                        _ (println "CLEAN PATTERN" clean-pattern)
                         datoms (if clean-pattern
                                  (dbi/-batch-search source clean-pattern
                                                     (search-batch-fn search-context))
