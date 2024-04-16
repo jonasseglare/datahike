@@ -541,6 +541,7 @@
       (persistent! hash-table))))
 
 (defn hash-join [rel1 rel2]
+  (println "------------- hash join")
   (let [tuples1      (:tuples rel1)
         tuples2      (:tuples rel2)
         attrs1       (:attrs rel1)
@@ -554,8 +555,12 @@
         keep-idxs2   (to-array (map attrs2 keep-attrs2))
         key-fn1      (tuple-key-fn common-gtrs1)
         key-fn2      (tuple-key-fn common-gtrs2)]
+    (println "attrs1" attrs1 "attrs2" attrs2)
+    (println "tuples1" (map vec tuples1))
+    (println "tuples2" (map vec tuples2))
     (if (< (count tuples1) (count tuples2))
-      (let [hash       (hash-attrs key-fn1 tuples1)
+      (let [_ (println "branch 1")
+            hash       (hash-attrs key-fn1 tuples1)
             new-tuples (->>
                         (reduce (fn [acc tuple2]
                                   (let [key (key-fn2 tuple2)]
@@ -568,10 +573,12 @@
                         (persistent!))]
         (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
                    new-tuples))
-      (let [hash       (hash-attrs key-fn2 tuples2)
+      (let [_ (println "branch 2")
+            hash       (hash-attrs key-fn2 tuples2)
             new-tuples (->>
                         (reduce (fn [acc tuple1]
                                   (let [key (key-fn1 tuple1)]
+                                    (println "tuple1" (vec tuple1) "key" key)                                    
                                     (if-some [tuples2 (get hash key)]
                                       (reduce (fn [acc tuple2]
                                                 (conj! acc (join-tuples tuple1 keep-idxs1 tuple2 keep-idxs2)))
@@ -634,13 +641,21 @@
 
 (defn relation-from-datoms [context orig-pattern datoms]
   (println "relation-from-datoms")
-  (or (map-consts context orig-pattern datoms)
-      (Relation. (var-mapping orig-pattern ["e" "a" "v" "tx" "added"])
-                 datoms)))
+  (println "  datoms" datoms)
+  (let [result 
+        (or (do (println " -> map-consts")
+                (map-consts context orig-pattern datoms))
+            (do (println " -> Relation.")
+                (let [vm (var-mapping orig-pattern ["e" "a" "v" "tx" "added"])]
+                  (println " -> var-mapping" vm)
+                  (Relation. vm
+                             datoms))))]
+    (println "resulting relation" result)
+    result))
 
 (defn lookup-pattern-db [context db pattern orig-pattern]
   ;; TODO optimize with bound attrs min/max values here
-  (let [;; Replace all unknowns by nil.
+  (let [ ;; Replace all unknowns by nil.
         search-pattern (replace-symbols-by-nil pattern)
         datoms (if-let [search-pattern (resolve-pattern-eid db search-pattern)]
                  (dbi/-search db search-pattern)
@@ -671,14 +686,25 @@
     (lookup-pattern-coll source pattern orig-pattern)))
 
 (defn collapse-rels [rels new-rel]
+  (println "COLLAPSE")
+  (println "rels attrs" (map :attrs rels))
+  (println "rels tuples" (map (comp #(map vec %) :tuples) rels))
+  (println "new-rel" new-rel)
+  (println "first type" (-> new-rel :tuples first type))
+  (println "new-rel-attrs" (:attrs new-rel))
+  (println "new-tuples" (map vec (:tuples new-rel)))
   (loop [rels rels
          new-rel new-rel
          acc []]
     (if-some [rel (first rels)]
       (if (not-empty (intersect-keys (:attrs new-rel) (:attrs rel)))
-        (recur (next rels) (hash-join rel new-rel) acc)
-        (recur (next rels) new-rel (conj acc rel)))
-      (conj acc new-rel))))
+        (do (println "  hash-join")
+            (recur (next rels) (hash-join rel new-rel) acc))
+        (do (println "  conj")
+            (recur (next rels) new-rel (conj acc rel))))
+      (let [result (conj acc new-rel)]
+        (println "collapse-rel result" result "\n\n\n")
+        result))))
 
 (defn- rel-with-attr [context sym]
   (some #(when (contains? (:attrs %) sym) %) (:rels context)))
@@ -1062,6 +1088,7 @@ in those cases.
 
 (defn tuple-var-mapper [rel]
   (let [attrs (:attrs rel)
+        _ (println "attrs" attrs)
         key-fn-pairs (into []
                            (map (juxt identity (partial getter-fn attrs)))
                            (keys attrs))]
@@ -1533,29 +1560,41 @@ than doing no expansion at all."
       #_(pp/pprint result)
       result)))
 
+(comment
+
+
+
+  )
+
 (defn lookup-new-search [source context orig-pattern pattern1]
-  (update context
-          :rels
-          collapse-rels
-          (if (dbu/db? source)
-            (let [rels (vec (:rels context))
-                  bsm (bound-symbol-map rels)
-                  clean-pattern (->> pattern1
-                                     (replace-unbound-symbols-by-nil bsm)
-                                     (resolve-pattern-eid source))
-                  search-context {:source source
-                                  :bsm bsm
-                                  :clean-pattern clean-pattern
-                                  :rels rels}
-                  datoms (if clean-pattern
-                           (dbi/-batch-search source clean-pattern
-                                              (search-batch-fn search-context))
-                           [])
-                  new-context (relation-from-datoms context orig-pattern datoms)]
-              (println "Datoms" datoms)
-              (println "new context" new-context)
-              new-context)
-            (lookup-pattern-coll source pattern1 orig-pattern))))
+  (let [new-rel (if (dbu/db? source)
+                  (let [rels (vec (:rels context))
+                        bsm (bound-symbol-map rels)
+                        clean-pattern (->> pattern1
+                                           (replace-unbound-symbols-by-nil bsm)
+                                           (resolve-pattern-eid source))
+                        search-context {:source source
+                                        :bsm bsm
+                                        :clean-pattern clean-pattern
+                                        :rels rels}
+                        datoms (if clean-pattern
+                                 (dbi/-batch-search source clean-pattern
+                                                    (search-batch-fn search-context))
+                                 [])
+                        new-rel (relation-from-datoms context orig-pattern datoms)
+                        base-rel (Relation. (var-mapping pattern1 (range)) [])
+                        full-rel (simplify-rel (sum-rel base-rel new-rel))]
+                    (println "Datoms" datoms)
+                    (println "full-rel" full-rel)
+                    full-rel)
+                  (lookup-pattern-coll source pattern1 orig-pattern))]
+
+    ;; This binding is needed for `collapse-rels` to work, and more specifically,
+    ;; `hash-join` to work, that in turn depends on `getter-fn`.
+    (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
+                               (dynamic-lookup-attrs source pattern1)
+                               *lookup-attrs*)]
+      (update context :rels collapse-rels new-rel))))
 
 
 (defn normalize-rel [rel]
@@ -1567,9 +1606,13 @@ than doing no expansion at all."
 
 ;; (update context :rels collapse-rels relation)
 (defn compare-contexts [a b]
+  {:pre [(contains? a :rels)
+         (contains? b :rels)]}
   (let [rels-a (normalize-rels (:rels a))
         rels-b (normalize-rels (:rels b))]
     (when-not (= rels-a rels-b)
+      (println "A raw" (:rels a))
+      (println "B raw" (:rels b))
       (println "A" rels-a)
       (println "B" rels-b)
       (def the-a a)
