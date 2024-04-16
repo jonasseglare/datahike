@@ -160,9 +160,9 @@
 
 (defn empty-lookup-fn
   ([_db-index [_e _a _v _tx]]
-   '())
+   [])
   ([_db-index [_e _a _v _tx] _batch-fn]
-   '()))
+   []))
 
 (def empty-strategy [nil [nil nil nil nil] empty-lookup-fn empty-lookup-fn])
 
@@ -214,7 +214,7 @@
    (println "SEARCH CURRENT")
    ;; TODO: Handle empty!!!
    (let [[db-index strategy-vec _ backend-fn] (current-search-strategy db pattern)]
-     (assert db-index)
+     ;(assert db-index)
      (batch-fn strategy-vec #(backend-fn db-index %)))))
 
 (defn added? [[_ _ _ _ added]]
