@@ -633,6 +633,7 @@
       search-pattern)))
 
 (defn relation-from-datoms [context orig-pattern datoms]
+  (println "relation-from-datoms")
   (or (map-consts context orig-pattern datoms)
       (Relation. (var-mapping orig-pattern ["e" "a" "v" "tx" "added"])
                  datoms)))
@@ -1266,9 +1267,16 @@ than doing no expansion at all."
   ([inds include-empty? replacer]
    (let [first-index (first inds)]
      (case (count inds)
-       0 (when include-empty? (fn [_] nil))
-       1 (fn [x] (wrap-comparable (replacer first-index (nth x first-index))))
-       (fn [x] (mapv #(wrap-comparable (replacer % (nth x %))) inds))))))
+       0 (when include-empty? (fn
+                                ([] [nil])
+                                ([_] nil)))
+       1 (fn
+           ([] [first-index])
+           ([x] (wrap-comparable (replacer first-index (nth x first-index)))))
+       (fn
+         ([] inds)
+         ([x]
+          (mapv #(wrap-comparable (replacer % (nth x %))) inds)))))))
 
 (defn substitute [pattern inds vals]
   (if (empty? inds)
@@ -1282,13 +1290,17 @@ than doing no expansion at all."
   (if (nil? feature-extractor)
     predicate
     (if predicate
-      (fn [datom]
-        (let [feature (feature-extractor datom)]
-          (if (contains? features feature)
-            (predicate datom)
-            false)))
-      (fn [datom]
-        (contains? features (feature-extractor datom))))))
+      (fn
+        ([] (conj (predicate) [(feature-extractor) features]))
+        ([datom]
+         (let [feature (feature-extractor datom)]
+           (if (contains? features feature)
+             (predicate datom)
+             false))))
+      (fn
+        ([] [(feature-extractor) features])
+        ([datom]
+         (contains? features (feature-extractor datom)))))))
 
 (defn resolve-pattern-lookup-ref-at-index
   [source clean-attribute pattern-index pattern-value error-code]
@@ -1458,17 +1470,21 @@ than doing no expansion at all."
       ([] (step))
       ([dst] (step dst))
       ([dst [pattern datom-predicate]]
+       (println "Backend xform pattern" pattern)
        (let [inner-step (if datom-predicate
                           (fn [dst datom]
                             (if (datom-predicate datom)
-                              (step dst datom)
-                              dst))
-                          step)
+                              (do (println "Accept it")
+                                  (step dst datom))
+                              (do (println "Reject it")
+                                  dst)))
+                          (do (println "No predicate") step))
              datoms (try
                       (backend-fn pattern)
                       (catch Exception e
                         (println "FAILED PATTERN" pattern)
                         (throw e)))]
+         (println "Pattern" pattern "Datoms" datoms)
          (reduce inner-step
                  dst
                  datoms))))))
@@ -1508,6 +1524,9 @@ than doing no expansion at all."
                              (filter-from-predicate filt-predicate)
                              )
                        init-coll)]
+      (when filt-predicate
+        (println "filt-predicate" (filt-predicate)))
+      (println "result" result)
       #_(println "init-coll" init-coll)
       #_(println "subst-inds" subst-inds)
       #_(println "RESULT")
@@ -1531,9 +1550,11 @@ than doing no expansion at all."
                   datoms (if clean-pattern
                            (dbi/-batch-search source clean-pattern
                                               (search-batch-fn search-context))
-                           [])]
-              
-              (relation-from-datoms context orig-pattern datoms))
+                           [])
+                  new-context (relation-from-datoms context orig-pattern datoms)]
+              (println "Datoms" datoms)
+              (println "new context" new-context)
+              new-context)
             (lookup-pattern-coll source pattern1 orig-pattern))))
 
 

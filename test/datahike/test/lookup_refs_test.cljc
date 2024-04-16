@@ -183,6 +183,20 @@
       :friends [:name "Petr"] [:name "Oleg"]
       [[1 :friends 2] [1 :friends 3] [2 :friends 3]])))
 
+
+(defn demo-test-lookup-refs []
+  (let [schema {:name   {:db/unique :db.unique/identity}
+                :friend {:db/valueType :db.type/ref}}
+        db (d/db-with (db/empty-db schema)
+                      [{:db/id 1 :id 1 :name "Ivan" :age 11 :friend 2}
+                       {:db/id 2 :id 2 :name "Petr" :age 22 :friend 3}
+                       {:db/id 3 :id 3 :name "Oleg" :age 33}])]
+    (= (set (d/q '[:find [?v ...]
+                   :in $ [?e ...]
+                   :where [?e :age ?v]]
+                 db [[:name "Ivan"] [:name "Petr"]]))
+       #{11 22})))
+
 (deftest test-lookup-refs-query
   (let [schema {:name   {:db/unique :db.unique/identity}
                 :friend {:db/valueType :db.type/ref}}
