@@ -169,8 +169,7 @@
 (defn- get-search-strategy [pattern indexed? temporal-db?]
   (validate-pattern pattern true)
   (let [[e a v tx added?] pattern]
-    (if (and (not temporal-db?) (false? added?))
-      empty-strategy
+    (when-not (and (not temporal-db?) (false? added?))
       (get-search-strategy-impl-memoized
        (boolean e)
        (boolean a)
@@ -180,25 +179,25 @@
 
 (defn current-search-strategy [db pattern]
   ;; TODO: Handle empty!!!
-  (let [[_ a _ _] pattern
-        [index-key strategy-vec strategy-fn backend-fn]
-        (get-search-strategy pattern
-                             (dbu/indexing? db a)
-                             false)]
-    [(get db index-key) strategy-vec strategy-fn backend-fn]))
+  (let [[_ a _ _] pattern]
+    (when-let [[index-key strategy-vec strategy-fn backend-fn]
+               (get-search-strategy pattern
+                                    (dbu/indexing? db a)
+                                    false)]
+      [(get db index-key) strategy-vec strategy-fn backend-fn])))
 
 (defn temporal-search-strategy [db pattern]
   ;; TODO: Handle empty!!!
-  (let [[_ a _ _ _] pattern
-        [index-key strategy-vec strategy-fn backend-fn] (get-search-strategy
+  (let [[_ a _ _ _] pattern]
+    (when-let [[index-key strategy-vec strategy-fn backend-fn] (get-search-strategy
                                                          pattern
                                                          (dbu/indexing? db a)
                                                          true)]
-    [(case index-key
-       :eavt (:temporal-eavt db)
-       :aevt (:temporal-aevt db)
-       :avet (:temporal-avet db)
-       nil) strategy-vec strategy-fn backend-fn]))
+      [(case index-key
+         :eavt (:temporal-eavt db)
+         :aevt (:temporal-aevt db)
+         :avet (:temporal-avet db)
+         nil) strategy-vec strategy-fn backend-fn])))
 
 (defn search-current-indices
   ;; TODO: Handle empty!!!
@@ -228,13 +227,15 @@
 (defn search-temporal-indices
   ([db pattern]
    (memoize-for db [:temporal-search pattern]
-                #(let [[db-index _ strategy-fn _] (temporal-search-strategy db pattern)
-                       result (strategy-fn db-index pattern)]
-                   (filter-by-added pattern result))))
+                #(if-let [[db-index _ strategy-fn _] (temporal-search-strategy db pattern)]
+                   (let [result (strategy-fn db-index pattern)]
+                     (filter-by-added pattern result))
+                   [])))
   ([db pattern batch-fn]
-   (let [[db-index strategy-vec _ backend-fn] (temporal-search-strategy db pattern)
-         result (batch-fn strategy-vec #(backend-fn db-index %))]
-     (filter-by-added pattern result))))
+   (if-let [[db-index strategy-vec _ backend-fn] (temporal-search-strategy db pattern)]
+     (let [result (batch-fn strategy-vec #(backend-fn db-index %))]
+       (filter-by-added pattern result))
+     [])))
 
 (defn temporal-search
   ([db pattern]
