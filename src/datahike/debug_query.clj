@@ -82,7 +82,7 @@
        ;dq/lookup-pattern-db [context db pattern orig-pattern]
        ;dq/q []
        ]
-    (apply dq/q args)))
+    (time (apply dq/q args))))
 
 (defmacro with-connection [[conn db] & body]
   {:pre [(symbol? conn)]}
@@ -282,7 +282,7 @@
                    (pp/pprint (mapv #(crop-example % 10) the-examples))))
            (count result)))))))
 
-(defn demo0 [] (run-example :old #_dq/expand-once query2))
+(defn demo0 [] (run-example :new #_dq/expand-once query2))
 
 (defn load-examples []
   (-> "query_examples.edn"
