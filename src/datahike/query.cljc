@@ -1679,12 +1679,12 @@ than doing no expansion at all."
            pattern0 (replace (:consts context) clause)
            pattern1 (resolve-pattern-lookup-refs source pattern0)]
        (case (-> context :settings :search-strategy)
-         :new (lookup-new-search source context clause pattern1)
-         (let [constrained-patterns (expand-constrained-patterns
+         :old (let [constrained-patterns (expand-constrained-patterns
                                  source context pattern1)
                context-constrained (lookup-patterns
                                 context clause pattern1 constrained-patterns)]
-           context-constrained))
+           context-constrained)
+         (lookup-new-search source context clause pattern1))
 
        ;;;; Just for debugging
        #_(compare-contexts
