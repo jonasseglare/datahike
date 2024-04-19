@@ -1,5 +1,7 @@
 (ns datahike.debug-query
   (:require [datahike.api :as d]
+            [datahike.tools :refer [timeacc-root]]
+            [timeacc.core :as timeacc]
             [datahike.query :as dq]
             [clojure.spec.alpha :as spec]
             [clojure.pprint :as pp]
@@ -269,6 +271,7 @@
 
 (defn run-example
   ([strategy query-builder]
+   (timeacc/reset timeacc-root)
    (with-connection [conn (deref db)]
      (let [examples (atom [])]
        (with-redefs [dq/log-example (fn [ex] (swap! examples conj ex))]
@@ -280,7 +283,10 @@
            (spit "query_examples.edn"
                  (with-out-str
                    (pp/pprint (mapv #(crop-example % 10) the-examples))))
-           (count result)))))))
+           (count result)))))
+   (println "\n\n")
+   (timeacc/report timeacc-root)
+   (println "\n\n")))
 
 (defn demo0 [] (run-example :new #_dq/expand-once query2))
 
