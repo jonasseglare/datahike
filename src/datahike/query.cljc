@@ -32,7 +32,7 @@
                     FindColl FindRel FindScalar FindTuple PlainSymbol Pull
                     RulesVar SrcVar Variable]
                    [java.lang.reflect Method]
-                   [java.util Date Map HashSet ArrayList])))
+                   [java.util Date Map HashSet ArrayList HashMap])))
 
 ;; ----------------------------------------------------------------------------
 
@@ -1290,7 +1290,8 @@ than doing no expansion at all."
            (rest vals))))
 
 (defn extend-predicate [predicate feature-extractor features]
-  {:pre [(set? features)]}
+  {:pre [(or (set? features)
+             (instance? HashSet features))]}
   (if (nil? feature-extractor)
     predicate
     (if predicate
@@ -1386,6 +1387,9 @@ than doing no expansion at all."
 (defn ordered? [coll]
   (= coll (sort coll)))
 
+(def subst-filt-map1-acc (timeacc/unsafe-acc timeacc-root :subst-filt-map1-acc))
+(def subst-filt-map2-acc (timeacc/unsafe-acc timeacc-root :subst-filt-map2-acc))
+
 (defn single-substitution-xform [search-context relation-index subst-map filt-map]
   (let [lookup-ref-replacer (lookup-ref-replacer search-context)
         tuples (:tuples (nth (:rels search-context) relation-index))
@@ -1400,17 +1404,30 @@ than doing no expansion at all."
         ;; A map where
         ;; * Every key is a vector of values to substitute
         ;; * Every value is a set of values to filter on
-        subst-filt-map (reduce (fn [dst tuple]
-                                 (update
-                                  dst
-                                  (select-inds tuple pattern-substitution-inds)
-                                  (fn [dst]
-                                    (let [feature (feature-extractor tuple)]
-                                      (if (good-lookup-refs? feature)
-                                        (conj (or dst #{}) feature)
-                                        dst)))))
-                               {}
-                               tuples)
+        #_#_subst-filt-map (timeacc/measure subst-filt-map1-acc
+                         (reduce (fn [dst tuple]
+                                   (update
+                                    dst
+                                    (select-inds tuple pattern-substitution-inds)
+                                    (fn [dst]
+                                      (let [feature (feature-extractor tuple)]
+                                        (if (good-lookup-refs? feature)
+                                          (conj (or dst #{}) feature)
+                                          dst)))))
+                                 {}
+                                 tuples))
+        subst-filt-map (timeacc/measure subst-filt-map1-acc
+                         (let [dst (HashMap.)]
+                           (doseq [tuple tuples
+                                   :let [feature (feature-extractor tuple)]
+                                   :when (good-lookup-refs? feature)]
+                             (let [k (select-inds tuple pattern-substitution-inds)
+                                   v (get dst k)]
+                               (if (nil? v)
+                                 (.put dst k (doto (HashSet.)
+                                               (.add feature)))
+                                 (.add v feature))))
+                           dst))
 
         substitution-pattern-element-inds (map :pattern-element-index subst)
 
