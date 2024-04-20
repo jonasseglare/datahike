@@ -1174,6 +1174,8 @@ than doing no expansion at all."
       (relprod-select-keys relprod #{(rel-data-key r)})
       relprod)))
 
+(def wip-acc (timeacc/unsafe-acc timeacc-root :wip))
+
 (defn expand-constrained-patterns [source context pattern]
   (let [vars (collect-vars pattern)
         rel-data (expansion-rel-data (:rels context) vars)
@@ -1428,9 +1430,10 @@ than doing no expansion at all."
                         false
                         lookup-ref-replacer)]
     (assert (ordered? substitution-pattern-element-inds))
-    (instantiate-substitution-xform substitution-pattern-element-inds
-                                    filt-extractor
-                                    subst-filt-map)))
+    (timeacc/measure wip-acc
+      (instantiate-substitution-xform substitution-pattern-element-inds
+                                      filt-extractor
+                                      subst-filt-map))))
 
 (defn search-context? [x]
   (assert (map? x))
