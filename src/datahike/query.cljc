@@ -1392,19 +1392,15 @@ than doing no expansion at all."
 
 (defmacro make-index-selector [range-length]
   (let [inds (gensym)
-        tuple (gensym)
-        arr (gensym)]
+        tuple (gensym)]
     `(fn [~inds]
        ~(dt/range-subset-tree
          range-length inds
-         (fn [pinds mask]
+         (fn [pinds _mask]
            `(fn [~tuple]
-              (PersistentVector/adopt
-               (let [~arr (object-array ~(count pinds))]
-                 ~@(map-indexed (fn [dst-index src-index]
-                                  `(aset ~arr ~dst-index (nth ~tuple ~src-index)))
-                                pinds)
-                 ~arr))))))))
+              ~(mapv (fn [src-index]
+                       `(nth ~tuple ~src-index))
+                     pinds)))))))
 
 (def index-selector (make-index-selector 5))
 
@@ -1424,10 +1420,11 @@ than doing no expansion at all."
            (let [n (count pinds)
                  elems (repeatedly n gensym)]
              `(fn [~tuple]
-                (let [~@(mapcat (fn [sym index]
-                                  [sym `(~replacer ~index ~tuple)])
+                (let [~@(mapcat (fn [sym index i]
+                                  [sym `(~replacer ~index (nth ~tuple ~i))])
                                 elems
-                                pinds)]
+                                pinds
+                                (range))]
                   (when-not (or ~@(map (fn [e] `(= ::error ~e)) elems))
                     ~(vec elems))))))))))
 
@@ -1489,16 +1486,27 @@ than doing no expansion at all."
 
           substitution-pattern-element-inds (map :pattern-element-index subst)
 
+          vrepl (vec-lookup-ref-replacer lookup-ref-replacer
+                                         substitution-pattern-element-inds)
+          
           ;; Replace the lookup refs
           subst-filt-map (timeacc/measure subst-filt-map2-acc
-                           (into {}
-                                 (keep (fn [[k v]]
-                                         (let [k2 (mapv lookup-ref-replacer
-                                                        substitution-pattern-element-inds
-                                                        k)]
-                                           (when (good-lookup-refs? k2)
-                                             [k2 v]))))
-                                 subst-filt-map))
+                           (let [dst (HashMap.)]
+                             (doseq [kv subst-filt-map
+                                     :let [k2 (vrepl (key kv))]
+                                     :when k2]
+                               (.put dst k2 (val kv)))
+                             dst)
+                           #_(into {}
+                                   (keep (fn [[k v]]
+                                           (when-let [k2 (vrepl k)]
+                                             [k2 v])
+                                           #_(let [k2 (mapv lookup-ref-replacer
+                                                            substitution-pattern-element-inds
+                                                            k)]
+                                               (when (good-lookup-refs? k2)
+                                                 [k2 v]))))
+                                   subst-filt-map))
 
 
           ;; Neglible time
