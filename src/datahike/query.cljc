@@ -1514,7 +1514,7 @@ than doing no expansion at all."
     (fn
       ([] (step))
       ([dst] (step dst))
-      ([dst [pattern datom-predicate]]
+      ([dst e a v tx added? datom-predicate]
        (let [inner-step (if datom-predicate
                           (fn [dst datom]
                             (if (datom-predicate datom)
@@ -1523,7 +1523,7 @@ than doing no expansion at all."
                           step)
              start-ns (System/nanoTime)
              datoms (try
-                      (backend-fn pattern)
+                      (backend-fn e a v tx added?)
                       (catch Exception e
                         (throw e)))]
          (timeacc/accumulate-nano-seconds-since backend-xform-acc start-ns)
@@ -1580,7 +1580,7 @@ than doing no expansion at all."
           result (into []
                        (comp unpack6
                              subst-xform
-                             pack6
+                             ;pack6
                              (backend-xform backend-fn)
                              (filter-from-predicate filt-predicate))
                        init-coll)]

@@ -111,7 +111,8 @@
         equalities (remove nil? [(when (= :filter v-strat)
                                    `(a= ~v-sym (.-v ~dexpr)))
                                  (when (= :filter t-strat)
-                                   `(= ~t-sym (datom-tx ~dexpr)))])]
+                                   `(= ~t-sym (datom-tx ~dexpr)))])
+        added (gensym)]
     `[~index-key
 
       ~(vec eavt-strats)
@@ -123,7 +124,7 @@
            lookup-expr))
 
       ;; Used by the batch implementation
-      (fn [~index-expr ~eavt-symbols]
+      (fn [~index-expr ~@eavt-symbols ~added]
         ~lookup-expr)]))
 
 (defmacro lookup-strategy [index-key & eavt-strats]
@@ -201,6 +202,10 @@
          :avet (:temporal-avet db)
          nil) strategy-vec strategy-fn backend-fn])))
 
+(defn backend-fn-with-index [backend-fn db-index]
+  (fn [e a v tx added?]
+    (backend-fn db-index e a v tx added?)))
+
 (defn search-current-indices
   ;; TODO: Handle empty!!!
   ([db pattern]
@@ -214,7 +219,7 @@
   ([db pattern batch-fn]
    ;; TODO: Handle empty!!!
    (if-let [[db-index strategy-vec _ backend-fn] (current-search-strategy db pattern)]
-     (batch-fn strategy-vec #(backend-fn db-index %))
+     (batch-fn strategy-vec (backend-fn-with-index backend-fn db-index))
      [])))
 
 (defn added? [[_ _ _ _ added]]
@@ -235,7 +240,7 @@
                    [])))
   ([db pattern batch-fn]
    (if-let [[db-index strategy-vec _ backend-fn] (temporal-search-strategy db pattern)]
-     (let [result (batch-fn strategy-vec #(backend-fn db-index %))]
+     (let [result (batch-fn strategy-vec (backend-fn-with-index backend-fn db-index))]
        (filter-by-added pattern result))
      [])))
 
