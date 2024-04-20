@@ -34,6 +34,9 @@
                    [java.lang.reflect Method]
                    [java.util Date Map HashSet ArrayList HashMap])))
 
+(defn ordered? [coll]
+  (= coll (sort coll)))
+
 ;; ----------------------------------------------------------------------------
 
 (def ^:const lru-cache-size 100)
@@ -1383,9 +1386,6 @@ than doing no expansion at all."
                               (extend-predicate datom-pred filt-extractor filt)]))
                  dst
                  subst-filt-map)))))
-
-(defn ordered? [coll]
-  (= coll (sort coll)))
 
 (def subst-filt-map1-acc (timeacc/unsafe-acc timeacc-root :subst-filt-map1-acc))
 (def subst-filt-map2-acc (timeacc/unsafe-acc timeacc-root :subst-filt-map2-acc))
