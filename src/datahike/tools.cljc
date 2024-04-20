@@ -226,29 +226,32 @@
                         input
                         branch-visitor-fn
                         0
-                        [])
+                        []
+                        (vec (repeat range-length nil)))
      (let [sym (gensym)]
        `(let [~sym ~input]
           ~(range-subset-tree range-length sym branch-visitor-fn)))))
-  ([range-length input-symbol branch-visitor-fn at acc-inds]
+  ([range-length input-symbol branch-visitor-fn at acc-inds mask]
    {:pre [(number? range-length)
           (symbol? input-symbol)
           (ifn? branch-visitor-fn)
           (number? at)
           (vector? acc-inds)]}
    (if (= range-length at)
-     (branch-visitor-fn acc-inds)
+     (branch-visitor-fn acc-inds mask)
      `(if (empty? ~input-symbol)
-        ~(branch-visitor-fn acc-inds)
+        ~(branch-visitor-fn acc-inds mask)
         (if (= ~at (first ~input-symbol))
           (let [~input-symbol (rest ~input-symbol)]
             ~(range-subset-tree range-length
                                 input-symbol
                                 branch-visitor-fn
                                 (inc at)
-                                (conj acc-inds at)))
+                                (conj acc-inds at)
+                                (assoc mask at (count acc-inds))))
           ~(range-subset-tree range-length
                               input-symbol
                               branch-visitor-fn
                               (inc at)
-                              acc-inds))))))
+                              acc-inds
+                              mask))))))

@@ -1336,7 +1336,16 @@ than doing no expansion at all."
       (fn [_ x] x))))
 
 
-#_(defmacro substitution-expansion [step pattern-symbols ])
+(defmacro substitution-expansion [step
+                                  substitution-pattern-element-inds
+                                  pattern-symbols
+                                  substitution-value-vector
+                                  filt]
+  (dt/range-subset-tree
+   5
+   substitution-pattern-element-inds
+   (fn [pinds]
+     `(~step ))))
 
 (defn instantiate-substitution-xform [substitution-pattern-element-inds
                                       filt-extractor
@@ -1347,12 +1356,12 @@ than doing no expansion at all."
       ([dst] (step dst))
       ([dst [pattern datom-pred]]
        (reduce (fn [dst [substitution-value-vector filt]]
-                 (step dst [(substitute pattern
-                                        substitution-pattern-element-inds
-                                        substitution-value-vector)
-                            (extend-predicate datom-pred filt-extractor filt)]))
-               dst
-               subst-filt-map)))))
+                   (step dst [(substitute pattern
+                                          substitution-pattern-element-inds
+                                          substitution-value-vector)
+                              (extend-predicate datom-pred filt-extractor filt)]))
+                 dst
+                 subst-filt-map)))))
 
 (defn ordered? [coll]
   (= coll (sort coll)))
