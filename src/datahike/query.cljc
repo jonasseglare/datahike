@@ -1408,66 +1408,108 @@ than doing no expansion at all."
 
 (def index-selector (make-index-selector 5))
 
+(def single-substitution-xform-acc (timeacc/unsafe-acc
+                                    timeacc-root
+                                    :single-substitution-xform-acc))
+
+
+(defmacro make-vec-lookup-ref-replacer [range-length]
+  (let [inds (gensym)
+        replacer (gensym)
+        tuple (gensym)]
+    `(fn [~replacer ~inds]
+       ~(dt/range-subset-tree
+         range-length inds
+         (fn [pinds _mask]
+           (let [n (count pinds)
+                 elems (repeatedly n gensym)]
+             `(fn [~tuple]
+                (let [~@(mapcat (fn [sym index]
+                                  [sym `(~replacer ~index ~tuple)])
+                                elems
+                                pinds)]
+                  (when-not (or ~@(map (fn [e] `(= ::error ~e)) elems))
+                    ~(vec elems))))))))))
+
+(def vec-lookup-ref-replacer (make-vec-lookup-ref-replacer 5))
+
 (defn single-substitution-xform [search-context relation-index subst-map filt-map]
-  (let [lookup-ref-replacer (lookup-ref-replacer search-context)
-        tuples (:tuples (nth (:rels search-context) relation-index))
-        subst (subst-map relation-index)
-        filt (filt-map relation-index)
-        pattern-substitution-inds (map :tuple-element-index subst)
-        pattern-filter-inds (map :tuple-element-index filt)
-        feature-extractor (index-feature-extractor pattern-filter-inds
-                                                   true
-                                                   lookup-ref-replacer)
-
-        ;; A map where
-        ;; * Every key is a vector of values to substitute
-        ;; * Every value is a set of values to filter on
-        #_#_subst-filt-map (timeacc/measure subst-filt-map1-acc
-                             )
-        subst-filt-map (timeacc/measure subst-filt-map1-acc
-                         #_(reduce (fn [dst tuple]
-                                     (update
-                                      dst
-                                      (select-inds tuple pattern-substitution-inds)
-                                      (fn [dst]
-                                        (let [feature (feature-extractor tuple)]
-                                          (if (good-lookup-refs? feature)
-                                            (conj (or dst #{}) feature)
-                                            dst)))))
-                                   {}
-                                   tuples)
-                         (let [dst (HashMap.)]
-                           (doseq [tuple tuples
-                                   :let [feature (feature-extractor tuple)]
-                                   :when (good-lookup-refs? feature)]
-                             (let [k (timeacc/measure wip-acc
-                                       (select-inds tuple pattern-substitution-inds))
-                                   v (get dst k)]
-                               (if (nil? v)
-                                 (.put dst k (doto (HashSet.)
-                                               (.add feature)))
-                                 (.add v feature))))
-                           dst))
-
-        substitution-pattern-element-inds (map :pattern-element-index subst)
-
-        ;; Replace the lookup refs
-        subst-filt-map (into {}
-                             (keep (fn [[k v]]
-                                     (let [k2 (mapv lookup-ref-replacer
-                                                    substitution-pattern-element-inds
-                                                    k)]
-                                       (when (good-lookup-refs? k2)
-                                         [k2 v]))))
-                             subst-filt-map)
+  (timeacc/measure single-substitution-xform-acc
+    (let [ ;; Everything from here ....
+          lookup-ref-replacer (lookup-ref-replacer search-context)
+          tuples (:tuples (nth (:rels search-context) relation-index))
+          subst (subst-map relation-index)
+          filt (filt-map relation-index)
+          pattern-substitution-inds (map :tuple-element-index subst)
+          pattern-filter-inds (map :tuple-element-index filt)
+          feature-extractor (index-feature-extractor pattern-filter-inds
+                                                     true
+                                                     lookup-ref-replacer)
+          
 
 
-        filt-extractor (index-feature-extractor
-                        (map :pattern-element-index filt)
-                        false
-                        lookup-ref-replacer)]
-    (assert (ordered? substitution-pattern-element-inds))
-    (timeacc/measure wip-acc
+          ;; A map where
+          ;; * Every key is a vector of values to substitute
+          ;; * Every value is a set of values to filter on
+          #_#_subst-filt-map (timeacc/measure subst-filt-map1-acc
+                               )
+
+          subst-sel (index-selector pattern-substitution-inds)
+
+;;;; ..... to here is fast!!!!
+
+
+          ;; Roughly 0.0632 seconds
+          subst-filt-map (timeacc/measure subst-filt-map1-acc
+                           #_(reduce (fn [dst tuple]
+                                       (update
+                                        dst
+                                        (select-inds tuple pattern-substitution-inds)
+                                        (fn [dst]
+                                          (let [feature (feature-extractor tuple)]
+                                            (if (good-lookup-refs? feature)
+                                              (conj (or dst #{}) feature)
+                                              dst)))))
+                                     {}
+                                     tuples)
+                           (let [dst (HashMap.)]
+                             (doseq [tuple tuples
+                                     :let [feature (feature-extractor tuple)]
+                                     :when (good-lookup-refs? feature)
+                                     ]
+                               (let [k (subst-sel tuple)
+                                     v (get dst k)]
+                                 (if (nil? v)
+                                   (.put dst k (doto (HashSet.)
+                                                 (.add feature)))
+                                   (.add v feature))))
+                             dst))
+
+
+
+          substitution-pattern-element-inds (map :pattern-element-index subst)
+
+          ;; Replace the lookup refs
+          subst-filt-map (timeacc/measure subst-filt-map2-acc
+                           (into {}
+                                 (keep (fn [[k v]]
+                                         (let [k2 (mapv lookup-ref-replacer
+                                                        substitution-pattern-element-inds
+                                                        k)]
+                                           (when (good-lookup-refs? k2)
+                                             [k2 v]))))
+                                 subst-filt-map))
+
+
+          ;; Neglible time
+          filt-extractor (index-feature-extractor
+                          (map :pattern-element-index filt)
+                          false
+                          lookup-ref-replacer)
+          ]
+      (assert (ordered? substitution-pattern-element-inds))
+
+      ;; Neglible time
       (instantiate-substitution-xform substitution-pattern-element-inds
                                       filt-extractor
                                       subst-filt-map))))
