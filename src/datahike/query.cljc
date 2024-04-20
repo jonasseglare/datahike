@@ -1503,7 +1503,7 @@ than doing no expansion at all."
     (filter (fn [x] (timeacc/measure filter-acc (pred x))))
     identity))
 
-(defonce backend-xform-acc (timeacc/unsafe-acc timeacc-root :backend-xform))
+(defonce inner-backend-xform-acc (timeacc/unsafe-acc timeacc-root :inner-backend-xform))
 (defonce backend-pred-acc (timeacc/unsafe-acc timeacc-root :backend-pred-acc))
 
 (defn backend-xform [backend-fn]
@@ -1524,7 +1524,7 @@ than doing no expansion at all."
                       (backend-fn e a v tx added?)
                       (catch Exception e
                         (throw e)))]
-         (timeacc/accumulate-nano-seconds-since backend-xform-acc start-ns)
+         (timeacc/accumulate-nano-seconds-since inner-backend-xform-acc start-ns)
          (reduce inner-step
                  dst
                  datoms))))))
@@ -1562,6 +1562,13 @@ than doing no expansion at all."
     ([dst e a v tx added? filt]
      (step dst [[e a v tx added?] filt]))))
 
+(def unpack6-xform-acc (timeacc/unsafe-acc timeacc-root :unpack6-xform-acc))
+(def subst-xform-acc (timeacc/unsafe-acc timeacc-root :subst-xform-acc))
+(def backend-xform-acc (timeacc/unsafe-acc timeacc-root :backend-xform-acc))
+(def filter-from-predicate-xform-acc (timeacc/unsafe-acc timeacc-root :filter-from-predicate-xform-acc))
+(def total-xform-acc (timeacc/unsafe-acc timeacc-root :total-xform-acc))
+
+
 (defn search-batch-fn [search-context]
   (fn [strategy-vec backend-fn]
     (let [start-ns (System/nanoTime)
@@ -1576,11 +1583,12 @@ than doing no expansion at all."
           filt-predicate (extend-predicate-for-pattern-constants
                           filt-predicate search-context)
           result (into []
-                       (comp unpack6
-                             subst-xform
-                             ;pack6
-                             (backend-xform backend-fn)
-                             (filter-from-predicate filt-predicate))
+                       (timeacc/measure-xform
+                        total-xform-acc
+                        (comp (timeacc/measure-xform unpack6-xform-acc unpack6)
+                              (timeacc/measure-xform subst-xform-acc subst-xform)
+                              (timeacc/measure-xform backend-xform-acc (backend-xform backend-fn))
+                              (timeacc/measure-xform filter-from-predicate-xform-acc (filter-from-predicate filt-predicate))))
                        init-coll)]
       (timeacc/accumulate-nano-seconds-since search-batch-acc start-ns)
       result)))
