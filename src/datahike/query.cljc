@@ -32,7 +32,7 @@
                     FindColl FindRel FindScalar FindTuple PlainSymbol Pull
                     RulesVar SrcVar Variable]
                    [java.lang.reflect Method]
-                   [java.util Date Map HashSet ArrayList HashMap])))
+                   [java.util Date Map HashSet ArrayList HashMap AbstractMap$SimpleEntry])))
 
 (defn ordered? [coll]
   (= coll (sort coll)))
@@ -1493,12 +1493,18 @@ than doing no expansion at all."
           
           ;; Replace the lookup refs
           subst-filt-map (timeacc/measure subst-filt-map2-acc
-                           (let [dst (HashMap.)]
+                           (let [dst (ArrayList.)]
                              (doseq [kv subst-filt-map
                                      :let [k2 (vrepl (key kv))]
                                      :when k2]
-                               (.put dst k2 (val kv)))
+                               (.add dst (AbstractMap$SimpleEntry. k2 (val kv))))
                              dst)
+                           #_(let [dst (HashMap.)]
+                               (doseq [kv subst-filt-map
+                                       :let [k2 (vrepl (key kv))]
+                                       :when k2]
+                                 (.put dst k2 (val kv)))
+                               dst)
                            #_(into {}
                                    (keep (fn [[k v]]
                                            (when-let [k2 (vrepl k)]
