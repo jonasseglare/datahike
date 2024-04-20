@@ -1493,13 +1493,13 @@ than doing no expansion at all."
           
           ;; Replace the lookup refs
           subst-filt-map (timeacc/measure subst-filt-map2-acc
-                           #_(let [dst (HashMap.)]
+                           (let [dst (HashMap.)]
                              (doseq [kv subst-filt-map
                                      :let [k2 (vrepl (key kv))]
                                      :when k2]
                                (.put dst k2 (val kv)))
                              dst)
-                           (into {}
+                           #_(into {}
                                    (keep (fn [[k v]]
                                            (when-let [k2 (vrepl k)]
                                              [k2 v])
