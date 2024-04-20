@@ -1606,17 +1606,15 @@ than doing no expansion at all."
       ([dst e a v tx added? datom-predicate]
        (let [inner-step (if datom-predicate
                           (fn [dst datom]
-                            (if (timeacc/measure backend-pred-acc
-                                  (datom-predicate datom))
+                            (if (datom-predicate datom)
                               (step dst datom)
                               dst))
                           step)
-             start-ns (System/nanoTime)
-             datoms (try
-                      (backend-fn e a v tx added?)
-                      (catch Exception e
-                        (throw e)))]
-         (timeacc/accumulate-nano-seconds-since inner-backend-xform-acc start-ns)
+             datoms (timeacc/measure inner-backend-xform-acc
+                      (try
+                        (backend-fn e a v tx added?)
+                        (catch Exception e
+                          (throw e))))]
          (reduce inner-step
                  dst
                  datoms))))))
@@ -1664,24 +1662,43 @@ than doing no expansion at all."
 (defn search-batch-fn [search-context]
   (fn [strategy-vec backend-fn]
     (timeacc/measure search-batch-acc
-      (let [search-context (merge search-context {:strategy-vec strategy-vec
+      (let [;; All this is fast...
+            search-context (merge search-context {:strategy-vec strategy-vec
                                                   :backend-fn backend-fn})
             subst-inds (substitution-relation-indices search-context)
             filt-inds (filtering-relation-indices search-context subst-inds)
             search-context (merge search-context {:subst-inds subst-inds
                                                   :filt-inds filt-inds})
+
+            ;;... until here
+
+            ;; 0.35
             [init-coll subst-xform] (substitution-xform search-context subst-inds)
+
+            ;; These two ....
             filt-predicate (datom-filter-predicate search-context filt-inds)
             filt-predicate (extend-predicate-for-pattern-constants
                             filt-predicate search-context)
-            result (into []
-                         (timeacc/measure-xform
-                          total-xform-acc
-                          (comp (timeacc/measure-xform unpack6-xform-acc unpack6)
-                                (timeacc/measure-xform subst-xform-acc subst-xform)
-                                (timeacc/measure-xform backend-xform-acc (backend-xform backend-fn))
-                                (timeacc/measure-xform filter-from-predicate-xform-acc (filter-from-predicate filt-predicate))))
-                         init-coll)]
+            ;; .... take about 0.004 seconds
+
+            ;; About 0.61 seconds of which inner-backend-fn is 0.45
+            result (timeacc/measure wip-acc
+                     (into
+                      []
+                      (timeacc/measure-xform
+                       total-xform-acc
+                       (comp
+                        (timeacc/measure-xform
+                         unpack6-xform-acc unpack6)
+                        (timeacc/measure-xform
+                         subst-xform-acc subst-xform) ;; 0.05
+                        (timeacc/measure-xform
+                         backend-xform-acc (backend-xform backend-fn)) ;; 0.49
+                        (timeacc/measure-xform
+                         filter-from-predicate-xform-acc
+                         (filter-from-predicate filt-predicate)) ;; 0.036
+                        ))
+                      init-coll))]
         result))))
 
 (comment
