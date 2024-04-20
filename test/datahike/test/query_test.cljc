@@ -11,6 +11,10 @@
 
 #?(:cljs (def Throwable js/Error))
 
+(defmacro FIX-THIS [& _body])
+
+
+
 (deftest test-joins
   (let [db (-> (db/empty-db)
                (d/db-with [{:db/id 1, :name  "Ivan", :age   15}
@@ -876,8 +880,6 @@
                    (pcmp t0 t1)))
             datoms)))
 
-
-(defmacro FIX-THIS [& _body])
 
 (FIX-THIS
   (deftest test-full-lookup-pipeline
