@@ -19,7 +19,7 @@
         mvxcvi/clj-cbor                             {:mvn/version "1.1.1"}
         org.babashka/http-client                    {:mvn/version "0.3.11"}
         metosin/jsonista                            {:mvn/version "0.3.7"}
-        jonas/timeacc {:local/root "/home/jonas/prog/timeacc/target/timeacc-0.1.0-SNAPSHOT-standalone.jar"}
+        
         }
 
  :paths ["src" "target/classes" "resources"]
@@ -44,9 +44,10 @@
                               incanter/incanter-core      {:mvn/version "1.9.3"}
                               incanter/incanter-charts    {:mvn/version "1.9.3"}
                               hashp/hashp                 {:mvn/version "0.2.2"}
-                              orchestra/orchestra         {:mvn/version "2021.01.01-1"}}}
+                              orchestra/orchestra         {:mvn/version "2021.01.01-1"}
+                              jonas/timeacc {:local/root "/home/jonas/prog/timeacc/target/timeacc-0.1.0-SNAPSHOT-standalone.jar"}}}
 
-           :test {:extra-paths ["test" "bechmark/src" "benchmark/test" "http-server"]
+           :test {:extra-paths ["test" "bechmark/src" "benchmark/test" "http-server" "timeacc_placeholder"]
                   :extra-deps {lambdaisland/kaocha         {:mvn/version "1.87.1366"}
                                lambdaisland/kaocha-cljs    {:mvn/version "1.5.154"}
                                org.clojure/test.check      {:mvn/version "1.1.1"}
@@ -66,7 +67,8 @@
 
            ;; Build
 
-           :build {:deps {io.github.clojure/tools.build {:mvn/version "0.9.5"}}
+           :build {:extra-paths ["timeacc_placeholder"]
+                   :deps {io.github.clojure/tools.build {:mvn/version "0.9.5"}}
                    :ns-default build}
 
            :deploy {:extra-deps {slipset/deps-deploy {:mvn/version "0.2.1"}}}

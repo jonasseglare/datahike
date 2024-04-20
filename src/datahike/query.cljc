@@ -32,7 +32,8 @@
                     FindColl FindRel FindScalar FindTuple PlainSymbol Pull
                     RulesVar SrcVar Variable]
                    [java.lang.reflect Method]
-                   [java.util Date Map HashSet ArrayList HashMap AbstractMap$SimpleEntry])))
+                   [java.util Date Map HashSet ArrayList HashMap AbstractMap$SimpleEntry
+                    Iterator])))
 
 (defn ordered? [coll]
   (= coll (sort coll)))
@@ -1493,12 +1494,24 @@ than doing no expansion at all."
           
           ;; Replace the lookup refs
           subst-filt-map (timeacc/measure subst-filt-map2-acc
-                           (let [dst (ArrayList.)]
-                             (doseq [kv subst-filt-map
-                                     :let [k2 (vrepl (key kv))]
-                                     :when k2]
-                               (.add dst (AbstractMap$SimpleEntry. k2 (val kv))))
+                           (let [dst (ArrayList.)
+                                 ^Iterator iter (-> subst-filt-map
+                                                    .entrySet
+                                                    .iterator)]
+                             (loop []
+                               (when (.hasNext iter)
+                                 (let [kv (.next iter)
+                                       k2 (vrepl (key kv))]
+                                   (when k2
+                                     (.add dst (AbstractMap$SimpleEntry. k2 (val kv))))
+                                   (recur))))
                              dst)
+                           #_(let [dst (ArrayList.)]
+                               (doseq [kv subst-filt-map
+                                       :let [k2 (vrepl (key kv))]
+                                       :when k2]
+                                 (.add dst (AbstractMap$SimpleEntry. k2 (val kv))))
+                               dst)
                            #_(let [dst (HashMap.)]
                                (doseq [kv subst-filt-map
                                        :let [k2 (vrepl (key kv))]
