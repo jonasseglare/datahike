@@ -1451,6 +1451,8 @@ than doing no expansion at all."
           #_#_subst-filt-map (timeacc/measure subst-filt-map1-acc
                                )
 
+          _ (assert (ordered? pattern-substitution-inds))
+          
           subst-sel (index-selector pattern-substitution-inds)
 
 ;;;; ..... to here is fast!!!!
