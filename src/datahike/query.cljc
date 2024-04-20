@@ -1496,18 +1496,15 @@ than doing no expansion at all."
             nil
             filt-map)))
 
+(defonce filter-acc (timeacc/unsafe-acc timeacc-root :filter-acc))
+
 (defn filter-from-predicate [pred]
   (if pred
-    (filter pred)
+    (filter (fn [x] (timeacc/measure filter-acc (pred x))))
     identity))
 
-(defn datom-filter-xform [search-context rel-inds]
-  (filter-from-predicate
-   (datom-filter-predicate
-    search-context
-    rel-inds)))
-
 (defonce backend-xform-acc (timeacc/unsafe-acc timeacc-root :backend-xform))
+(defonce backend-pred-acc (timeacc/unsafe-acc timeacc-root :backend-pred-acc))
 
 (defn backend-xform [backend-fn]
   (fn [step]
@@ -1517,7 +1514,8 @@ than doing no expansion at all."
       ([dst e a v tx added? datom-predicate]
        (let [inner-step (if datom-predicate
                           (fn [dst datom]
-                            (if (datom-predicate datom)
+                            (if (timeacc/measure backend-pred-acc
+                                  (datom-predicate datom))
                               (step dst datom)
                               dst))
                           step)
