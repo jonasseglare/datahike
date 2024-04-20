@@ -1336,26 +1336,44 @@ than doing no expansion at all."
       (fn [_ x] x))))
 
 
-(defmacro substitution-expansion [step
-                                  substitution-pattern-element-inds
-                                  pattern-symbols
-                                  substitution-value-vector
-                                  filt]
-  (dt/range-subset-tree
-   5
-   substitution-pattern-element-inds
-   (fn [pinds]
-     `(~step ))))
+(defmacro substitution-expansion [substitution-pattern-element-inds
+                                  filt-extractor
+                                  subst-filt-map]
+  (let [pattern-symbols (repeatedly 5 gensym)
+        substitution-value-vector (gensym "substitution-value-vector")]
+    (dt/range-subset-tree
+     5
+     substitution-pattern-element-inds
+     (fn [_pinds pmask]
+       `(fn [step#]
+          (fn
+            ([] (step#))
+            ([dst-one#] (step# dst-one#))
+            ([dst# ~@pattern-symbols datom-pred#]
+             (reduce (fn [dst-inner# [~substitution-value-vector filt#]]
+                       (step# dst-inner#
+                              ~@(map (fn [i sym]
+                                       (if (nil? i)
+                                         sym
+                                         `(nth ~substitution-value-vector ~i)))
+                                     pmask
+                                     pattern-symbols)
+                              (extend-predicate datom-pred# ~filt-extractor filt#)))
+                     dst#
+                     ~subst-filt-map))))))))
 
 (defn instantiate-substitution-xform [substitution-pattern-element-inds
                                       filt-extractor
                                       subst-filt-map]
-  (fn [step]
-    (fn
-      ([] (step))
-      ([dst] (step dst))
-      ([dst [pattern datom-pred]]
-       (reduce (fn [dst [substitution-value-vector filt]]
+  (substitution-expansion substitution-pattern-element-inds
+                          filt-extractor
+                          subst-filt-map)
+  #_(fn [step]
+      (fn
+        ([] (step))
+        ([dst] (step dst))
+        ([dst [pattern datom-pred]]
+         (reduce (fn [dst [substitution-value-vector filt]]
                    (step dst [(substitute pattern
                                           substitution-pattern-element-inds
                                           substitution-value-vector)
