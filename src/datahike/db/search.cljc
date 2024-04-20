@@ -7,7 +7,8 @@
    [datahike.db.utils :as dbu]
    [datahike.index :as di]
    [datahike.lru :refer [lru-datom-cache-factory]]
-   [datahike.tools :refer [case-tree raise match-vector timeacc-root]]
+   [datahike.tools :refer [raise match-vector]]
+   [datahike.tools :refer [timeacc-root]]
    [timeacc.core :as timeacc]
 
    [environ.core :refer [env]])
