@@ -13,13 +13,13 @@
    [datahike.middleware.query]
    [datahike.pull-api :as dpa]
    [datahike.query-stats :as dqs]
-   [datahike.tools :as dt]
+   [datahike.tools :as dt :refer [timeacc-root]]
+   [timeacc.core :as timeacc]
    [datahike.middleware.utils :as middleware-utils]
    [datalog.parser :refer [parse]]
    [datalog.parser.impl :as dpi]
    [datalog.parser.impl.proto :as dpip]
    [datalog.parser.pull :as dpp]
-   [datahike.tools :refer [timeacc-root]]
    #?(:cljs [datalog.parser.type :refer [Aggregate BindColl BindIgnore BindScalar BindTuple Constant
                                          FindColl FindRel FindScalar FindTuple PlainSymbol Pull
                                          RulesVar SrcVar Variable]])
@@ -1466,6 +1466,8 @@ than doing no expansion at all."
     search-context
     rel-inds)))
 
+(defonce backend-xform-acc (timeacc/unsafe-acc timeacc-root :backend-xform))
+
 (defn backend-xform [backend-fn]
   (fn [step]
     (fn
@@ -1478,10 +1480,12 @@ than doing no expansion at all."
                               (step dst datom)
                               dst))
                           step)
+             start-ns (System/nanoTime)
              datoms (try
                       (backend-fn pattern)
                       (catch Exception e
                         (throw e)))]
+         (timeacc/accumulate-nano-seconds-since backend-xform-acc start-ns)
          (reduce inner-step
                  dst
                  datoms))))))
@@ -1503,9 +1507,12 @@ than doing no expansion at all."
       (extend-predicate predicate extractor #{(extractor clean-pattern)})
       predicate)))
 
+(defonce search-batch-acc (timeacc/unsafe-acc timeacc-root :search-batch))
+
 (defn search-batch-fn [search-context]
   (fn [strategy-vec backend-fn]
-    (let [search-context (merge search-context {:strategy-vec strategy-vec
+    (let [start-ns (System/nanoTime)
+          search-context (merge search-context {:strategy-vec strategy-vec
                                                 :backend-fn backend-fn})
           subst-inds (substitution-relation-indices search-context)
           filt-inds (filtering-relation-indices search-context subst-inds)
@@ -1521,6 +1528,7 @@ than doing no expansion at all."
                              (filter-from-predicate filt-predicate)
                              )
                        init-coll)]
+      (timeacc/accumulate-nano-seconds-since search-batch-acc start-ns)
       result)))
 
 (comment

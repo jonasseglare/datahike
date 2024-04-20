@@ -7,7 +7,9 @@
    [datahike.db.utils :as dbu]
    [datahike.index :as di]
    [datahike.lru :refer [lru-datom-cache-factory]]
-   [datahike.tools :refer [case-tree raise match-vector]]
+   [datahike.tools :refer [case-tree raise match-vector timeacc-root]]
+   [timeacc.core :as timeacc]
+
    [environ.core :refer [env]])
   #?(:cljs (:require-macros [datahike.datom :refer [datom]]
                             [datahike.tools :refer [case-tree raise]]))
