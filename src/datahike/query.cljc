@@ -1571,27 +1571,26 @@ than doing no expansion at all."
 
 (defn search-batch-fn [search-context]
   (fn [strategy-vec backend-fn]
-    (let [start-ns (System/nanoTime)
-          search-context (merge search-context {:strategy-vec strategy-vec
-                                                :backend-fn backend-fn})
-          subst-inds (substitution-relation-indices search-context)
-          filt-inds (filtering-relation-indices search-context subst-inds)
-          search-context (merge search-context {:subst-inds subst-inds
-                                                :filt-inds filt-inds})
-          [init-coll subst-xform] (substitution-xform search-context subst-inds)
-          filt-predicate (datom-filter-predicate search-context filt-inds)
-          filt-predicate (extend-predicate-for-pattern-constants
-                          filt-predicate search-context)
-          result (into []
-                       (timeacc/measure-xform
-                        total-xform-acc
-                        (comp (timeacc/measure-xform unpack6-xform-acc unpack6)
-                              (timeacc/measure-xform subst-xform-acc subst-xform)
-                              (timeacc/measure-xform backend-xform-acc (backend-xform backend-fn))
-                              (timeacc/measure-xform filter-from-predicate-xform-acc (filter-from-predicate filt-predicate))))
-                       init-coll)]
-      (timeacc/accumulate-nano-seconds-since search-batch-acc start-ns)
-      result)))
+    (timeacc/measure search-batch-acc
+      (let [search-context (merge search-context {:strategy-vec strategy-vec
+                                                  :backend-fn backend-fn})
+            subst-inds (substitution-relation-indices search-context)
+            filt-inds (filtering-relation-indices search-context subst-inds)
+            search-context (merge search-context {:subst-inds subst-inds
+                                                  :filt-inds filt-inds})
+            [init-coll subst-xform] (substitution-xform search-context subst-inds)
+            filt-predicate (datom-filter-predicate search-context filt-inds)
+            filt-predicate (extend-predicate-for-pattern-constants
+                            filt-predicate search-context)
+            result (into []
+                         (timeacc/measure-xform
+                          total-xform-acc
+                          (comp (timeacc/measure-xform unpack6-xform-acc unpack6)
+                                (timeacc/measure-xform subst-xform-acc subst-xform)
+                                (timeacc/measure-xform backend-xform-acc (backend-xform backend-fn))
+                                (timeacc/measure-xform filter-from-predicate-xform-acc (filter-from-predicate filt-predicate))))
+                         init-coll)]
+        result))))
 
 (comment
 
