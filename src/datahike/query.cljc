@@ -1550,6 +1550,20 @@ than doing no expansion at all."
 
 (defonce search-batch-acc (timeacc/unsafe-acc timeacc-root :search-batch))
 
+(defn unpack6 [step]
+  (fn
+    ([] (step))
+    ([dst] (step dst))
+    ([dst [[e a v tx added?] filt]]
+     (step dst e a v tx added? filt))))
+
+(defn pack6 [step]
+  (fn
+    ([] (step))
+    ([dst] (step dst))
+    ([dst e a v tx added? filt]
+     (step dst [[e a v tx added?] filt]))))
+
 (defn search-batch-fn [search-context]
   (fn [strategy-vec backend-fn]
     (let [start-ns (System/nanoTime)
@@ -1564,7 +1578,9 @@ than doing no expansion at all."
           filt-predicate (extend-predicate-for-pattern-constants
                           filt-predicate search-context)
           result (into []
-                       (comp subst-xform
+                       (comp unpack6
+                             subst-xform
+                             pack6
                              (backend-xform backend-fn)
                              (filter-from-predicate filt-predicate))
                        init-coll)]
