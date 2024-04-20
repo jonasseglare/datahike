@@ -1458,7 +1458,7 @@ than doing no expansion at all."
 
           ;; Roughly 0.0632 seconds
           subst-filt-map (timeacc/measure subst-filt-map1-acc
-                           #_(reduce (fn [dst tuple]
+                           (reduce (fn [dst tuple]
                                        (update
                                         dst
                                         (select-inds tuple pattern-substitution-inds)
@@ -1469,7 +1469,7 @@ than doing no expansion at all."
                                               dst)))))
                                      {}
                                      tuples)
-                           (let [dst (HashMap.)]
+                           #_(let [dst (HashMap.)]
                              (doseq [tuple tuples
                                      :let [feature (feature-extractor tuple)]
                                      :when (good-lookup-refs? feature)
@@ -1491,13 +1491,13 @@ than doing no expansion at all."
           
           ;; Replace the lookup refs
           subst-filt-map (timeacc/measure subst-filt-map2-acc
-                           (let [dst (HashMap.)]
+                           #_(let [dst (HashMap.)]
                              (doseq [kv subst-filt-map
                                      :let [k2 (vrepl (key kv))]
                                      :when k2]
                                (.put dst k2 (val kv)))
                              dst)
-                           #_(into {}
+                           (into {}
                                    (keep (fn [[k v]]
                                            (when-let [k2 (vrepl k)]
                                              [k2 v])
