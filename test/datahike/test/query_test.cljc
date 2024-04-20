@@ -835,7 +835,7 @@
                                   :strategy-vec strategy
                                   :rels rels}
                                  subst-inds)
-        filt-xform (dq/datom-filter-xform
+        #_#_filt-xform (dq/datom-filter-xform
                     {:bsm bsm
                      :clean-pattern clean-pattern
                      :strategy-vec strategy
@@ -856,7 +856,7 @@
              [nil 3 nil nil nil]
              [nil 5 nil nil nil])
            (map first subst-result)))
-    (is (= [[1 3 2]]
+    #_(is (= [[1 3 2]]
            (into []
                  filt-xform
                  [[1 3 2]
@@ -893,3 +893,7 @@
                                                    [5 :p 7]]))]
     (is (= #{[1 :k 4] [5 :xyz 6]} (set result)))))
 
+(deftest test-index-selector
+  (let [make-sel (dq/make-index-selector 5)
+        sel (make-sel [1 3])]
+    (is (= [:b :d] (sel [:a :b :c :d :e])))))

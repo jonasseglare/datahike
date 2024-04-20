@@ -27,7 +27,7 @@
    [taoensso.timbre :as log])
   (:refer-clojure :exclude [seqable?])
 
-  #?(:clj (:import [clojure.lang Reflector Seqable]
+  #?(:clj (:import [clojure.lang Reflector Seqable PersistentVector]
                    [datalog.parser.type Aggregate BindColl BindIgnore BindScalar BindTuple Constant
                     FindColl FindRel FindScalar FindTuple PlainSymbol Pull
                     RulesVar SrcVar Variable]
@@ -1390,6 +1390,24 @@ than doing no expansion at all."
 (def subst-filt-map1-acc (timeacc/unsafe-acc timeacc-root :subst-filt-map1-acc))
 (def subst-filt-map2-acc (timeacc/unsafe-acc timeacc-root :subst-filt-map2-acc))
 
+(defmacro make-index-selector [range-length]
+  (let [inds (gensym)
+        tuple (gensym)
+        arr (gensym)]
+    `(fn [~inds]
+       ~(dt/range-subset-tree
+         range-length inds
+         (fn [pinds mask]
+           `(fn [~tuple]
+              (PersistentVector/adopt
+               (let [~arr (object-array ~(count pinds))]
+                 ~@(map-indexed (fn [dst-index src-index]
+                                  `(aset ~arr ~dst-index (nth ~tuple ~src-index)))
+                                pinds)
+                 ~arr))))))))
+
+(def index-selector (make-index-selector 5))
+
 (defn single-substitution-xform [search-context relation-index subst-map filt-map]
   (let [lookup-ref-replacer (lookup-ref-replacer search-context)
         tuples (:tuples (nth (:rels search-context) relation-index))
@@ -1405,23 +1423,25 @@ than doing no expansion at all."
         ;; * Every key is a vector of values to substitute
         ;; * Every value is a set of values to filter on
         #_#_subst-filt-map (timeacc/measure subst-filt-map1-acc
-                         (reduce (fn [dst tuple]
-                                   (update
-                                    dst
-                                    (select-inds tuple pattern-substitution-inds)
-                                    (fn [dst]
-                                      (let [feature (feature-extractor tuple)]
-                                        (if (good-lookup-refs? feature)
-                                          (conj (or dst #{}) feature)
-                                          dst)))))
-                                 {}
-                                 tuples))
+                             )
         subst-filt-map (timeacc/measure subst-filt-map1-acc
+                         #_(reduce (fn [dst tuple]
+                                     (update
+                                      dst
+                                      (select-inds tuple pattern-substitution-inds)
+                                      (fn [dst]
+                                        (let [feature (feature-extractor tuple)]
+                                          (if (good-lookup-refs? feature)
+                                            (conj (or dst #{}) feature)
+                                            dst)))))
+                                   {}
+                                   tuples)
                          (let [dst (HashMap.)]
                            (doseq [tuple tuples
                                    :let [feature (feature-extractor tuple)]
                                    :when (good-lookup-refs? feature)]
-                             (let [k (select-inds tuple pattern-substitution-inds)
+                             (let [k (timeacc/measure wip-acc
+                                       (select-inds tuple pattern-substitution-inds))
                                    v (get dst k)]
                                (if (nil? v)
                                  (.put dst k (doto (HashSet.)
