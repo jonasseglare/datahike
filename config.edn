@@ -29,7 +29,7 @@
                            :main          datahike.http.server
                            :lib           io.replikativ/datahike-http-server}
          :native {;; jvm build
-                  :src-dirs ["src" "libdatahike/src" "timeacc_placeholder"]
+                  :src-dirs ["src" "libdatahike/src"]
                   :java-src-dirs ["java"]
                   :resource-dir "resources"
                   :target-dir "target"
