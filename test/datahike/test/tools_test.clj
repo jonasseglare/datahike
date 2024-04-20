@@ -48,3 +48,22 @@
                             [_ 1] 1
                             [1 _] 2
                             [1 1] 3))))
+
+
+
+(defmacro wrap-range-tree [input-symbol]
+  (dt/range-subset-tree 3 input-symbol (fn [x] [:inds x])))
+
+(deftest range-subset-tree-test
+  (is (= (dt/range-subset-tree 1 'x (fn [inds] [:inds inds]))
+         '(if
+              (clojure.core/empty? x)
+            [:inds []]
+            (if
+                (clojure.core/= 0 (clojure.core/first x))
+              (clojure.core/let [x (clojure.core/rest x)] [:inds [0]])
+              [:inds []]))))
+  (is (= [:inds [1 2]] (wrap-range-tree [1 2])))
+  (is (= [:inds [1]] (wrap-range-tree [1])))
+  (is (= [:inds [0 2]] (wrap-range-tree [0 2]))))
+

@@ -218,3 +218,37 @@
            ~nsym (count ~vsym)
            ~vars ~vsym]
        ~(generate [] pairs))))
+
+(defn range-subset-tree
+  ([range-length input branch-visitor-fn]
+   (if (symbol? input)
+     (range-subset-tree range-length
+                        input
+                        branch-visitor-fn
+                        0
+                        [])
+     (let [sym (gensym)]
+       `(let [~sym ~input]
+          ~(range-subset-tree range-length sym branch-visitor-fn)))))
+  ([range-length input-symbol branch-visitor-fn at acc-inds]
+   {:pre [(number? range-length)
+          (symbol? input-symbol)
+          (ifn? branch-visitor-fn)
+          (number? at)
+          (vector? acc-inds)]}
+   (if (= range-length at)
+     (branch-visitor-fn acc-inds)
+     `(if (empty? ~input-symbol)
+        ~(branch-visitor-fn acc-inds)
+        (if (= ~at (first ~input-symbol))
+          (let [~input-symbol (rest ~input-symbol)]
+            ~(range-subset-tree range-length
+                                input-symbol
+                                branch-visitor-fn
+                                (inc at)
+                                (conj acc-inds at)))
+          ~(range-subset-tree range-length
+                              input-symbol
+                              branch-visitor-fn
+                              (inc at)
+                              acc-inds))))))

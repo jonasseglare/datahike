@@ -1335,6 +1335,28 @@ than doing no expansion at all."
           y))
       (fn [_ x] x))))
 
+
+#_(defmacro substitution-expansion [step pattern-symbols ])
+
+(defn instantiate-substitution-xform [substitution-pattern-element-inds
+                                      filt-extractor
+                                      subst-filt-map]
+  (fn [step]
+    (fn
+      ([] (step))
+      ([dst] (step dst))
+      ([dst [pattern datom-pred]]
+       (reduce (fn [dst [substitution-value-vector filt]]
+                 (step dst [(substitute pattern
+                                        substitution-pattern-element-inds
+                                        substitution-value-vector)
+                            (extend-predicate datom-pred filt-extractor filt)]))
+               dst
+               subst-filt-map)))))
+
+(defn ordered? [coll]
+  (= coll (sort coll)))
+
 (defn single-substitution-xform [search-context relation-index subst-map filt-map]
   (let [lookup-ref-replacer (lookup-ref-replacer search-context)
         tuples (:tuples (nth (:rels search-context) relation-index))
@@ -1378,18 +1400,10 @@ than doing no expansion at all."
                         (map :pattern-element-index filt)
                         false
                         lookup-ref-replacer)]
-    (fn [step]
-      (fn
-        ([] (step))
-        ([dst] (step dst))
-        ([dst [pattern datom-pred]]
-         (reduce (fn [dst [substitution-value-vector filt]]
-                   (step dst [(substitute pattern
-                                          substitution-pattern-element-inds
-                                          substitution-value-vector)
-                              (extend-predicate datom-pred filt-extractor filt)]))
-                 dst
-                 subst-filt-map))))))
+    (assert (ordered? substitution-pattern-element-inds))
+    (instantiate-substitution-xform substitution-pattern-element-inds
+                                    filt-extractor
+                                    subst-filt-map)))
 
 (defn search-context? [x]
   (assert (map? x))
@@ -1525,8 +1539,7 @@ than doing no expansion at all."
           result (into []
                        (comp subst-xform
                              (backend-xform backend-fn)
-                             (filter-from-predicate filt-predicate)
-                             )
+                             (filter-from-predicate filt-predicate))
                        init-coll)]
       (timeacc/accumulate-nano-seconds-since search-batch-acc start-ns)
       result)))
