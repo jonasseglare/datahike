@@ -38,6 +38,8 @@
 (defn ordered? [coll]
   (= coll (sort coll)))
 
+
+(def wip-acc (timeacc/unsafe-acc timeacc-root :wip))
 ;; ----------------------------------------------------------------------------
 
 (def ^:const lru-cache-size 100)
@@ -158,7 +160,9 @@
   (or (keyword? form) (string? form)))
 
 (defn lookup-ref? [form]
-  (looks-like? [attr? '_] form))
+  (and (vector? form)
+       (= 2 (count form))
+       (attr? (first form))))
 
 (defn entid? [x]  ;; See `dbu/entid for all forms that are accepted
   (or (attr? x)
@@ -1178,7 +1182,7 @@ than doing no expansion at all."
       (relprod-select-keys relprod #{(rel-data-key r)})
       relprod)))
 
-(def wip-acc (timeacc/unsafe-acc timeacc-root :wip))
+
 
 (defn expand-constrained-patterns [source context pattern]
   (let [vars (collect-vars pattern)
@@ -1311,24 +1315,34 @@ than doing no expansion at all."
         ([datom]
          (contains? features (feature-extractor datom)))))))
 
+(def c0-acc (timeacc/unsafe-acc timeacc-root :c0-acc))
+(def c1-acc (timeacc/unsafe-acc timeacc-root :c1-acc))
+(def c2-acc (timeacc/unsafe-acc timeacc-root :c2-acc))
+(def c3-acc (timeacc/unsafe-acc timeacc-root :c3-acc))
+;(def c4-acc (timeacc/unsafe-acc timeacc-root :c4-acc))
+
 (defn resolve-pattern-lookup-ref-at-index
   [source clean-attribute pattern-index pattern-value error-code]
   (let [a clean-attribute]
     (if (dbu/db? source)
       (case pattern-index
-        0 (resolve-pattern-lookup-entity-id source pattern-value error-code)
-        1 (if (and (:attribute-refs? (dbi/-config source)) (keyword? pattern-value))
-            (dbi/-ref-for source pattern-value)
-            pattern-value)
-        2 (if (and pattern-value
-                   (attr? a)
-                   (dbu/ref? source a)
-                   (or (lookup-ref? pattern-value) (attr? pattern-value)))
-            (dbu/entid-strict source pattern-value error-code)
-            pattern-value)
-        3 (if (lookup-ref? pattern-value)
-            (dbu/entid-strict source pattern-value error-code)
-            pattern-value)
+        0 (timeacc/measure c0-acc
+            (resolve-pattern-lookup-entity-id source pattern-value error-code))
+        1 (timeacc/measure c1-acc
+            (if (and (:attribute-refs? (dbi/-config source)) (keyword? pattern-value))
+              (dbi/-ref-for source pattern-value)
+              pattern-value))
+        2 (timeacc/measure c2-acc
+            (if (and pattern-value
+                     (attr? a)
+                     (dbu/ref? source a)
+                     (or (lookup-ref? pattern-value) (attr? pattern-value)))
+              (dbu/entid-strict source pattern-value error-code)
+              pattern-value))
+        3 (timeacc/measure c3-acc
+            (if (lookup-ref? pattern-value)
+              (dbu/entid-strict source pattern-value error-code)
+              pattern-value))
         4 pattern-value)
       pattern-value)))
 
@@ -1337,8 +1351,8 @@ than doing no expansion at all."
   ([{:keys [source clean-pattern]} error-value]
    (let [[_ a _ _] clean-pattern]
      (if source
-       (memoize (fn [i x]
-                  (resolve-pattern-lookup-ref-at-index source a i x error-value)))
+       (fn [i x]
+         (resolve-pattern-lookup-ref-at-index source a i x error-value))
        (fn [_ x] x)))))
 
 
@@ -1509,7 +1523,7 @@ than doing no expansion at all."
                              (loop []
                                (when (.hasNext iter)
                                  (let [kv (.next iter)
-                                       k2 (timeacc/measure wip-acc (vrepl (key kv)))]
+                                       k2 (vrepl (key kv))]
                                    (when k2
                                      (.add dst (AbstractMap$SimpleEntry. k2 (val kv))))
                                    (recur))))
