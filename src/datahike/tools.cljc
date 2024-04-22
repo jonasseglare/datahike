@@ -258,7 +258,8 @@
 
 (defmacro unrolled-reduction [unroll-limit collection]
   (let [step (gensym)
-        dst (gensym)]
+        dst (gensym)
+        arr (gensym)]
     `(case (count ~collection)
        ~@(mapcat (fn [i]
                    [i (let [syms (repeatedly i gensym)]
@@ -267,5 +268,6 @@
                              (-> ~dst
                                  ~@(map (fn [sym] `(~step ~sym)) syms)))))])
                  (range unroll-limit))
-       (fn [~step ~dst]
-         (reduce ~step ~dst ~collection)))))
+       (let [~arr (object-array ~collection)]
+         (fn [~step ~dst]
+           (reduce ~step ~dst ~arr))))))
