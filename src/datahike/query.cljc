@@ -1332,15 +1332,14 @@ than doing no expansion at all."
         4 pattern-value)
       pattern-value)))
 
-(defn lookup-ref-replacer [{:keys [source clean-pattern]}]
-  (let [[_ a _ _] clean-pattern]
-    (if source
-      (fn [i x]
-        (let [y (resolve-pattern-lookup-ref-at-index source a i x ::error)]
-          (when (= ::error y)
-            (println "FAILED TO REPLACE REF" x))
-          y))
-      (fn [_ x] x))))
+(defn lookup-ref-replacer
+  ([context] (lookup-ref-replacer context ::error))
+  ([{:keys [source clean-pattern]} error-value]
+   (let [[_ a _ _] clean-pattern]
+     (if source
+       (memoize (fn [i x]
+                  (resolve-pattern-lookup-ref-at-index source a i x error-value)))
+       (fn [_ x] x)))))
 
 
 (defmacro substitution-expansion [substitution-pattern-element-inds
@@ -1418,25 +1417,20 @@ than doing no expansion at all."
        ~(dt/range-subset-tree
          range-length inds
          (fn [pinds _mask]
-           (let [n (count pinds)
-                 elems (repeatedly n gensym)]
-             `(fn [~tuple]
-                (let [~@(mapcat (fn [sym index i]
-                                  [sym #_`(~replacer ~index (nth ~tuple ~i))
-                                   `(nth ~tuple ~i)])
-                                elems
-                                pinds
-                                (range))]
-                  ~(vec elems)
-                  #_(when-not (or ~@(map (fn [e] `(= ::error ~e)) elems))
-                      ~(vec elems))))))))))
+           `(fn [~tuple]
+              (try
+                ~(mapv (fn [index i] `(~replacer ~index (nth ~tuple ~i))
+                         #_`(nth ~tuple ~i))
+                       pinds
+                       (range))
+                (catch Exception e# nil))))))))
 
 (def vec-lookup-ref-replacer (make-vec-lookup-ref-replacer 5))
 
 (defn single-substitution-xform [search-context relation-index subst-map filt-map]
   (timeacc/measure single-substitution-xform-acc
     (let [ ;; Everything from here ....
-          lookup-ref-replacer (lookup-ref-replacer search-context)
+          lrr (lookup-ref-replacer search-context)
           tuples (:tuples (nth (:rels search-context) relation-index))
           subst (subst-map relation-index)
           filt (filt-map relation-index)
@@ -1444,7 +1438,7 @@ than doing no expansion at all."
           pattern-filter-inds (map :tuple-element-index filt)
           feature-extractor (index-feature-extractor pattern-filter-inds
                                                      true
-                                                     lookup-ref-replacer)
+                                                     lrr)
           
 
 
@@ -1503,8 +1497,8 @@ than doing no expansion at all."
 
           substitution-pattern-element-inds (map :pattern-element-index subst)
 
-          vrepl (vec-lookup-ref-replacer lookup-ref-replacer
-                                         substitution-pattern-element-inds)
+          lrr-ex (lookup-ref-replacer search-context nil)
+          vrepl (vec-lookup-ref-replacer lrr-ex substitution-pattern-element-inds)
           
           ;; Replace the lookup refs
           subst-filt-map (timeacc/measure subst-filt-map2-acc
@@ -1548,7 +1542,7 @@ than doing no expansion at all."
           filt-extractor (index-feature-extractor
                           (map :pattern-element-index filt)
                           false
-                          lookup-ref-replacer)
+                          lrr)
           ]
       ;;(assert (ordered? substitution-pattern-element-inds))
 
@@ -1754,7 +1748,6 @@ than doing no expansion at all."
                                  [])
                         new-rel (relation-from-datoms context orig-pattern datoms)
                         base-rel (Relation. (var-mapping orig-pattern (range)) [])
-                        
                         full-rel (simplify-rel (sum-rel base-rel new-rel))]
                     full-rel)
                   (lookup-pattern-coll source pattern1 orig-pattern))]
