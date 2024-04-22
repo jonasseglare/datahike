@@ -72,6 +72,7 @@
 
 (deftest unrolled-reduction-test
   (dotimes [i 10]
-    (is (= (let [f (dt/unrolled-reduction 5 (range i))]
-             (f + 1000))
-           (reduce + 1000 (range i))))))
+    (let [collection (range i)]
+      (is (= (let [f (dt/unrolled-reduction 5 collection)]
+               (f + 1000))
+             (reduce + 1000 (range i)))))))
