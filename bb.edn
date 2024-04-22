@@ -69,7 +69,7 @@
 
          jar {:doc "Build jar"
               :depends [jcompile pom]
-              :task (build/jar config (-> config :build :clj))}
+              :task (build/uber #_build/jar config (-> config :build :clj))}
 
          install {:doc "Install jar locally"
                   :task (deploy/local config (-> config :build :clj))}
