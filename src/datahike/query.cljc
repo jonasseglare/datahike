@@ -1361,7 +1361,7 @@ than doing no expansion at all."
 
 (defmacro substitution-expansion [substitution-pattern-element-inds
                                   filt-extractor
-                                  reduction]
+                                  subst-filt-map]
   (let [pattern-symbols (repeatedly 5 gensym)
         substitution-value-vector (gensym "substitution-value-vector")]
     (dt/range-subset-tree
@@ -1373,24 +1373,24 @@ than doing no expansion at all."
             ([] (step#))
             ([dst-one#] (step# dst-one#))
             ([dst# ~@pattern-symbols datom-pred#]
-             (~reduction (fn [dst-inner# [~substitution-value-vector filt#]]
-                           (step# dst-inner#
-                                  ~@(map (fn [i sym]
-                                           (if (nil? i)
-                                             sym
-                                             `(nth ~substitution-value-vector ~i)))
-                                         pmask
-                                         pattern-symbols)
-                                  (extend-predicate datom-pred# ~filt-extractor filt#)))
-              dst#))))))))
+             (reduce (fn [dst-inner# [~substitution-value-vector filt#]]
+                       (step# dst-inner#
+                              ~@(map (fn [i sym]
+                                       (if (nil? i)
+                                         sym
+                                         `(nth ~substitution-value-vector ~i)))
+                                     pmask
+                                     pattern-symbols)
+                              (extend-predicate datom-pred# ~filt-extractor filt#)))
+                     dst#
+                     ~subst-filt-map))))))))
 
 (defn instantiate-substitution-xform [substitution-pattern-element-inds
                                       filt-extractor
                                       subst-filt-map]
-  (let [reduction (dt/unrolled-reduction 10 subst-filt-map)]
-    (substitution-expansion substitution-pattern-element-inds
-                            filt-extractor
-                            reduction))
+  (substitution-expansion substitution-pattern-element-inds
+                          filt-extractor
+                          subst-filt-map)
   #_(fn [step]
       (fn
         ([] (step))
