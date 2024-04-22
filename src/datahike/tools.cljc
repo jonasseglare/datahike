@@ -256,6 +256,8 @@
                               acc-inds
                               mask))))))
 
+
+;;;;;; TODO: remove, didn't improve
 (defmacro unrolled-reduction [unroll-limit collection]
   (let [step (gensym)
         dst (gensym)
@@ -271,3 +273,16 @@
        (let [~arr (object-array ~collection)]
          (fn [~step ~dst]
            (reduce ~step ~dst ~arr))))))
+
+(defmacro unrolled-set-predicate [unroll-limit elements]
+  (let [x (gensym)]
+    `(case (count ~elements)
+       ~@(mapcat (fn [i]
+                   [i (let [syms (repeatedly i gensym)]
+                        `(let [~(vec syms) (seq ~elements)]
+                           (fn [~x]
+                             (or ~@(map (fn [y] `(= ~x ~y)) syms)))))])
+                 (range unroll-limit))
+       (let [~elements (set ~elements)]
+         (fn [~x]
+           (contains? ~elements ~x))))))

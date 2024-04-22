@@ -1444,8 +1444,7 @@ than doing no expansion at all."
          (fn [pinds _mask]
            `(fn [~tuple]
               (try
-                ~(mapv (fn [index i] `(~replacer ~index (nth ~tuple ~i))
-                         #_`(nth ~tuple ~i))
+                ~(mapv (fn [index i] `(~replacer ~index (nth ~tuple ~i)))
                        pinds
                        (range))
                 (catch Exception e# nil))))))))
@@ -1464,35 +1463,9 @@ than doing no expansion at all."
           feature-extractor (index-feature-extractor pattern-filter-inds
                                                      true
                                                      lrr)
-          
-
-
-          ;; A map where
-          ;; * Every key is a vector of values to substitute
-          ;; * Every value is a set of values to filter on
-          #_#_subst-filt-map (timeacc/measure subst-filt-map1-acc
-                               )
-
-          ;;_ (assert (ordered? pattern-substitution-inds))
-          
-          subst-sel (index-selector pattern-substitution-inds)
-
-;;;; ..... to here is fast!!!!
-
-
+          ;; ..... to here is fast!!!!
           ;; Roughly 0.0632 seconds
           subst-filt-map (timeacc/measure subst-filt-map1-acc
-                           #_(reduce (fn [dst tuple]
-                                       (update
-                                        dst
-                                        (select-inds tuple pattern-substitution-inds)
-                                        (fn [dst]
-                                          (let [feature (feature-extractor tuple)]
-                                            (if (good-lookup-refs? feature)
-                                              (conj (or dst #{}) feature)
-                                              dst)))))
-                                     {}
-                                     tuples)
                            (let [dst (HashMap.)]
                              (doseq [tuple tuples
                                      :let [feature (feature-extractor tuple)]
@@ -1503,22 +1476,7 @@ than doing no expansion at all."
                                    (.put dst k (doto (HashSet.)
                                                  (.add feature)))
                                    (.add v feature))))
-                             dst)
-                           
-                           #_(let [dst (HashMap.)]
-                               (doseq [tuple tuples
-                                       :let [feature (feature-extractor tuple)]
-                                       :when (good-lookup-refs? feature)
-                                       ]
-                                 (let [k (subst-sel tuple)
-                                       v (get dst k)]
-                                   (if (nil? v)
-                                     (.put dst k (doto (HashSet.)
-                                                   (.add feature)))
-                                     (.add v feature))))
-                               dst))
-
-
+                             dst))
 
           substitution-pattern-element-inds (map :pattern-element-index subst)
 
@@ -1538,39 +1496,14 @@ than doing no expansion at all."
                                    (when k2
                                      (.add dst (AbstractMap$SimpleEntry. k2 (val kv))))
                                    (recur))))
-                             dst)
-                           #_(let [dst (ArrayList.)]
-                               (doseq [kv subst-filt-map
-                                       :let [k2 (vrepl (key kv))]
-                                       :when k2]
-                                 (.add dst (AbstractMap$SimpleEntry. k2 (val kv))))
-                               dst)
-                           #_(let [dst (HashMap.)]
-                               (doseq [kv subst-filt-map
-                                       :let [k2 (vrepl (key kv))]
-                                       :when k2]
-                                 (.put dst k2 (val kv)))
-                               dst)
-                           #_(into {}
-                                   (keep (fn [[k v]]
-                                           (when-let [k2 (vrepl k)]
-                                             [k2 v])
-                                           #_(let [k2 (mapv lookup-ref-replacer
-                                                            substitution-pattern-element-inds
-                                                            k)]
-                                               (when (good-lookup-refs? k2)
-                                                 [k2 v]))))
-                                   subst-filt-map))
+                             dst))
 
 
           ;; Neglible time
           filt-extractor (index-feature-extractor
                           (map :pattern-element-index filt)
                           false
-                          lrr)
-          ]
-      ;;(assert (ordered? substitution-pattern-element-inds))
-
+                          lrr)]
       ;; Neglible time
       (instantiate-substitution-xform substitution-pattern-element-inds
                                       filt-extractor

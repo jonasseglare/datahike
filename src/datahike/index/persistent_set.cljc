@@ -8,6 +8,7 @@
             [datahike.index.interface :as di :refer [IIndex]]
             [datahike.tools :as dt]
             [konserve.core :as k]
+            [timeacc.core :as timeacc]
             [konserve.serializers :refer [fressian-serializer]]
             [hasch.core :refer [uuid]]
             [taoensso.timbre :refer [trace]])
@@ -55,15 +56,20 @@
    :aevt [:a :e :v :tx :added]
    :avet [:a :v :e :tx :added]})
 
+(def pset-cmp-acc (timeacc/unsafe-acc dt/timeacc-root :pset-cmp-acc))
+(def pset-slice-acc (timeacc/unsafe-acc dt/timeacc-root :pset-slice-acc))
+
 (defn index-type->slice-cmp [index-type from to]
-  (let [cmps (->> (index-type index-type->kwseq)
-                  (take-while #(not (and (nil? (% from))
-                                         (nil? (% to)))))
-                  (mapv dd/cmp-val))]
-    (partial multi-cmp cmps)))
+  (timeacc/measure pset-cmp-acc
+    (let [cmps (->> (index-type index-type->kwseq)
+                    (take-while #(not (and (nil? (% from))
+                                           (nil? (% to)))))
+                    (mapv dd/cmp-val))]
+      (partial multi-cmp cmps))))
 
 (defn slice [pset from to index-type]
-  (psset/slice pset from to (index-type->slice-cmp index-type from to)))
+  (timeacc/measure pset-slice-acc
+    (psset/slice pset from to (index-type->slice-cmp index-type from to))))
 
 (defn remove-datom [pset ^Datom datom index-type]
   (psset/disj pset datom (index-type->cmp-quick index-type false)))
