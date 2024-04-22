@@ -10,7 +10,7 @@
        :url "https://github.com/replikativ/datahike"}
 
  :build {:clj {;; jvm build
-               :src-dirs ["src" "timeacc_placeholder"]
+               :src-dirs ["src" #_"timeacc_placeholder"]
                :resource-dir "resources"
                :java-src-dirs ["java"]
                :target-dir "target"
