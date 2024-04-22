@@ -65,12 +65,22 @@
          ~(cb acc)
          ~(from-to-tree from-sym to-sym index-spec (conj acc findex) cb)))))
 
-(defn cmp-for-kwseq [kwseq]
-  (let [datom0 (gensym)
-        datom1 (gensym)]
-    `(fn [~datom0 ~datom1] ~kwseq)))
+(defn cmp-for-kwseq-sub [datom0 datom1 kwseq]
+  (let [result (gensym)]
+    (if (empty? kwseq)
+      0
+      (let [[k & kwseq] kwseq]
+        `(let [~result ~(dd/cmp-val-expr k datom0 datom1)]
+           (if (zero? ~result)
+             ~(cmp-for-kwseq-sub datom0 datom1 kwseq)
+             ~result))))))
 
-(defmacro cmp-lookup []
+(defn cmp-for-kwseq [kwseq]
+  (let [datom0 (dd/type-hint-datom (gensym))
+        datom1 (dd/type-hint-datom (gensym))]
+    `(fn [~datom0 ~datom1] ~(cmp-for-kwseq-sub datom0 datom1 kwseq))))
+
+(defmacro make-cmp-lookup []
   (let [index-sym (gensym)
         from-sym (gensym)
         to-sym (gensym)
@@ -93,6 +103,8 @@
                                 (fn [acc]
                                   (get kwseq-sym-map acc))))])
               index-type->kwseq))))))
+
+(def cmp-lookup (make-cmp-lookup))
 
 (def pset-cmp-acc (timeacc/unsafe-acc dt/timeacc-root :pset-cmp-acc))
 (def pset-slice-acc (timeacc/unsafe-acc dt/timeacc-root :pset-slice-acc))
