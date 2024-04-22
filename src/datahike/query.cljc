@@ -1282,9 +1282,10 @@ than doing no expansion at all."
   ([inds include-empty? replacer]
    (let [first-index (first inds)]
      (case (count inds)
-       0 (when include-empty? (fn
-                                ([] [nil])
-                                ([_] nil)))
+       0 (when include-empty?
+           (fn
+             ([] [nil])
+             ([_] nil)))
        1 (fn
            ([] [first-index])
            ([x] (wrap-comparable (replacer first-index (nth x first-index)))))
@@ -1363,27 +1364,34 @@ than doing no expansion at all."
                                   filt-extractor
                                   subst-filt-map]
   (let [pattern-symbols (repeatedly 5 gensym)
-        substitution-value-vector (gensym "substitution-value-vector")]
+        substitution-value-vector (gensym "substitution-value-vector")
+        datom-pred (gensym)
+        filt (gensym)]
     (dt/range-subset-tree
      5
      substitution-pattern-element-inds
      (fn [_pinds pmask]
-       `(fn [step#]
-          (fn
-            ([] (step#))
-            ([dst-one#] (step# dst-one#))
-            ([dst# ~@pattern-symbols datom-pred#]
-             (reduce (fn [dst-inner# [~substitution-value-vector filt#]]
-                       (step# dst-inner#
-                              ~@(map (fn [i sym]
-                                       (if (nil? i)
-                                         sym
-                                         `(nth ~substitution-value-vector ~i)))
-                                     pmask
-                                     pattern-symbols)
-                              (extend-predicate datom-pred# ~filt-extractor filt#)))
-                     dst#
-                     ~subst-filt-map))))))))
+       (let [branch-expr
+             (fn [pred-expr]
+               `(fn [step#]
+                  (fn
+                    ([] (step#))
+                    ([dst-one#] (step# dst-one#))
+                    ([dst# ~@pattern-symbols ~datom-pred]
+                     (reduce (fn [dst-inner# [~substitution-value-vector ~filt]]
+                               (step# dst-inner#
+                                      ~@(map (fn [i sym]
+                                               (if (nil? i)
+                                                 sym
+                                                 `(nth ~substitution-value-vector ~i)))
+                                             pmask
+                                             pattern-symbols)
+                                      ~pred-expr))
+                             dst#
+                             ~subst-filt-map)))))]
+         `(if (nil? ~filt-extractor)
+            ~(branch-expr datom-pred)
+            ~(branch-expr `(extend-predicate ~datom-pred ~filt-extractor ~filt))))))))
 
 (defn instantiate-substitution-xform [substitution-pattern-element-inds
                                       filt-extractor
