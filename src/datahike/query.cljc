@@ -1461,7 +1461,7 @@ than doing no expansion at all."
 
           ;; Roughly 0.0632 seconds
           subst-filt-map (timeacc/measure subst-filt-map1-acc
-                           (reduce (fn [dst tuple]
+                           #_(reduce (fn [dst tuple]
                                        (update
                                         dst
                                         (select-inds tuple pattern-substitution-inds)
@@ -1472,18 +1472,30 @@ than doing no expansion at all."
                                               dst)))))
                                      {}
                                      tuples)
-                           #_(let [dst (HashMap.)]
+                           (let [dst (HashMap.)]
                              (doseq [tuple tuples
                                      :let [feature (feature-extractor tuple)]
-                                     :when (good-lookup-refs? feature)
-                                     ]
-                               (let [k (subst-sel tuple)
+                                     :when (good-lookup-refs? feature)]
+                               (let [k (select-inds tuple pattern-substitution-inds)
                                      v (get dst k)]
                                  (if (nil? v)
                                    (.put dst k (doto (HashSet.)
                                                  (.add feature)))
                                    (.add v feature))))
-                             dst))
+                             dst)
+                           
+                           #_(let [dst (HashMap.)]
+                               (doseq [tuple tuples
+                                       :let [feature (feature-extractor tuple)]
+                                       :when (good-lookup-refs? feature)
+                                       ]
+                                 (let [k (subst-sel tuple)
+                                       v (get dst k)]
+                                   (if (nil? v)
+                                     (.put dst k (doto (HashSet.)
+                                                   (.add feature)))
+                                     (.add v feature))))
+                               dst))
 
 
 
@@ -1671,7 +1683,6 @@ than doing no expansion at all."
     ([dst e a v tx added? filt]
      (step dst [[e a v tx added?] filt]))))
 
-(def unpack6-xform-acc (timeacc/unsafe-acc timeacc-root :unpack6-xform-acc))
 (def subst-xform-acc (timeacc/unsafe-acc timeacc-root :subst-xform-acc))
 (def backend-xform-acc (timeacc/unsafe-acc timeacc-root :backend-xform-acc))
 (def filter-from-predicate-xform-acc (timeacc/unsafe-acc timeacc-root :filter-from-predicate-xform-acc))
@@ -1707,8 +1718,7 @@ than doing no expansion at all."
                       (timeacc/measure-xform
                        total-xform-acc
                        (comp
-                        (timeacc/measure-xform
-                         unpack6-xform-acc unpack6)
+                        unpack6 ;; neglible
                         (timeacc/measure-xform
                          subst-xform-acc subst-xform) ;; 0.05
                         (timeacc/measure-xform
