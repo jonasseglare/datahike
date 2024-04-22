@@ -96,14 +96,25 @@
         has-substitution (contains? strat-set :substitute)
         index-expr (symbol index-key)
 
+        lower-datom (datom-expr eavt-symbols eavt-strats 'e0 'tx0)
+        upper-datom (datom-expr eavt-symbols eavt-strats 'emax 'txmax)
+
+        slicer-sym (gensym)
+        
         ;; Either get all datoms or a subset where some values in the
         ;; datom are fixed.
         lookup-expr (if has-substitution
                       `(di/-slice ~index-expr
-                                  ~(datom-expr eavt-symbols eavt-strats 'e0 'tx0)
-                                  ~(datom-expr eavt-symbols eavt-strats 'emax 'txmax)
+                                  ~lower-datom
+                                  ~upper-datom
                                   ~index-key)
                       `(di/-all ~index-expr))
+        
+        slicer-lookup-expr (if has-substitution
+                             `(~slicer-sym
+                               ~lower-datom
+                               ~upper-datom)
+                             `(di/-all ~index-expr))
 
         ;; Symbol type-hinted as Datom.
         dexpr (vary-meta (gensym) assoc :tag `Datom)
@@ -125,8 +136,10 @@
            lookup-expr))
 
       ;; Used by the batch implementation
-      (fn [~index-expr ~@eavt-symbols ~added]
-        ~lookup-expr)]))
+      (fn [~index-expr]
+        (let [~slicer-sym (di/-slicer ~index-expr ~index-key)]
+          (fn [~@eavt-symbols ~added]
+            ~slicer-lookup-expr)))]))
 
 (defmacro lookup-strategy [index-key & eavt-strats]
   {:pre [(keyword? index-key)]}
