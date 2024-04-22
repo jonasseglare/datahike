@@ -70,3 +70,8 @@
   (is (= [:inds [0 2] :mask [0 nil 1]]
          (wrap-range-tree [0 2]))))
 
+(deftest unrolled-reduction-test
+  (dotimes [i 10]
+    (is (= (let [f (dt/unrolled-reduction 5 (range i))]
+             (f + 1000))
+           (reduce + 1000 (range i))))))

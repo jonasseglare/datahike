@@ -147,7 +147,7 @@
            (= (count form) (count pattern))
            (every? (fn [[pattern-el form-el]] (looks-like? pattern-el form-el))
                    (map vector pattern form))))
-    :else                                                   ;; (predicate? pattern)
+    :else ;; (predicate? pattern)
     (pattern form)))
 
 (defn source? [sym]
@@ -162,8 +162,7 @@
   (or (keyword? form) (string? form)))
 
 (defn lookup-ref? [form]
-  ;; Use looks-like? here, but make sure that it is as efficient as the code below.
-  ;; Use a macro?
+  ;; Using looks-like? here is quite inefficient.
   (and (vector? form)
        (= 2 (count form))
        (attr? (first form))))

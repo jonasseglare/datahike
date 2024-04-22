@@ -255,3 +255,17 @@
                               (inc at)
                               acc-inds
                               mask))))))
+
+(defmacro unrolled-reduction [unroll-limit collection]
+  (let [step (gensym)
+        dst (gensym)]
+    `(case (count ~collection)
+       ~@(mapcat (fn [i]
+                   [i (let [syms (repeatedly i gensym)]
+                        `(let [~(vec syms) ~collection]
+                           (fn [~step ~dst]
+                             (-> ~dst
+                                 ~@(map (fn [sym] `(~step ~sym)) syms)))))])
+                 (range unroll-limit))
+       (fn [~step ~dst]
+         (reduce ~step ~dst ~collection)))))
