@@ -56,6 +56,44 @@
    :aevt [:a :e :v :tx :added]
    :avet [:a :v :e :tx :added]})
 
+(defn from-to-tree [from-sym to-sym index-spec acc cb]
+  (if (empty? index-spec)
+    (cb acc)
+    (let [[findex & index-spec] index-spec]
+      `(if (and (nil? (~findex ~from-sym))
+                (nil? (~findex ~to-sym)))
+         ~(cb acc)
+         ~(from-to-tree from-sym to-sym index-spec (conj acc findex) cb)))))
+
+(defn cmp-for-kwseq [kwseq]
+  (let [datom0 (gensym)
+        datom1 (gensym)]
+    `(fn [~datom0 ~datom1] ~kwseq)))
+
+(defmacro cmp-lookup []
+  (let [index-sym (gensym)
+        from-sym (gensym)
+        to-sym (gensym)
+        all-kwseqs (set (for [[_ kwseq] index-type->kwseq
+                              limit (range 6)]
+                          (vec (take limit kwseq))))
+        kwseq-sym-map (zipmap all-kwseqs (repeatedly gensym))]
+    `(fn [~index-sym]
+       (let [~@(mapcat (fn [[kwseq sym]]
+                         [sym (cmp-for-kwseq kwseq)])
+                       kwseq-sym-map)]
+         (case ~index-sym
+           ~@(mapcat
+              (fn [[index-key index-spec]]
+                [index-key `(fn [~from-sym ~to-sym]
+                              ~(from-to-tree
+                                from-sym to-sym
+                                index-spec
+                                []
+                                (fn [acc]
+                                  (get kwseq-sym-map acc))))])
+              index-type->kwseq))))))
+
 (def pset-cmp-acc (timeacc/unsafe-acc dt/timeacc-root :pset-cmp-acc))
 (def pset-slice-acc (timeacc/unsafe-acc dt/timeacc-root :pset-slice-acc))
 
