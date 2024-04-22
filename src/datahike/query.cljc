@@ -1422,12 +1422,14 @@ than doing no expansion at all."
                  elems (repeatedly n gensym)]
              `(fn [~tuple]
                 (let [~@(mapcat (fn [sym index i]
-                                  [sym `(~replacer ~index (nth ~tuple ~i))])
+                                  [sym #_`(~replacer ~index (nth ~tuple ~i))
+                                   `(nth ~tuple ~i)])
                                 elems
                                 pinds
                                 (range))]
-                  (when-not (or ~@(map (fn [e] `(= ::error ~e)) elems))
-                    ~(vec elems))))))))))
+                  ~(vec elems)
+                  #_(when-not (or ~@(map (fn [e] `(= ::error ~e)) elems))
+                      ~(vec elems))))))))))
 
 (def vec-lookup-ref-replacer (make-vec-lookup-ref-replacer 5))
 
@@ -1513,7 +1515,7 @@ than doing no expansion at all."
                              (loop []
                                (when (.hasNext iter)
                                  (let [kv (.next iter)
-                                       k2 (vrepl (key kv))]
+                                       k2 (timeacc/measure wip-acc (vrepl (key kv)))]
                                    (when k2
                                      (.add dst (AbstractMap$SimpleEntry. k2 (val kv))))
                                    (recur))))
@@ -1712,22 +1714,21 @@ than doing no expansion at all."
             ;; .... take about 0.004 seconds
 
             ;; About 0.61 seconds of which inner-backend-fn is 0.45
-            result (timeacc/measure wip-acc
-                     (into
-                      []
+            result (into
+                    []
+                    (timeacc/measure-xform
+                     total-xform-acc
+                     (comp
+                      unpack6 ;; neglible
                       (timeacc/measure-xform
-                       total-xform-acc
-                       (comp
-                        unpack6 ;; neglible
-                        (timeacc/measure-xform
-                         subst-xform-acc subst-xform) ;; 0.05
-                        (timeacc/measure-xform
-                         backend-xform-acc (backend-xform backend-fn)) ;; 0.49
-                        (timeacc/measure-xform
-                         filter-from-predicate-xform-acc
-                         (filter-from-predicate filt-predicate)) ;; 0.036
-                        ))
-                      init-coll))]
+                       subst-xform-acc subst-xform) ;; 0.05
+                      (timeacc/measure-xform
+                       backend-xform-acc (backend-xform backend-fn)) ;; 0.49
+                      (timeacc/measure-xform
+                       filter-from-predicate-xform-acc
+                       (filter-from-predicate filt-predicate)) ;; 0.036
+                      ))
+                    init-coll)]
         result))))
 
 (comment
