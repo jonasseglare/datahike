@@ -5,7 +5,7 @@
             [clojure.core.cache.wrapped :as wrapped]
             [datahike.datom :as dd]
             [datahike.constants :refer [tx0 txmax]]
-            [datahike.index.interface :as di :refer [IIndex]]
+            [datahike.index.interface :as di :refer [IIndex -slice]]
             [datahike.tools :as dt]
             [konserve.core :as k]
             [timeacc.core :as timeacc]
@@ -171,6 +171,9 @@
   IIndex
   (-slice [^PersistentSortedSet pset from to index-type]
     (slice pset from to index-type))
+  (-slicer [^PersistentSortedSet pset index-type]
+    (fn [from to]
+      (-slice pset from to index-type)))
   (-all [pset]
     (identity pset))
   (-seq [^PersistentSortedSet pset]
