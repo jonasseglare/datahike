@@ -35,6 +35,8 @@
                    [java.util Date Map HashSet ArrayList HashMap AbstractMap$SimpleEntry
                     Iterator])))
 
+(set! *warn-on-reflection* true)
+
 (defn ordered? [coll]
   (= coll (sort coll)))
 
@@ -160,6 +162,8 @@
   (or (keyword? form) (string? form)))
 
 (defn lookup-ref? [form]
+  ;; Use looks-like? here, but make sure that it is as efficient as the code below.
+  ;; Use a macro?
   (and (vector? form)
        (= 2 (count form))
        (attr? (first form))))
@@ -1325,7 +1329,7 @@ than doing no expansion at all."
   [source clean-attribute pattern-index pattern-value error-code]
   (let [a clean-attribute]
     (if (dbu/db? source)
-      (case pattern-index
+      (case (int pattern-index)
         0 (timeacc/measure c0-acc
             (resolve-pattern-lookup-entity-id source pattern-value error-code))
         1 (timeacc/measure c1-acc
@@ -1487,7 +1491,7 @@ than doing no expansion at all."
                                      :let [feature (feature-extractor tuple)]
                                      :when (good-lookup-refs? feature)]
                                (let [k (select-inds tuple pattern-substitution-inds)
-                                     v (get dst k)]
+                                     ^HashSet v (get dst k)]
                                  (if (nil? v)
                                    (.put dst k (doto (HashSet.)
                                                  (.add feature)))
