@@ -173,19 +173,22 @@
       (dbu/numeric-entid? x)
       (keyword? x)))
 
+(def join-tuples-acc (timeacc/unsafe-acc timeacc-root :join-tuples-acc))
+
 ;; Relation algebra
 (defn join-tuples [t1 #?(:cljs idxs1
                          :clj ^{:tag "[[Ljava.lang.Object;"} idxs1)
                    t2 #?(:cljs idxs2
                          :clj ^{:tag "[[Ljava.lang.Object;"} idxs2)]
-  (let [l1 (alength idxs1)
-        l2 (alength idxs2)
-        res (da/make-array (+ l1 l2))]
-    (dotimes [i l1]
-      (aset res i (#?(:cljs da/aget :clj get) t1 (aget idxs1 i)))) ;; FIXME aget
-    (dotimes [i l2]
-      (aset res (+ l1 i) (#?(:cljs da/aget :clj get) t2 (aget idxs2 i)))) ;; FIXME aget
-    res))
+  (timeacc/measure join-tuples-acc
+    (let [l1 (alength idxs1)
+          l2 (alength idxs2)
+          res (da/make-array (+ l1 l2))]
+      (dotimes [i l1]
+        (aset res i (#?(:cljs da/aget :clj get) t1 (aget idxs1 i)))) ;; FIXME aget
+      (dotimes [i l2]
+        (aset res (+ l1 i) (#?(:cljs da/aget :clj get) t2 (aget idxs2 i)))) ;; FIXME aget
+      res)))
 
 (defn sum-rel
   ([a] a)
@@ -573,6 +576,22 @@
 
 (def hash-join-acc (timeacc/unsafe-acc timeacc-root :hash-join-acc))
 
+(defn compute-new-tuples [key-fn1 tuples1 keep-idxs1 keep-attrs1
+                          key-fn2 tuples2 keep-idxs2 keep-attrs2]
+  (let [hash (hash-attrs key-fn1 tuples1)
+        new-tuples (->>
+                    (reduce (fn [acc tuple2]
+                              (let [key (key-fn2 tuple2)]
+                                (if-some [tuples1 (get hash key)]
+                                  (reduce (fn [acc tuple1]
+                                            (conj! acc (join-tuples tuple1 keep-idxs1 tuple2 keep-idxs2)))
+                                          acc tuples1)
+                                  acc)))
+                            (transient []) tuples2)
+                    (persistent!))]
+    (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
+               new-tuples)))
+
 (defn hash-join [rel1 rel2]
   (timeacc/measure hash-join-acc
     (let [tuples1      (:tuples rel1)
@@ -589,20 +608,11 @@
           key-fn1      (tuple-key-fn common-gtrs1)
           key-fn2      (tuple-key-fn common-gtrs2)]
       (if (< (count tuples1) (count tuples2))
-        (let [hash       (hash-attrs key-fn1 tuples1)
-              new-tuples (->>
-                          (reduce (fn [acc tuple2]
-                                    (let [key (key-fn2 tuple2)]
-                                      (if-some [tuples1 (get hash key)]
-                                        (reduce (fn [acc tuple1]
-                                                  (conj! acc (join-tuples tuple1 keep-idxs1 tuple2 keep-idxs2)))
-                                                acc tuples1)
-                                        acc)))
-                                  (transient []) tuples2)
-                          (persistent!))]
-          (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
-                     new-tuples))
-        (let [hash       (hash-attrs key-fn2 tuples2)
+        (compute-new-tuples key-fn1 tuples1 keep-idxs1 keep-attrs1
+                            key-fn2 tuples2 keep-idxs2 keep-attrs2)
+        (compute-new-tuples key-fn2 tuples2 keep-idxs2 keep-attrs2
+                            key-fn1 tuples1 keep-idxs1 keep-attrs1)
+        #_(let [hash       (hash-attrs key-fn2 tuples2)
               new-tuples (->>
                           (reduce (fn [acc tuple1]
                                     (let [key (key-fn1 tuple1)]
