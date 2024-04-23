@@ -1689,33 +1689,45 @@ than doing no expansion at all."
 
   )
 
-(defn lookup-new-search [source context orig-pattern pattern1]
-  (let [new-rel (if (dbu/db? source)
-                  (let [rels (vec (:rels context))
-                        bsm (bound-symbol-map rels)
-                        clean-pattern (->> pattern1
-                                           (replace-unbound-symbols-by-nil bsm)
-                                           (resolve-pattern-eid source))
-                        search-context {:source source
-                                        :bsm bsm
-                                        :clean-pattern clean-pattern
-                                        :rels rels}
-                        datoms (if clean-pattern
-                                 (dbi/-batch-search source clean-pattern
-                                                    (search-batch-fn search-context))
-                                 [])
-                        new-rel (relation-from-datoms context orig-pattern datoms)
-                        base-rel (Relation. (var-mapping orig-pattern (range)) [])
-                        full-rel (simplify-rel (sum-rel base-rel new-rel))]
-                    full-rel)
-                  (lookup-pattern-coll source pattern1 orig-pattern))]
+(def lookup-new-search-acc (timeacc/unsafe-acc timeacc-root :lookup-new-search))
+(def new-rel-acc (timeacc/unsafe-acc timeacc-root :new-rel-acc))
+(def dbi-batch-search-acc (timeacc/unsafe-acc timeacc-root :dbi-batch-search-acc))
+(def collapse-rels-acc (timeacc/unsafe-acc timeacc-root :collapse-rels-acc))
+(def rels-acc (timeacc/unsafe-acc timeacc-root :rels-acc))
 
-    ;; This binding is needed for `collapse-rels` to work, and more specifically,
-    ;; `hash-join` to work, that in turn depends on `getter-fn`.
-    (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
-                               (dynamic-lookup-attrs source pattern1)
-                               *lookup-attrs*)]
-      (update context :rels collapse-rels new-rel))))
+(defn lookup-new-search [source context orig-pattern pattern1]
+  (timeacc/measure lookup-new-search-acc
+    (let [new-rel (timeacc/measure new-rel-acc
+                    (if (dbu/db? source)
+                      (let [rels (vec (:rels context))
+                            bsm (bound-symbol-map rels)
+                            clean-pattern (->> pattern1
+                                               (replace-unbound-symbols-by-nil bsm)
+                                               (resolve-pattern-eid source))
+                            search-context {:source source
+                                            :bsm bsm
+                                            :clean-pattern clean-pattern
+                                            :rels rels}
+                            datoms (if clean-pattern
+                                     (timeacc/measure dbi-batch-search-acc
+                                       (dbi/-batch-search source clean-pattern
+                                                          (search-batch-fn search-context)))
+                                     [])
+                            start-ns (System/nanoTime)
+                            new-rel (relation-from-datoms context orig-pattern datoms)
+                            base-rel (Relation. (var-mapping orig-pattern (range)) [])
+                            full-rel (simplify-rel (sum-rel base-rel new-rel))
+                            _ (timeacc/accumulate-nano-seconds-since rels-acc start-ns)]
+                        full-rel)
+                      (lookup-pattern-coll source pattern1 orig-pattern)))]
+
+      ;; This binding is needed for `collapse-rels` to work, and more specifically,
+      ;; `hash-join` to work, that in turn depends on `getter-fn`.
+      (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
+                                 (dynamic-lookup-attrs source pattern1)
+                                 *lookup-attrs*)]
+        (timeacc/measure collapse-rels-acc
+          (update context :rels collapse-rels new-rel))))))
 
 
 (defn normalize-rel [rel]
@@ -1739,6 +1751,8 @@ than doing no expansion at all."
       (def the-a a)
       (def the-b b)
       (throw (ex-info "Different contexts" {})))))
+
+(def general-pattern-acc (timeacc/unsafe-acc timeacc-root :general-pattern-acc))
 
 (defn -resolve-clause*
   ([context clause]
@@ -1835,28 +1849,29 @@ than doing no expansion at all."
                                              :branches (:stats negation-context)})))
 
      '[*] ;; pattern
-     (let [source *implicit-source*
-           pattern0 (replace (:consts context) clause)
-           pattern1 (resolve-pattern-lookup-refs source pattern0)]
-       (case (-> context :settings :search-strategy)
-         :old (let [constrained-patterns (expand-constrained-patterns
-                                 source context pattern1)
-               context-constrained (lookup-patterns
-                                context clause pattern1 constrained-patterns)]
-           context-constrained)
-         (lookup-new-search source context clause pattern1))
+     (timeacc/measure general-pattern-acc
+       (let [source *implicit-source*
+             pattern0 (replace (:consts context) clause)
+             pattern1 (resolve-pattern-lookup-refs source pattern0)]
+         (case (-> context :settings :search-strategy)
+           :old (let [constrained-patterns (expand-constrained-patterns
+                                            source context pattern1)
+                      context-constrained (lookup-patterns
+                                           context clause pattern1 constrained-patterns)]
+                  context-constrained)
+           (lookup-new-search source context clause pattern1))
 
-       ;;;; Just for debugging
-       #_(compare-contexts
-          context-constrained
-          new-context)
-       #_(log-example {:source source
-                     :pattern1 pattern1
-                     :context context
-                     :clause clause
-                     :constrained-patterns constrained-patterns})
-       ;context-constrained
-       ))))
+;;;; Just for debugging
+         #_(compare-contexts
+            context-constrained
+            new-context)
+         #_(log-example {:source source
+                         :pattern1 pattern1
+                         :context context
+                         :clause clause
+                         :constrained-patterns constrained-patterns})
+                                        ;context-constrained
+         )))))
 
 (defn -resolve-clause
   ([context clause]
@@ -2002,31 +2017,34 @@ than doing no expansion at all."
 
 (def default-settings {:relprod-strategy expand-once})
 
+(def raw-q-acc (timeacc/unsafe-acc timeacc-root :raw-q-acc))
+
 (defn raw-q [{:keys [query args offset limit stats? settings] :as _query-map}]
-  (let [settings (merge default-settings settings)
-        {:keys [qfind
-                qwith
-                qreturnmaps
-                qin]} (memoized-parse-query query)
-        context-in    (-> (if stats?
-                            (StatContext. [] {} {} {} [] settings)
-                            (Context. [] {} {} {} settings))
-                          (resolve-ins qin args))
-        ;; TODO utilize parser
-        all-vars      (concat (dpi/find-vars qfind) (map :symbol qwith))
-        context-out   (-q context-in (:where query))
-        resultset     (collect context-out all-vars)
-        find-elements (dpip/find-elements qfind)
-        result-arity  (count find-elements)]
-    (cond->> resultset
-      (or offset limit)                             (paginate offset limit)
-      true                                          set
-      (:with query)                                 (mapv #(subvec % 0 result-arity))
-      (some #(instance? Aggregate %) find-elements) (aggregate find-elements context-in)
-      (some #(instance? Pull %) find-elements)      (pull find-elements context-in)
-      true                                          (-post-process qfind)
-      qreturnmaps                                   (convert-to-return-maps qreturnmaps)
-      stats?                                        (#(-> context-out
-                                                          (dissoc :rels :sources :settings)
-                                                          (assoc :ret %
-                                                                 :query query))))))
+  (timeacc/measure raw-q-acc
+    (let [settings (merge default-settings settings)
+          {:keys [qfind
+                  qwith
+                  qreturnmaps
+                  qin]} (memoized-parse-query query)
+          context-in    (-> (if stats?
+                              (StatContext. [] {} {} {} [] settings)
+                              (Context. [] {} {} {} settings))
+                            (resolve-ins qin args))
+          ;; TODO utilize parser
+          all-vars      (concat (dpi/find-vars qfind) (map :symbol qwith))
+          context-out   (-q context-in (:where query))
+          resultset     (collect context-out all-vars)
+          find-elements (dpip/find-elements qfind)
+          result-arity  (count find-elements)]
+      (cond->> resultset
+        (or offset limit)                             (paginate offset limit)
+        true                                          set
+        (:with query)                                 (mapv #(subvec % 0 result-arity))
+        (some #(instance? Aggregate %) find-elements) (aggregate find-elements context-in)
+        (some #(instance? Pull %) find-elements)      (pull find-elements context-in)
+        true                                          (-post-process qfind)
+        qreturnmaps                                   (convert-to-return-maps qreturnmaps)
+        stats?                                        (#(-> context-out
+                                                            (dissoc :rels :sources :settings)
+                                                            (assoc :ret %
+                                                                   :query query)))))))
