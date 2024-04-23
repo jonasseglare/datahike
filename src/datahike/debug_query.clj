@@ -1,5 +1,6 @@
 (ns datahike.debug-query
   (:require [datahike.api :as d]
+            [clojure.walk :refer [postwalk]]
             [datahike.tools :refer [timeacc-root]]
             [timeacc.core :as timeacc]
             [datahike.query :as dq]
@@ -160,6 +161,95 @@
       (set-db (deref conn))
       (set-strategy strategy)))
 
+(defn evaluate-query-db-values [query conn]
+  (let [db (d/db conn)]
+    (postwalk
+     (fn [x]
+       (if (and (map? x)
+                (contains? x :taxonomy-db/type))
+         (if-let [version (:taxonomy-db/version-id x)]
+           (let [tx (d/q
+                     {:query
+                      '[:find ?tx
+                        :in $ ?version
+                        :where
+                        [?t :taxonomy-version/id ?version]
+                        [?t :taxonomy-version/tx ?tx]],
+                      :args [db version]})]
+             (when-not (= 1 (count tx))
+               (throw (ex-info "Unexpected tx count"
+                               {:version version
+                                :tx tx})))
+             (d/as-of db (ffirst tx)))
+           db)
+         x))
+     query)))
+
+(defn normalize-query [{:keys [query args]}]
+  (dq/normalize-q-input query args))
+
+(defn decorate-query [{:keys [query args]} extra]
+  {:query (merge (dq/normalize-q-input query args)
+                 extra)
+   :args []})
+
+(defn query3 [conn strategy]
+  (-> '{:query
+        [:find
+         (pull ?oc [:concept/id :concept/type :concept/preferred-label])
+         (pull
+          ?esco
+          [:concept/id
+           :concept/type
+           :concept/preferred-label
+           :concept.external-standard/esco-uri])
+         :in
+         $
+         %
+         :where
+         [?oc :concept/type "occupation-name"]
+         (edge ?oc "broader" ?esco ?r1)
+         [?esco :concept/type "isco-level-4"]],
+        :args
+        ({:taxonomy-db/type "datomic.core.db.Db",
+          :taxonomy-db/version-id 21}
+         [[(-forward-edge ?from-concept ?type ?to-concept ?relation)
+           [(ground
+             ["broader"
+              "related"
+              "possible-combination"
+              "unlikely-combination"
+              "substitutability"
+              "broad-match"
+              "exact-match"
+              "close-match"])
+            [?type ...]]
+           [?relation :relation/concept-1 ?from-concept]
+           [?relation :relation/type ?type]
+           [?relation :relation/concept-2 ?to-concept]]
+          [(-reverse-edge ?from-concept ?type ?to-concept ?relation)
+           [(ground
+             {"narrower" "broader",
+              "related" "related",
+              "possible-combination" "possible-combination",
+              "unlikely-combination" "unlikely-combination",
+              "substituted-by" "substitutability",
+              "narrow-match" "broad-match",
+              "exact-match" "exact-match",
+              "close-match" "close-match"})
+            [[?type ?reverse-type]]]
+           [?relation :relation/concept-2 ?from-concept]
+           [?relation :relation/type ?reverse-type]
+           [?relation :relation/concept-1 ?to-concept]]
+          [(edge ?from-concept ?type ?to-concept ?relation)
+           (or
+            (-forward-edge ?from-concept ?type ?to-concept ?relation)
+            (-reverse-edge ?from-concept ?type ?to-concept ?relation))]]),
+        :query-index 861}
+      (evaluate-query-db-values conn)
+      normalize-query
+      (set-strategy strategy)))
+
 (defn trace-with-paths [trace]
   (loop [trace trace
          path []
@@ -276,6 +366,7 @@
      (let [examples (atom [])]
        (with-redefs [dq/log-example (fn [ex] (swap! examples conj ex))]
          (let [query (query-builder conn strategy)
+               _ (def the-query query)
                [result trace] (traced-q query)]
            (render-tree (acc-tree trace))
            (def the-examples (deref examples))
@@ -289,6 +380,7 @@
    (println "\n\n")))
 
 (defn demo0 [] (run-example :new #_dq/expand-once query2))
+(defn demo1 [] (run-example nil #_dq/expand-once query3))
 
 (defn load-examples []
   (-> "query_examples.edn"
