@@ -905,3 +905,10 @@
   (let [make-sel (dq/make-index-selector 5)
         sel (make-sel [1 3])]
     (is (= [:b :d] (sel [:a :b :c :d :e])))))
+
+#_(deftest test-unrolled-tuple-key-fn
+  (let [tuple-key-fn (dq/unrolled-tuple-key-fn 3)]
+    (is (nil? ((tuple-key-fn []) {:a 3 :b 4 :c 5 :d 6})))
+    (is (= 3 ((tuple-key-fn [:a]) {:a 3 :b 4 :c 5 :d 6})))
+    (is (= [4 3] ((tuple-key-fn [:b :a]) {:a 3 :b 4 :c 5 :d 6})))
+    (is (= [4 3 5 6] ((tuple-key-fn [:b :a :c :d]) {:a 3 :b 4 :c 5 :d 6})))))

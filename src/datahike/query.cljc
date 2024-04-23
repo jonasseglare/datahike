@@ -535,13 +535,32 @@
       (fn [tuple]
         (#?(:cljs da/aget :clj get) tuple idx)))))
 
+;; Not faster
+#_(defmacro unrolled-tuple-key-fn [unroll-limit]
+    (let [getters (gensym)
+          tuple (gensym)
+          f (gensym)]
+      `(fn [~getters]
+         (case (count ~getters)
+           0 (fn [~tuple] nil)
+           1 (let [~f (first ~getters)]
+               (fn [~tuple] (~f ~tuple)))
+           ~@(mapcat (fn [n]
+                       [n (let [fns (repeatedly n gensym)]
+                            `(let [~(vec fns) ~getters]
+                               (fn [~tuple]
+                                 ~(mapv (fn [f] `(~f ~tuple)) fns))))])
+                     (range 2 unroll-limit))
+           (fn [~tuple] (mapv (fn [~f] (~f ~tuple)) ~getters))))))
+
+#_(def tuple-key-fn (unrolled-tuple-key-fn 8))
 (defn tuple-key-fn [getters]
-  (if (== (count getters) 1)
-    (first getters)
-    (let [getters (to-array getters)]
-      (fn [tuple]
-        (list* #?(:cljs (.map getters #(% tuple))
-                  :clj (to-array (map #(% tuple) getters))))))))
+    (if (== (count getters) 1)
+      (first getters)
+      (let [getters (to-array getters)]
+        (fn [tuple]
+          (list* #?(:cljs (.map getters #(% tuple))
+                    :clj (to-array (map #(% tuple) getters))))))))
 
 (defn hash-attrs [key-fn tuples]
   (loop [tuples tuples
@@ -552,47 +571,50 @@
                (assoc! hash-table key (conj (get hash-table key '()) tuple))))
       (persistent! hash-table))))
 
+(def hash-join-acc (timeacc/unsafe-acc timeacc-root :hash-join-acc))
+
 (defn hash-join [rel1 rel2]
-  (let [tuples1      (:tuples rel1)
-        tuples2      (:tuples rel2)
-        attrs1       (:attrs rel1)
-        attrs2       (:attrs rel2)
-        common-attrs (vec (intersect-keys (:attrs rel1) (:attrs rel2)))
-        common-gtrs1 (map #(getter-fn attrs1 %) common-attrs)
-        common-gtrs2 (map #(getter-fn attrs2 %) common-attrs)
-        keep-attrs1  (keys attrs1)
-        keep-attrs2  (vec (set/difference (set (keys attrs2)) (set (keys attrs1))))
-        keep-idxs1   (to-array (map attrs1 keep-attrs1))
-        keep-idxs2   (to-array (map attrs2 keep-attrs2))
-        key-fn1      (tuple-key-fn common-gtrs1)
-        key-fn2      (tuple-key-fn common-gtrs2)]
-    (if (< (count tuples1) (count tuples2))
-      (let [hash       (hash-attrs key-fn1 tuples1)
-            new-tuples (->>
-                        (reduce (fn [acc tuple2]
-                                  (let [key (key-fn2 tuple2)]
-                                    (if-some [tuples1 (get hash key)]
-                                      (reduce (fn [acc tuple1]
-                                                (conj! acc (join-tuples tuple1 keep-idxs1 tuple2 keep-idxs2)))
-                                              acc tuples1)
-                                      acc)))
-                                (transient []) tuples2)
-                        (persistent!))]
-        (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
-                   new-tuples))
-      (let [hash       (hash-attrs key-fn2 tuples2)
-            new-tuples (->>
-                        (reduce (fn [acc tuple1]
-                                  (let [key (key-fn1 tuple1)]
-                                    (if-some [tuples2 (get hash key)]
-                                      (reduce (fn [acc tuple2]
-                                                (conj! acc (join-tuples tuple1 keep-idxs1 tuple2 keep-idxs2)))
-                                              acc tuples2)
-                                      acc)))
-                                (transient []) tuples1)
-                        (persistent!))]
-        (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
-                   new-tuples)))))
+  (timeacc/measure hash-join-acc
+    (let [tuples1      (:tuples rel1)
+          tuples2      (:tuples rel2)
+          attrs1       (:attrs rel1)
+          attrs2       (:attrs rel2)
+          common-attrs (vec (intersect-keys (:attrs rel1) (:attrs rel2)))
+          common-gtrs1 (map #(getter-fn attrs1 %) common-attrs)
+          common-gtrs2 (map #(getter-fn attrs2 %) common-attrs)
+          keep-attrs1  (keys attrs1)
+          keep-attrs2  (vec (set/difference (set (keys attrs2)) (set (keys attrs1))))
+          keep-idxs1   (to-array (map attrs1 keep-attrs1))
+          keep-idxs2   (to-array (map attrs2 keep-attrs2))
+          key-fn1      (tuple-key-fn common-gtrs1)
+          key-fn2      (tuple-key-fn common-gtrs2)]
+      (if (< (count tuples1) (count tuples2))
+        (let [hash       (hash-attrs key-fn1 tuples1)
+              new-tuples (->>
+                          (reduce (fn [acc tuple2]
+                                    (let [key (key-fn2 tuple2)]
+                                      (if-some [tuples1 (get hash key)]
+                                        (reduce (fn [acc tuple1]
+                                                  (conj! acc (join-tuples tuple1 keep-idxs1 tuple2 keep-idxs2)))
+                                                acc tuples1)
+                                        acc)))
+                                  (transient []) tuples2)
+                          (persistent!))]
+          (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
+                     new-tuples))
+        (let [hash       (hash-attrs key-fn2 tuples2)
+              new-tuples (->>
+                          (reduce (fn [acc tuple1]
+                                    (let [key (key-fn1 tuple1)]
+                                      (if-some [tuples2 (get hash key)]
+                                        (reduce (fn [acc tuple2]
+                                                  (conj! acc (join-tuples tuple1 keep-idxs1 tuple2 keep-idxs2)))
+                                                acc tuples2)
+                                        acc)))
+                                  (transient []) tuples1)
+                          (persistent!))]
+          (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
+                     new-tuples))))))
 
 (defn subtract-rel [a b]
   (let [{attrs-a :attrs, tuples-a :tuples} a
