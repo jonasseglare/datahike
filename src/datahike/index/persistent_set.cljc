@@ -172,8 +172,9 @@
   (-slice [^PersistentSortedSet pset from to index-type]
     (slice pset from to index-type))
   (-slicer [^PersistentSortedSet pset index-type]
-    (fn [from to]
-      (-slice pset from to index-type)))
+    (let [lu (cmp-lookup index-type)]
+      (fn [from to]
+        (psset/slice pset from to (lu from to)))))
   (-all [pset]
     (identity pset))
   (-seq [^PersistentSortedSet pset]
