@@ -579,7 +579,7 @@
 (defn compute-new-tuples [key-fn1 tuples1 keep-idxs1 keep-attrs1
                           key-fn2 tuples2 keep-idxs2 keep-attrs2]
   (let [hash (hash-attrs key-fn1 tuples1)
-        new-tuples (->>
+        #_#_new-tuples (->>
                     (reduce (fn [acc tuple2]
                               (let [key (key-fn2 tuple2)]
                                 (if-some [tuples1 (get hash key)]
@@ -588,7 +588,22 @@
                                           acc tuples1)
                                   acc)))
                             (transient []) tuples2)
-                    (persistent!))]
+                    (persistent!))
+        new-tuples (into []
+                         (fn [step]
+                           (fn
+                             ([dst] (step dst))
+                             ([acc tuple2]
+                              (let [key (key-fn2 tuple2)]
+                                (if-some [tuples1 (get hash key)]
+                                  (reduce (fn [acc tuple1]
+                                            (step acc (join-tuples tuple1
+                                                                   keep-idxs1
+                                                                   tuple2
+                                                                   keep-idxs2)))
+                                          acc tuples1)
+                                  acc)))))
+                         tuples2)]
     (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
                new-tuples)))
 
