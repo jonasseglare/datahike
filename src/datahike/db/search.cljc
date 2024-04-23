@@ -216,7 +216,7 @@
          :avet (:temporal-avet db)
          nil) strategy-vec strategy-fn backend-fn])))
 
-(defn backend-fn-with-index [backend-fn db-index]
+#_(defn backend-fn-with-index [backend-fn db-index]
   (fn [e a v tx added?]
     (backend-fn db-index e a v tx added?)))
 
@@ -233,7 +233,7 @@
   ([db pattern batch-fn]
    ;; TODO: Handle empty!!!
    (if-let [[db-index strategy-vec _ backend-fn] (current-search-strategy db pattern)]
-     (batch-fn strategy-vec (backend-fn-with-index backend-fn db-index))
+     (batch-fn strategy-vec (backend-fn db-index))
      [])))
 
 (defn added? [[_ _ _ _ added]]
@@ -254,7 +254,7 @@
                    [])))
   ([db pattern batch-fn]
    (if-let [[db-index strategy-vec _ backend-fn] (temporal-search-strategy db pattern)]
-     (let [result (batch-fn strategy-vec (backend-fn-with-index backend-fn db-index))]
+     (let [result (batch-fn strategy-vec (backend-fn db-index))]
        (filter-by-added pattern result))
      [])))
 
