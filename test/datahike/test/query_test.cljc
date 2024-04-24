@@ -11,10 +11,6 @@
 
 #?(:cljs (def Throwable js/Error))
 
-(defmacro FIX-THIS [& _body])
-
-
-
 (deftest test-joins
   (let [db (-> (db/empty-db)
                (d/db-with [{:db/id 1, :name  "Ivan", :age   15}
@@ -529,55 +525,6 @@
                                       (long-array [3 4])])))
   (is (= [[3 4] [9 7]] (dq/distinct-tuples [[3 4] [9 7] [3 4]]))))
 
-(defn simple-rel
-  ([v values] (simple-rel v values {}))
-  ([v values extra]
-   (dq/->Relation (merge {v 0} extra) (map vector values))))
-
-(deftest test-relprod
-  (let [x (simple-rel '?x [1 2 3 4])
-        y (simple-rel '?y [90] {'?w 1})
-        z (simple-rel '?z [10 11 12])
-        rels [x y z]
-        xy-vars ['?x '?y]
-        rel-data (dq/expansion-rel-data rels xy-vars)
-        relprod (dq/init-relprod rel-data xy-vars)
-        relprod-x (dq/relprod-select-keys relprod #{['?x]})
-        relprod-xy (dq/relprod-select-keys relprod #{['?x] ['?y]})
-        relprod-xy2 (dq/select-all relprod)
-        relprod-y (dq/select-simple relprod)
-        prodks (comp set keys :attrs :product)]
-    (is (= #{} (dq/relprod-vars relprod-x)))
-    (is (= #{'?x} (dq/relprod-vars relprod-x :include)))
-    (is (= #{'?y} (dq/relprod-vars relprod-x :exclude)))
-    (is (= #{'?x '?y} (dq/relprod-vars relprod-x :include :exclude)))
-    (is (= 2 (count rel-data)))
-    (is (= [{:rel x
-             :tuple-count 4
-             :vars ['?x]}
-            {:rel y
-             :tuple-count 1
-             :vars ['?y]}]
-           rel-data))
-    (is (sequential? (:exclude relprod)))
-    (is (= 2 (count (:exclude relprod))))
-    (is (= 1 (count (:exclude relprod-x))))
-    (is (= 0 (count (:exclude relprod-xy))))
-    (is (= #{'?x} (prodks relprod-x)))
-    (is (= #{'?x '?y '?w} (prodks relprod-xy)))
-    (is (= #{'?x '?y '?w} (prodks relprod-xy2)))
-    (is (= #{'?y '?w} (prodks relprod-y)))
-
-    (doseq [{:keys [include exclude vars]} [relprod relprod-x relprod-xy relprod-xy2 relprod-y]]
-      (is (= 2 (+ (count include)
-                  (count exclude))))
-      (is (= xy-vars vars)))))
-
-
-
-
-
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
 ;;;; W I P   T E S T S
@@ -746,57 +693,60 @@
 
 
 
-(FIX-THIS
-  (deftest test-substitution-plan
-    (let [-pattern1 '[?w ?x ?y]
-          context '{:rels [{:attrs {?x 0
-                                    ?y 1}
-                            :tuples [[1 2]
-                                     [3 4]
-                                     [3 5]
-                                     [5 6]]}
-                           {:attrs {?z 0}
-                            :tuples [[9] [10] [11]]}]}
-          rels (vec (:rels context))
-          bsm (dq/bound-symbol-map rels)
-          clean-pattern (dq/replace-unbound-symbols-by-nil bsm -pattern1)
-          strategy [nil :substitute :filter nil]
-          subst-inds (dq/substitution-relation-indices
-                      {:bsm bsm
-                       :clean-pattern clean-pattern
-                       :strategy-vec strategy
-                       :rels rels})
-          filt-inds (dq/filtering-relation-indices
-                     {:bsm bsm
-                      :clean-pattern clean-pattern
-                      :strategy-vec strategy
-                      :rels rels}
-                     subst-inds)
-          [init-coll subst-xform] (dq/substitution-xform
-                                   {:bsm bsm
-                                    :clean-pattern clean-pattern
-                                    :strategy-vec strategy
-                                    :rels rels}
-                                   subst-inds)
+(deftest test-substitution-plan
+  (let [-pattern1 '[?w ?x ?y]
+        context '{:rels [{:attrs {?x 0
+                                  ?y 1}
+                          :tuples [[1 2]
+                                   [3 4]
+                                   [3 5]
+                                   [5 6]]}
+                         {:attrs {?z 0}
+                          :tuples [[9] [10] [11]]}]}
+        rels (vec (:rels context))
+        bsm (dq/bound-symbol-map rels)
+        clean-pattern (dq/replace-unbound-symbols-by-nil bsm -pattern1)
+        strategy [nil :substitute :filter nil]
+        subst-inds (dq/substitution-relation-indices
+                    {:bsm bsm
+                     :clean-pattern clean-pattern
+                     :strategy-vec strategy
+                     :rels rels})
+        filt-inds (dq/filtering-relation-indices
+                   {:bsm bsm
+                    :clean-pattern clean-pattern
+                    :strategy-vec strategy
+                    :rels rels}
+                   subst-inds)
+        [init-coll subst-xform] (dq/substitution-xform
+                                 {:bsm bsm
+                                  :clean-pattern clean-pattern
+                                  :strategy-vec strategy
+                                  :rels rels}
+                                 subst-inds)
 
-          result (into [] subst-xform init-coll)
-          [[_ p0] [_ p1] [_ p2]] result]
-      (is (= #{0} subst-inds))
-      (is (= #{} filt-inds))
-      (is (= {'?x {:relation-index 0 :tuple-element-index 0}
-              '?y {:relation-index 0 :tuple-element-index 1}
-              '?z {:relation-index 1 :tuple-element-index 0}}
-             bsm))
-      (is (= [[nil 1 nil nil nil]
-              [nil 3 nil nil nil]
-              [nil 5 nil nil nil]] (map first result)))
-      (is (p0 [1 2 2]))
-      (is (not (p0 [1 2 3])))
-      (is (p1 [1 2 4]))
-      (is (p1 [1 2 5]))
-      (is (not (p1 [1 2 6])))
-      (is (p2 [1 2 6]))
-      (is (not (p2 [1 2 5]))))))
+        result (into []
+                     (comp dq/unpack6
+                           subst-xform
+                           dq/pack6)
+                     init-coll)
+        [[_ p0] [_ p1] [_ p2]] result]
+    (is (= #{0} subst-inds))
+    (is (= #{} filt-inds))
+    (is (= {'?x {:relation-index 0 :tuple-element-index 0}
+            '?y {:relation-index 0 :tuple-element-index 1}
+            '?z {:relation-index 1 :tuple-element-index 0}}
+           bsm))
+    (is (= [[nil 1 nil nil nil]
+            [nil 3 nil nil nil]
+            [nil 5 nil nil nil]] (map first result)))
+    (is (p0 [1 2 2]))
+    (is (not (p0 [1 2 3])))
+    (is (p1 [1 2 4]))
+    (is (p1 [1 2 5]))
+    (is (not (p1 [1 2 6])))
+    (is (p2 [1 2 6]))
+    (is (not (p2 [1 2 5])))))
 
 (deftest test-index-feature-extractor
   (let [e (dq/index-feature-extractor [1] true)]
@@ -810,105 +760,90 @@
     (is (nil? (e [120 4 9 3]))))
   (is (nil? (dq/index-feature-extractor [] false))))
 
-(FIX-THIS
-  (deftest test-filtering-plan
-    (let [pattern1 '[?w ?x ?y]
-          context '{:rels [{:attrs {?x 0}
-                            :tuples [[1]
-                                     [3]
-                                     [5]]}
-                           {:attrs {?y 0}
-                            :tuples [[2] [4] [6]]}
-                           {:attrs {?z 0}
-                            :tuples [[9] [10] [11]]}]}
+(deftest test-filtering-plan
+  (let [pattern1 '[?w ?x ?y]
+        context '{:rels [{:attrs {?x 0}
+                          :tuples [[1]
+                                   [3]
+                                   [5]]}
+                         {:attrs {?y 0}
+                          :tuples [[2] [4] [6]]}
+                         {:attrs {?z 0}
+                          :tuples [[9] [10] [11]]}]}
 
-          rels (vec (:rels context))
-          bsm (dq/bound-symbol-map rels)
-          clean-pattern (dq/replace-unbound-symbols-by-nil bsm pattern1)
-          strategy [nil :substitute :filter nil]
-          subst-inds (dq/substitution-relation-indices
-                      {:bsm bsm
-                       :clean-pattern pattern1
-                       :strategy-vec strategy})
-          filt-inds (dq/filtering-relation-indices
-                     {:bsm bsm
-                      :clean-pattern clean-pattern
-                      :strategy-vec strategy}
-                     subst-inds)
-          [init-coll subst-xform] (dq/substitution-xform
-                                   {:bsm bsm
-                                    :clean-pattern clean-pattern
-                                    :strategy-vec strategy
-                                    :rels rels}
-                                   subst-inds)
-          #_#_filt-xform (dq/datom-filter-xform
-                          {:bsm bsm
-                           :clean-pattern clean-pattern
-                           :strategy-vec strategy
-                           :rels rels}
-                          filt-inds)
+        rels (vec (:rels context))
+        bsm (dq/bound-symbol-map rels)
+        clean-pattern (dq/replace-unbound-symbols-by-nil bsm pattern1)
+        strategy [nil :substitute :filter nil]
+        subst-inds (dq/substitution-relation-indices
+                    {:bsm bsm
+                     :clean-pattern pattern1
+                     :strategy-vec strategy})
+        filt-inds (dq/filtering-relation-indices
+                   {:bsm bsm
+                    :clean-pattern clean-pattern
+                    :strategy-vec strategy}
+                   subst-inds)
+        [init-coll subst-xform] (dq/substitution-xform
+                                 {:bsm bsm
+                                  :clean-pattern clean-pattern
+                                  :strategy-vec strategy
+                                  :rels rels}
+                                 subst-inds)
 
-          subst-result (into [] subst-xform init-coll)
-          [[_ p0]] subst-result]
-      (is (nil? p0))
-      (is (= '[nil ?x ?y nil nil] clean-pattern))
-      (is (= #{0} subst-inds))
-      (is (= #{1} filt-inds))
-      (is (= {'?x {:relation-index 0 :tuple-element-index 0}
-              '?y {:relation-index 1 :tuple-element-index 0}
-              '?z {:relation-index 2 :tuple-element-index 0}}
-             bsm))
-      (is (= '([nil 1 nil nil nil]
-               [nil 3 nil nil nil]
-               [nil 5 nil nil nil])
-             (map first subst-result)))
-      #_(is (= [[1 3 2]]
-               (into []
-                     filt-xform
-                     [[1 3 2]
-                      [1 9 7]]))))))
+        subst-result (into []
+                           (comp dq/unpack6
+                                 subst-xform
+                                 dq/pack6)
+                           init-coll)
+        [[_ p0]] subst-result]
+    (is (nil? p0))
+    (is (= '[nil ?x ?y nil nil] clean-pattern))
+    (is (= #{0} subst-inds))
+    (is (= #{1} filt-inds))
+    (is (= {'?x {:relation-index 0 :tuple-element-index 0}
+            '?y {:relation-index 1 :tuple-element-index 0}
+            '?z {:relation-index 2 :tuple-element-index 0}}
+           bsm))
+    (is (= '([nil 1 nil nil nil]
+             [nil 3 nil nil nil]
+             [nil 5 nil nil nil])
+           (map first subst-result)))))
 
 (defn pcmp [x y]
   (or (nil? x) (= x y)))
 
 (defn mock-backend-fn [datoms]
-  (fn [[e0 a0 v0 t0]]
-    (filter (fn [[e1 a1 v1 t1]]
+  (fn [e0 a0 v0 t0 added0]
+    (filter (fn [[e1 a1 v1 t1 added1]]
               (and (pcmp e0 e1)
                    (pcmp a0 a1)
                    (pcmp v0 v1)
-                   (pcmp t0 t1)))
+                   (pcmp t0 t1)
+                   (pcmp added0 added1)))
             datoms)))
 
 
-(FIX-THIS
-  (deftest test-full-lookup-pipeline
-    (let [pattern1 '[?x ?w ?y]
-          context '{:rels [{:attrs {?x 0}
-                            :tuples [[1] [3] [5]]}
-                           {:attrs {?y 0}
-                            :tuples [[4] [5] [6]]}]}
-          strategy-vec [:substitute nil :filter nil]
-          rels (vec (:rels context))
-          bsm (dq/bound-symbol-map rels)
-          clean-pattern (dq/replace-unbound-symbols-by-nil bsm pattern1)
-          sfn (dq/search-batch-fn {:bsm bsm
-                                   :clean-pattern clean-pattern
-                                   :rels rels})
-          result (sfn strategy-vec (mock-backend-fn [[0 :abc 5]
-                                                     [5 :xyz 6]
-                                                     [1 :k 4]
-                                                     [5 :p 7]]))]
-      (is (= #{[1 :k 4] [5 :xyz 6]} (set result))))))
+(deftest test-full-lookup-pipeline
+  (let [pattern1 '[?x ?w ?y]
+        context '{:rels [{:attrs {?x 0}
+                          :tuples [[1] [3] [5]]}
+                         {:attrs {?y 0}
+                          :tuples [[4] [5] [6]]}]}
+        strategy-vec [:substitute nil :filter nil]
+        rels (vec (:rels context))
+        bsm (dq/bound-symbol-map rels)
+        clean-pattern (dq/replace-unbound-symbols-by-nil bsm pattern1)
+        sfn (dq/search-batch-fn {:bsm bsm
+                                 :clean-pattern clean-pattern
+                                 :rels rels})
+        result (sfn strategy-vec (mock-backend-fn [[0 :abc 5]
+                                                   [5 :xyz 6]
+                                                   [1 :k 4]
+                                                   [5 :p 7]]))]
+    (is (= #{[1 :k 4] [5 :xyz 6]} (set result)))))
 
 (deftest test-index-selector
   (let [make-sel (dq/make-index-selector 5)
         sel (make-sel [1 3])]
     (is (= [:b :d] (sel [:a :b :c :d :e])))))
-
-#_(deftest test-unrolled-tuple-key-fn
-  (let [tuple-key-fn (dq/unrolled-tuple-key-fn 3)]
-    (is (nil? ((tuple-key-fn []) {:a 3 :b 4 :c 5 :d 6})))
-    (is (= 3 ((tuple-key-fn [:a]) {:a 3 :b 4 :c 5 :d 6})))
-    (is (= [4 3] ((tuple-key-fn [:b :a]) {:a 3 :b 4 :c 5 :d 6})))
-    (is (= [4 3 5 6] ((tuple-key-fn [:b :a :c :d]) {:a 3 :b 4 :c 5 :d 6})))))
