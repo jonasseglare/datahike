@@ -1112,152 +1112,7 @@ in those cases.
             (map (fn [[k f]] [k (f tuple)]))
             key-fn-pairs))))
 
-(defn resolve-pattern-vars-for-relation [source pattern rel]
-  (let [mapper (tuple-var-mapper rel)]
-    (keep #(resolve-pattern-lookup-refs-or-nil
-            source
-            (replace (mapper %) pattern))
-          (:tuples rel))))
-
 (def rel-product-unit (Relation. {} [[]]))
-
-(defn rel-data-key [rel-data]
-  {:pre [(contains? rel-data :vars)]}
-  (:vars rel-data))
-
-(defn expansion-rel-data
-  "Given all the relations `rels` from a context and the `vars` found in a pattern, 
-return a sequence of maps where each map has a relation and the subset of `vars`
-mentioned in that relation. Relations that don't mention any vars are omitted."
-  [rels vars]
-  (for [{:keys [attrs tuples] :as rel} rels
-        :let [mentioned-vars (filter attrs vars)]
-        :when (seq mentioned-vars)]
-    {:rel rel
-     :vars mentioned-vars
-     :tuple-count (count tuples)}))
-
-;; A *relprod* is a state in the process of
-;; selecting what relations to use when expanding
-;; the pattern. The word "relprod" is an abbreviation for
-;; "relation product".
-;;
-;; A *strategy* is a function that takes a relprod
-;; as input and returns a new relprod as output.
-;; The simplest strategy is `identity` meaning that
-;; no pattern expansion will happen.
-(defn init-relprod [rel-data vars]
-  {:product rel-product-unit
-   :include []
-   :exclude rel-data
-   :vars vars})
-
-(defn relprod? [x]
-  (and (map? x) (contains? x :product)))
-
-(defn relprod-exclude-keys [{:keys [exclude]}]
-  (map rel-data-key exclude))
-
-(defn relprod-vars [relprod & ks]
-  {:pre [(relprod? relprod)]}
-  (into #{}
-        (comp (mapcat #(get relprod %))
-              (mapcat :vars))
-        ks))
-
-(defn relprod-filter [{:keys [product include exclude vars]} predf]
-  {:pre [product include exclude]}
-  (let [picked (into [] (filter predf) exclude)]
-    {:product (reduce ((map :rel) hash-join) product picked)
-     :include (into include picked)
-     :exclude (remove predf exclude)
-     :vars vars}))
-
-(defn relprod-select-keys [relprod key-set]
-  {:pre [(relprod? relprod)
-         (set? key-set)
-         (every? (set (relprod-exclude-keys relprod)) key-set)]}
-  (relprod-filter relprod (comp key-set rel-data-key)))
-
-(defn select-all
-  "This is a relprod strategy that will result in all 
-possible combinations of relations substituted in the pattern.
- It may be faster or slower than no strategy at all depending 
-on the data. 
-
-This might be the strategy used by Datomic,
-which can be seen if we request 'Query stats' from Datomic:
-
-https://docs.datomic.com/pro/api/query-stats.html"
-  [relprod]
-  {:pre [(relprod? relprod)]}
-  (relprod-filter relprod (constantly true)))
-
-(defn select-simple
-  "This is a relprod strategy that will perform at least as 
-well as no strategy at all because it will result in at most 
-one expanded pattern (or none) that is possibly more specific."
-  [relprod]
-  {:pre [(relprod? relprod)]}
-  (relprod-filter relprod #(<= (:tuple-count %) 1)))
-
-(defn expand-once
-  "This strategy first performs `relprod-select-simple` and 
-then does one more expansion with the smallest `:tuple-count`. Just 
-like `relprod-select-all`, it is not necessarily always faster
-than doing no expansion at all."
-  [relprod]
-  {:pre [(relprod? relprod)]}
-  (let [relprod (select-simple relprod)
-        [r & _] (sort-by :tuple-count (:exclude relprod))]
-    (if r
-      (relprod-select-keys relprod #{(rel-data-key r)})
-      relprod)))
-
-
-
-(defn expand-constrained-patterns [source context pattern]
-  (let [vars (collect-vars pattern)
-        rel-data (expansion-rel-data (:rels context) vars)
-        strategy (-> context :settings :relprod-strategy)
-        product (-> (init-relprod rel-data vars)
-                    strategy
-                    :product)]
-    (resolve-pattern-vars-for-relation source pattern product)))
-
-(defn lookup-and-sum-pattern-rels [context source patterns clause collect-stats]
-  (loop [rel (Relation. (var-mapping clause (range)) [])
-           patterns patterns
-           lookup-stats []]
-      (if (empty? patterns)
-        {:relation (simplify-rel rel)
-         :lookup-stats lookup-stats}
-        (let [pattern (first patterns)
-              added (lookup-pattern context source pattern clause)]
-          (recur (sum-rel rel added)
-                 (rest patterns)
-                 (when collect-stats
-                   (conj lookup-stats {:pattern pattern
-                                       :tuple-count (count (:tuples added))})))))))
-
-(defn lookup-patterns [context
-                       clause
-                       pattern-before-expansion
-                       patterns-after-expansion]
-  (let [source *implicit-source*
-        {:keys [relation lookup-stats]}
-        (lookup-and-sum-pattern-rels context
-                                     source
-                                     patterns-after-expansion
-                                     clause
-                                     (:stats context))]
-    (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
-                               (dynamic-lookup-attrs source pattern-before-expansion)
-                               *lookup-attrs*)]
-
-      (cond-> (update context :rels collapse-rels relation)
-        (:stats context) (assoc :tmp-stats {:type :lookup
-                                            :lookup-stats lookup-stats})))))
 
 (defn log-example [_example])
 
@@ -1724,7 +1579,7 @@ than doing no expansion at all."
 (def collapse-rels-acc (timeacc/unsafe-acc timeacc-root :collapse-rels-acc))
 (def rels-acc (timeacc/unsafe-acc timeacc-root :rels-acc))
 
-(defn lookup-new-search [source context orig-pattern pattern1]
+(defn lookup-batch-search [source context orig-pattern pattern1]
   (timeacc/measure lookup-new-search-acc
     (let [new-rel (timeacc/measure new-rel-acc
                     (if (dbu/db? source)
@@ -1758,28 +1613,6 @@ than doing no expansion at all."
         (timeacc/measure collapse-rels-acc
           (update context :rels collapse-rels new-rel))))))
 
-
-(defn normalize-rel [rel]
-  (let [m (tuple-var-mapper rel)]
-    (into #{} (map m) (:tuples rel))))
-
-(defn normalize-rels [rels]
-  (into #{} (map normalize-rel) rels))
-
-;; (update context :rels collapse-rels relation)
-(defn compare-contexts [a b]
-  {:pre [(contains? a :rels)
-         (contains? b :rels)]}
-  (let [rels-a (normalize-rels (:rels a))
-        rels-b (normalize-rels (:rels b))]
-    (when-not (= rels-a rels-b)
-      (println "A raw" (:rels a))
-      (println "B raw" (:rels b))
-      (println "A" rels-a)
-      (println "B" rels-b)
-      (def the-a a)
-      (def the-b b)
-      (throw (ex-info "Different contexts" {})))))
 
 (def general-pattern-acc (timeacc/unsafe-acc timeacc-root :general-pattern-acc))
 
@@ -1882,25 +1715,7 @@ than doing no expansion at all."
        (let [source *implicit-source*
              pattern0 (replace (:consts context) clause)
              pattern1 (resolve-pattern-lookup-refs source pattern0)]
-         (case (-> context :settings :search-strategy)
-           :old (let [constrained-patterns (expand-constrained-patterns
-                                            source context pattern1)
-                      context-constrained (lookup-patterns
-                                           context clause pattern1 constrained-patterns)]
-                  context-constrained)
-           (lookup-new-search source context clause pattern1))
-
-;;;; Just for debugging
-         #_(compare-contexts
-            context-constrained
-            new-context)
-         #_(log-example {:source source
-                         :pattern1 pattern1
-                         :context context
-                         :clause clause
-                         :constrained-patterns constrained-patterns})
-                                        ;context-constrained
-         )))))
+         (lookup-batch-search source context clause pattern1))))))
 
 (defn -resolve-clause
   ([context clause]
