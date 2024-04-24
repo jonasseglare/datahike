@@ -13,8 +13,6 @@
    [datahike.middleware.query]
    [datahike.pull-api :as dpa]
    [datahike.query-stats :as dqs]
-   [datahike.tools :as dt :refer [timeacc-root]]
-   [timeacc.core :as timeacc]
    [datahike.middleware.utils :as middleware-utils]
    [datalog.parser :refer [parse]]
    [datalog.parser.impl :as dpi]
@@ -41,7 +39,6 @@
   (= coll (sort coll)))
 
 
-(def wip-acc (timeacc/unsafe-acc timeacc-root :wip))
 ;; ----------------------------------------------------------------------------
 
 (def ^:const lru-cache-size 100)
@@ -173,22 +170,19 @@
       (dbu/numeric-entid? x)
       (keyword? x)))
 
-(def join-tuples-acc (timeacc/unsafe-acc timeacc-root :join-tuples-acc))
-
 ;; Relation algebra
 (defn join-tuples [t1 #?(:cljs idxs1
                          :clj ^{:tag "[[Ljava.lang.Object;"} idxs1)
                    t2 #?(:cljs idxs2
                          :clj ^{:tag "[[Ljava.lang.Object;"} idxs2)]
-  (timeacc/measure join-tuples-acc
-    (let [l1 (alength idxs1)
-          l2 (alength idxs2)
-          res (da/make-array (+ l1 l2))]
-      (dotimes [i l1]
-        (aset res i (#?(:cljs da/aget :clj get) t1 (aget idxs1 i)))) ;; FIXME aget
-      (dotimes [i l2]
-        (aset res (+ l1 i) (#?(:cljs da/aget :clj get) t2 (aget idxs2 i)))) ;; FIXME aget
-      res)))
+  (let [l1 (alength idxs1)
+        l2 (alength idxs2)
+        res (da/make-array (+ l1 l2))]
+    (dotimes [i l1]
+      (aset res i (#?(:cljs da/aget :clj get) t1 (aget idxs1 i)))) ;; FIXME aget
+    (dotimes [i l2]
+      (aset res (+ l1 i) (#?(:cljs da/aget :clj get) t2 (aget idxs2 i)))) ;; FIXME aget
+    res))
 
 (defn sum-rel
   ([a] a)
@@ -1178,34 +1172,24 @@ in those cases.
         ([datom]
          (contains? features (feature-extractor datom)))))))
 
-(def c0-acc (timeacc/unsafe-acc timeacc-root :c0-acc))
-(def c1-acc (timeacc/unsafe-acc timeacc-root :c1-acc))
-(def c2-acc (timeacc/unsafe-acc timeacc-root :c2-acc))
-(def c3-acc (timeacc/unsafe-acc timeacc-root :c3-acc))
-;(def c4-acc (timeacc/unsafe-acc timeacc-root :c4-acc))
-
 (defn resolve-pattern-lookup-ref-at-index
   [source clean-attribute pattern-index pattern-value error-code]
   (let [a clean-attribute]
     (if (dbu/db? source)
       (case (int pattern-index)
-        0 (timeacc/measure c0-acc
-            (resolve-pattern-lookup-entity-id source pattern-value error-code))
-        1 (timeacc/measure c1-acc
-            (if (and (:attribute-refs? (dbi/-config source)) (keyword? pattern-value))
-              (dbi/-ref-for source pattern-value)
-              pattern-value))
-        2 (timeacc/measure c2-acc
-            (if (and pattern-value
-                     (attr? a)
-                     (dbu/ref? source a)
-                     (or (lookup-ref? pattern-value) (attr? pattern-value)))
-              (dbu/entid-strict source pattern-value error-code)
-              pattern-value))
-        3 (timeacc/measure c3-acc
-            (if (lookup-ref? pattern-value)
-              (dbu/entid-strict source pattern-value error-code)
-              pattern-value))
+        0 (resolve-pattern-lookup-entity-id source pattern-value error-code)
+        1 (if (and (:attribute-refs? (dbi/-config source)) (keyword? pattern-value))
+            (dbi/-ref-for source pattern-value)
+            pattern-value)
+        2 (if (and pattern-value
+                   (attr? a)
+                   (dbu/ref? source a)
+                   (or (lookup-ref? pattern-value) (attr? pattern-value)))
+            (dbu/entid-strict source pattern-value error-code)
+            pattern-value)
+        3 (if (lookup-ref? pattern-value)
+            (dbu/entid-strict source pattern-value error-code)
+            pattern-value)
         4 pattern-value)
       pattern-value)))
 
@@ -1259,9 +1243,6 @@ in those cases.
                           filt-extractor
                           subst-filt-map))
 
-(def subst-filt-map1-acc (timeacc/unsafe-acc timeacc-root :subst-filt-map1-acc))
-(def subst-filt-map2-acc (timeacc/unsafe-acc timeacc-root :subst-filt-map2-acc))
-
 (defmacro make-index-selector [range-length]
   (let [inds (gensym)
         tuple (gensym)]
@@ -1275,11 +1256,6 @@ in those cases.
                      pinds)))))))
 
 (def index-selector (make-index-selector 5))
-
-(def single-substitution-xform-acc (timeacc/unsafe-acc
-                                    timeacc-root
-                                    :single-substitution-xform-acc))
-
 
 (defmacro make-vec-lookup-ref-replacer [range-length]
   (let [inds (gensym)
@@ -1299,62 +1275,59 @@ in those cases.
 (def vec-lookup-ref-replacer (make-vec-lookup-ref-replacer 5))
 
 (defn single-substitution-xform [search-context relation-index subst-map filt-map]
-  (timeacc/measure single-substitution-xform-acc
-    (let [ ;; Everything from here ....
-          lrr (lookup-ref-replacer search-context)
-          tuples (:tuples (nth (:rels search-context) relation-index))
-          subst (subst-map relation-index)
-          filt (filt-map relation-index)
-          pattern-substitution-inds (map :tuple-element-index subst)
-          pattern-filter-inds (map :tuple-element-index filt)
-          feature-extractor (index-feature-extractor pattern-filter-inds
-                                                     true
-                                                     lrr)
-          ;; ..... to here is fast!!!!
-          ;; Roughly 0.0632 seconds
-          subst-filt-map (timeacc/measure subst-filt-map1-acc
-                           (let [dst (HashMap.)]
-                             (doseq [tuple tuples
-                                     :let [feature (feature-extractor tuple)]
-                                     :when (good-lookup-refs? feature)]
-                               (let [k (select-inds tuple pattern-substitution-inds)
-                                     ^HashSet v (get dst k)]
-                                 (if (nil? v)
-                                   (.put dst k (doto (HashSet.)
-                                                 (.add feature)))
-                                   (.add v feature))))
-                             dst))
+  (let [ ;; Everything from here ....
+        lrr (lookup-ref-replacer search-context)
+        tuples (:tuples (nth (:rels search-context) relation-index))
+        subst (subst-map relation-index)
+        filt (filt-map relation-index)
+        pattern-substitution-inds (map :tuple-element-index subst)
+        pattern-filter-inds (map :tuple-element-index filt)
+        feature-extractor (index-feature-extractor pattern-filter-inds
+                                                   true
+                                                   lrr)
+        ;; ..... to here is fast!!!!
+        ;; Roughly 0.0632 seconds
+        subst-filt-map (let [dst (HashMap.)]
+                         (doseq [tuple tuples
+                                 :let [feature (feature-extractor tuple)]
+                                 :when (good-lookup-refs? feature)]
+                           (let [k (select-inds tuple pattern-substitution-inds)
+                                 ^HashSet v (get dst k)]
+                             (if (nil? v)
+                               (.put dst k (doto (HashSet.)
+                                             (.add feature)))
+                               (.add v feature))))
+                         dst)
 
-          substitution-pattern-element-inds (map :pattern-element-index subst)
+        substitution-pattern-element-inds (map :pattern-element-index subst)
 
-          lrr-ex (lookup-ref-replacer search-context nil)
-          vrepl (vec-lookup-ref-replacer lrr-ex substitution-pattern-element-inds)
-          
-          ;; Replace the lookup refs
-          subst-filt-map (timeacc/measure subst-filt-map2-acc
-                           (let [dst (ArrayList.)
-                                 ^Iterator iter (-> subst-filt-map
-                                                    .entrySet
-                                                    .iterator)]
-                             (loop []
-                               (when (.hasNext iter)
-                                 (let [kv (.next iter)
-                                       k2 (vrepl (key kv))]
-                                   (when k2
-                                     (.add dst (AbstractMap$SimpleEntry. k2 (val kv))))
-                                   (recur))))
-                             dst))
+        lrr-ex (lookup-ref-replacer search-context nil)
+        vrepl (vec-lookup-ref-replacer lrr-ex substitution-pattern-element-inds)
+        
+        ;; Replace the lookup refs
+        subst-filt-map (let [dst (ArrayList.)
+                             ^Iterator iter (-> subst-filt-map
+                                                .entrySet
+                                                .iterator)]
+                         (loop []
+                           (when (.hasNext iter)
+                             (let [kv (.next iter)
+                                   k2 (vrepl (key kv))]
+                               (when k2
+                                 (.add dst (AbstractMap$SimpleEntry. k2 (val kv))))
+                               (recur))))
+                         dst)
 
 
-          ;; Neglible time
-          filt-extractor (index-feature-extractor
-                          (map :pattern-element-index filt)
-                          false
-                          lrr)]
-      ;; Neglible time
-      (instantiate-substitution-xform substitution-pattern-element-inds
-                                      filt-extractor
-                                      subst-filt-map))))
+        ;; Neglible time
+        filt-extractor (index-feature-extractor
+                        (map :pattern-element-index filt)
+                        false
+                        lrr)]
+    ;; Neglible time
+    (instantiate-substitution-xform substitution-pattern-element-inds
+                                    filt-extractor
+                                    subst-filt-map)))
 
 (defn search-context? [x]
   (assert (map? x))
@@ -1420,15 +1393,10 @@ in those cases.
             nil
             filt-map)))
 
-(defonce filter-acc (timeacc/unsafe-acc timeacc-root :filter-acc))
-
 (defn filter-from-predicate [pred]
   (if pred
-    (filter (fn [x] (timeacc/measure filter-acc (pred x))))
+    (filter pred)
     identity))
-
-(defonce inner-backend-xform-acc (timeacc/unsafe-acc timeacc-root :inner-backend-xform))
-(defonce backend-pred-acc (timeacc/unsafe-acc timeacc-root :backend-pred-acc))
 
 (defn backend-xform [backend-fn]
   (fn [step]
@@ -1442,11 +1410,10 @@ in those cases.
                               (step dst datom)
                               dst))
                           step)
-             datoms (timeacc/measure inner-backend-xform-acc
-                      (try
-                        (backend-fn e a v tx added?)
-                        (catch Exception e
-                          (throw e))))]
+             datoms (try
+                      (backend-fn e a v tx added?)
+                      (catch Exception e
+                        (throw e)))]
          (reduce inner-step
                  dst
                  datoms))))))
@@ -1468,8 +1435,6 @@ in those cases.
       (extend-predicate predicate extractor #{(extractor clean-pattern)})
       predicate)))
 
-(defonce search-batch-acc (timeacc/unsafe-acc timeacc-root :search-batch))
-
 (defn unpack6 [step]
   (fn
     ([] (step))
@@ -1484,100 +1449,56 @@ in those cases.
     ([dst e a v tx added? filt]
      (step dst [[e a v tx added?] filt]))))
 
-(def subst-xform-acc (timeacc/unsafe-acc timeacc-root :subst-xform-acc))
-(def backend-xform-acc (timeacc/unsafe-acc timeacc-root :backend-xform-acc))
-(def filter-from-predicate-xform-acc (timeacc/unsafe-acc timeacc-root :filter-from-predicate-xform-acc))
-(def total-xform-acc (timeacc/unsafe-acc timeacc-root :total-xform-acc))
-
-
 (defn search-batch-fn [search-context]
   (fn [strategy-vec backend-fn]
-    (timeacc/measure search-batch-acc
-      (let [;; All this is fast...
-            search-context (merge search-context {:strategy-vec strategy-vec
-                                                  :backend-fn backend-fn})
-            subst-inds (substitution-relation-indices search-context)
-            filt-inds (filtering-relation-indices search-context subst-inds)
-            search-context (merge search-context {:subst-inds subst-inds
-                                                  :filt-inds filt-inds})
-
-            ;;... until here
-
-            ;; 0.35
-            [init-coll subst-xform] (substitution-xform search-context subst-inds)
-
-            ;; These two ....
-            filt-predicate (datom-filter-predicate search-context filt-inds)
-            filt-predicate (extend-predicate-for-pattern-constants
-                            filt-predicate search-context)
-            ;; .... take about 0.004 seconds
-
-            ;; About 0.61 seconds of which inner-backend-fn is 0.45
-            result (into
-                    []
-                    (timeacc/measure-xform
-                     total-xform-acc
-                     (comp
-                      unpack6 ;; neglible
-                      (timeacc/measure-xform
-                       subst-xform-acc subst-xform) ;; 0.05
-                      (timeacc/measure-xform
-                       backend-xform-acc (backend-xform backend-fn)) ;; 0.49
-                      (timeacc/measure-xform
-                       filter-from-predicate-xform-acc
-                       (filter-from-predicate filt-predicate)) ;; 0.036
-                      ))
-                    init-coll)]
-        result))))
-
-(comment
-
-
-
-  )
-
-(def lookup-new-search-acc (timeacc/unsafe-acc timeacc-root :lookup-new-search))
-(def new-rel-acc (timeacc/unsafe-acc timeacc-root :new-rel-acc))
-(def dbi-batch-search-acc (timeacc/unsafe-acc timeacc-root :dbi-batch-search-acc))
-(def collapse-rels-acc (timeacc/unsafe-acc timeacc-root :collapse-rels-acc))
-(def rels-acc (timeacc/unsafe-acc timeacc-root :rels-acc))
+    (let [search-context (merge search-context {:strategy-vec strategy-vec
+                                                :backend-fn backend-fn})
+          subst-inds (substitution-relation-indices search-context)
+          filt-inds (filtering-relation-indices search-context subst-inds)
+          search-context (merge search-context {:subst-inds subst-inds
+                                                :filt-inds filt-inds})
+          [init-coll subst-xform] (substitution-xform search-context subst-inds)
+          filt-predicate (datom-filter-predicate search-context filt-inds)
+          filt-predicate (extend-predicate-for-pattern-constants
+                          filt-predicate search-context)
+          result (into
+                  []
+                  (comp
+                   unpack6
+                   subst-xform
+                   (backend-xform backend-fn)
+                   (filter-from-predicate filt-predicate))
+                  init-coll)]
+      result)))
 
 (defn lookup-batch-search [source context orig-pattern pattern1]
-  (timeacc/measure lookup-new-search-acc
-    (let [new-rel (timeacc/measure new-rel-acc
-                    (if (dbu/db? source)
-                      (let [rels (vec (:rels context))
-                            bsm (bound-symbol-map rels)
-                            clean-pattern (->> pattern1
-                                               (replace-unbound-symbols-by-nil bsm)
-                                               (resolve-pattern-eid source))
-                            search-context {:source source
-                                            :bsm bsm
-                                            :clean-pattern clean-pattern
-                                            :rels rels}
-                            datoms (if clean-pattern
-                                     (timeacc/measure dbi-batch-search-acc
-                                       (dbi/-batch-search source clean-pattern
-                                                          (search-batch-fn search-context)))
-                                     [])
-                            start-ns (System/nanoTime)
-                            new-rel (relation-from-datoms context orig-pattern datoms)
-                            base-rel (Relation. (var-mapping orig-pattern (range)) [])
-                            full-rel (simplify-rel (sum-rel base-rel new-rel))
-                            _ (timeacc/accumulate-nano-seconds-since rels-acc start-ns)]
-                        full-rel)
-                      (lookup-pattern-coll source pattern1 orig-pattern)))]
+  (let [new-rel (if (dbu/db? source)
+                  (let [rels (vec (:rels context))
+                        bsm (bound-symbol-map rels)
+                        clean-pattern (->> pattern1
+                                           (replace-unbound-symbols-by-nil bsm)
+                                           (resolve-pattern-eid source))
+                        search-context {:source source
+                                        :bsm bsm
+                                        :clean-pattern clean-pattern
+                                        :rels rels}
+                        datoms (if clean-pattern
+                                 (dbi/-batch-search source clean-pattern
+                                                    (search-batch-fn search-context))
+                                 [])
+                        new-rel (relation-from-datoms context orig-pattern datoms)
+                        base-rel (Relation. (var-mapping orig-pattern (range)) [])
+                        full-rel (simplify-rel (sum-rel base-rel new-rel))]
+                    full-rel)
+                  (lookup-pattern-coll source pattern1 orig-pattern))]
 
-      ;; This binding is needed for `collapse-rels` to work, and more specifically,
-      ;; `hash-join` to work, that in turn depends on `getter-fn`.
-      (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
-                                 (dynamic-lookup-attrs source pattern1)
-                                 *lookup-attrs*)]
-        (timeacc/measure collapse-rels-acc
-          (update context :rels collapse-rels new-rel))))))
+    ;; This binding is needed for `collapse-rels` to work, and more specifically,
+    ;; `hash-join` to work, that in turn depends on `getter-fn`.
+    (binding [*lookup-attrs* (if (satisfies? dbi/IDB source)
+                               (dynamic-lookup-attrs source pattern1)
+                               *lookup-attrs*)]
+      (update context :rels collapse-rels new-rel))))
 
-
-(def general-pattern-acc (timeacc/unsafe-acc timeacc-root :general-pattern-acc))
 
 (defn -resolve-clause*
   ([context clause]
@@ -1674,11 +1595,10 @@ in those cases.
                                              :branches (:stats negation-context)})))
 
      '[*] ;; pattern
-     (timeacc/measure general-pattern-acc
-       (let [source *implicit-source*
-             pattern0 (replace (:consts context) clause)
-             pattern1 (resolve-pattern-lookup-refs source pattern0)]
-         (lookup-batch-search source context clause pattern1))))))
+     (let [source *implicit-source*
+           pattern0 (replace (:consts context) clause)
+           pattern1 (resolve-pattern-lookup-refs source pattern0)]
+       (lookup-batch-search source context clause pattern1)))))
 
 (defn -resolve-clause
   ([context clause]
@@ -1824,34 +1744,31 @@ in those cases.
 
 (def default-settings {})
 
-(def raw-q-acc (timeacc/unsafe-acc timeacc-root :raw-q-acc))
-
 (defn raw-q [{:keys [query args offset limit stats? settings] :as _query-map}]
-  (timeacc/measure raw-q-acc
-    (let [settings (merge default-settings settings)
-          {:keys [qfind
-                  qwith
-                  qreturnmaps
-                  qin]} (memoized-parse-query query)
-          context-in    (-> (if stats?
-                              (StatContext. [] {} {} {} [] settings)
-                              (Context. [] {} {} {} settings))
-                            (resolve-ins qin args))
-          ;; TODO utilize parser
-          all-vars      (concat (dpi/find-vars qfind) (map :symbol qwith))
-          context-out   (-q context-in (:where query))
-          resultset     (collect context-out all-vars)
-          find-elements (dpip/find-elements qfind)
-          result-arity  (count find-elements)]
-      (cond->> resultset
-        (or offset limit)                             (paginate offset limit)
-        true                                          set
-        (:with query)                                 (mapv #(subvec % 0 result-arity))
-        (some #(instance? Aggregate %) find-elements) (aggregate find-elements context-in)
-        (some #(instance? Pull %) find-elements)      (pull find-elements context-in)
-        true                                          (-post-process qfind)
-        qreturnmaps                                   (convert-to-return-maps qreturnmaps)
-        stats?                                        (#(-> context-out
-                                                            (dissoc :rels :sources :settings)
-                                                            (assoc :ret %
-                                                                   :query query)))))))
+  (let [settings (merge default-settings settings)
+        {:keys [qfind
+                qwith
+                qreturnmaps
+                qin]} (memoized-parse-query query)
+        context-in    (-> (if stats?
+                            (StatContext. [] {} {} {} [] settings)
+                            (Context. [] {} {} {} settings))
+                          (resolve-ins qin args))
+        ;; TODO utilize parser
+        all-vars      (concat (dpi/find-vars qfind) (map :symbol qwith))
+        context-out   (-q context-in (:where query))
+        resultset     (collect context-out all-vars)
+        find-elements (dpip/find-elements qfind)
+        result-arity  (count find-elements)]
+    (cond->> resultset
+      (or offset limit)                             (paginate offset limit)
+      true                                          set
+      (:with query)                                 (mapv #(subvec % 0 result-arity))
+      (some #(instance? Aggregate %) find-elements) (aggregate find-elements context-in)
+      (some #(instance? Pull %) find-elements)      (pull find-elements context-in)
+      true                                          (-post-process qfind)
+      qreturnmaps                                   (convert-to-return-maps qreturnmaps)
+      stats?                                        (#(-> context-out
+                                                          (dissoc :rels :sources :settings)
+                                                          (assoc :ret %
+                                                                 :query query))))))
