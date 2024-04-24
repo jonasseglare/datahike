@@ -165,9 +165,6 @@
     [_ _ _ t *] (lookup-strategy :eavt _ _ _ f)
     [_ _ _ _ *] (lookup-strategy :eavt _ _ _ _)))
 
-#_(def get-search-strategy-impl-memoized
-  (memoize get-search-strategy-impl))
-
 (def get-search-strategy-impl-memoized get-search-strategy-impl)
 
 (defn empty-lookup-fn
@@ -210,10 +207,6 @@
          :aevt (:temporal-aevt db)
          :avet (:temporal-avet db)
          nil) strategy-vec strategy-fn backend-fn])))
-
-#_(defn backend-fn-with-index [backend-fn db-index]
-  (fn [e a v tx added?]
-    (backend-fn db-index e a v tx added?)))
 
 (defn search-current-indices
   ;; TODO: Handle empty!!!
