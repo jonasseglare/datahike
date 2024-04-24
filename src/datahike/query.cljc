@@ -566,6 +566,7 @@
                     :clj (to-array (map #(% tuple) getters))))))))
 
 (defn hash-attrs [key-fn tuples]
+  ;; Equivalent to group-by except that it uses a list instead of a vector.
   (loop [tuples tuples
          hash-table (transient {})]
     (if-some [tuple (first tuples)]
@@ -579,28 +580,22 @@
 (defn compute-new-tuples [key-fn1 tuples1 keep-idxs1 keep-attrs1
                           key-fn2 tuples2 keep-idxs2 keep-attrs2]
   (let [hash (hash-attrs key-fn1 tuples1)
-        #_#_new-tuples (->>
-                    (reduce (fn [acc tuple2]
-                              (let [key (key-fn2 tuple2)]
-                                (if-some [tuples1 (get hash key)]
-                                  (reduce (fn [acc tuple1]
-                                            (conj! acc (join-tuples tuple1 keep-idxs1 tuple2 keep-idxs2)))
-                                          acc tuples1)
-                                  acc)))
-                            (transient []) tuples2)
-                    (persistent!))
         new-tuples (into []
                          (fn [step]
                            (fn
                              ([dst] (step dst))
                              ([acc tuple2]
+                              ;; 0.1
                               (let [key (key-fn2 tuple2)]
+                                ;; 0.04
                                 (if-some [tuples1 (get hash key)]
                                   (reduce (fn [acc tuple1]
-                                            (step acc (join-tuples tuple1
-                                                                   keep-idxs1
-                                                                   tuple2
-                                                                   keep-idxs2)))
+                                            (step acc
+                                                  ;; 0.14
+                                                  (join-tuples tuple1
+                                                               keep-idxs1
+                                                               tuple2
+                                                               keep-idxs2)))
                                           acc tuples1)
                                   acc)))))
                          tuples2)]
@@ -626,20 +621,7 @@
         (compute-new-tuples key-fn1 tuples1 keep-idxs1 keep-attrs1
                             key-fn2 tuples2 keep-idxs2 keep-attrs2)
         (compute-new-tuples key-fn2 tuples2 keep-idxs2 keep-attrs2
-                            key-fn1 tuples1 keep-idxs1 keep-attrs1)
-        #_(let [hash       (hash-attrs key-fn2 tuples2)
-              new-tuples (->>
-                          (reduce (fn [acc tuple1]
-                                    (let [key (key-fn1 tuple1)]
-                                      (if-some [tuples2 (get hash key)]
-                                        (reduce (fn [acc tuple2]
-                                                  (conj! acc (join-tuples tuple1 keep-idxs1 tuple2 keep-idxs2)))
-                                                acc tuples2)
-                                        acc)))
-                                  (transient []) tuples1)
-                          (persistent!))]
-          (Relation. (zipmap (concat keep-attrs1 keep-attrs2) (range))
-                     new-tuples))))))
+                            key-fn1 tuples1 keep-idxs1 keep-attrs1)))))
 
 (defn subtract-rel [a b]
   (let [{attrs-a :attrs, tuples-a :tuples} a
