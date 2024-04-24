@@ -526,18 +526,6 @@
                                       (long-array [3 4])])))
   (is (= [[3 4] [9 7]] (dq/distinct-tuples [[3 4] [9 7] [3 4]]))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;
-;;;; W I P   T E S T S
-;;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def ex0 '{:source {:max-tx 536926163},
-           :pattern1 [?oc 48 "occupation-name"],
-           :context {:rels [], :consts {}},
-           :clause [?oc :concept/type "occupation-name"],
-           :constrained-patterns [[?oc 48 "occupation-name"]],
-           :constrained-pattern-count 1})
-
 ;; A good one
 (def ex1 '{:source {:max-tx 536926163},
            :pattern1 [?r1 79 ?oc],
@@ -570,86 +558,6 @@
             [?r1 79 5317]
             [?r1 79 5322]
             [?r1 79 5325]],
-           :constrained-pattern-count 3654})
-
-(def ex2 '{:source {:max-tx 536926163},
-           :pattern1 [?r1 81 "narrow-match"],
-           :context
-           {:rels
-            [{:attrs {?__auto__1 0}, :tuples [], :tuple-count 0}
-             {:attrs {?oc 0, ?r1 1},
-              :tuples
-              [[5289 5290]
-               [5289 5292]
-               [5289 42370]
-               [5289 44778]
-               [5289 45135]
-               [5289 45137]
-               [5289 54795]
-               [5289 58829]
-               [5289 59931]
-               [5289 89838]],
-              :tuple-count 61136}],
-            :consts {?__auto__1 "narrow-match"}},
-           :clause [?r1 :relation/type ?__auto__1],
-           :constrained-patterns
-           [[5290 81 "narrow-match"]
-            [5292 81 "narrow-match"]
-            [42370 81 "narrow-match"]
-            [44778 81 "narrow-match"]
-            [45135 81 "narrow-match"]
-            [45137 81 "narrow-match"]
-            [54795 81 "narrow-match"]
-            [58829 81 "narrow-match"]
-            [59931 81 "narrow-match"]
-            [89838 81 "narrow-match"]],
-           :constrained-pattern-count 61136})
-
-(def ex3 '{:source {:max-tx 536926163},
-           :pattern1 [?r1 80 ?esco],
-           :context
-           {:rels
-            [{:attrs {?oc 0, ?r1 1, ?__auto__1 2},
-              :tuples [],
-              :tuple-count 0}],
-            :consts {?__auto__1 "narrow-match"}},
-           :clause [?r1 :relation/concept-2 ?esco],
-           :constrained-patterns [],
-           :constrained-pattern-count 0})
-
-(def ex4 '{:source {:max-tx 536926163},
-           :pattern1 [?r1 80 ?oc],
-           :context
-           {:rels
-            [{:attrs {?oc 0},
-              :tuples
-              [[5289]
-               [5294]
-               [5299]
-               [5304]
-               [5307]
-               [5310]
-               [5313]
-               [5317]
-               [5322]
-               [5325]],
-              :tuple-count 3654}
-             {:attrs {?__auto__1 0, ?reverse-type__auto__3 1},
-              :tuples [["narrow-match" "broad-match"]],
-              :tuple-count 1}],
-            :consts {?__auto__1 "narrow-match"}},
-           :clause [?r1 :relation/concept-2 ?oc],
-           :constrained-patterns
-           [[?r1 80 5289]
-            [?r1 80 5294]
-            [?r1 80 5299]
-            [?r1 80 5304]
-            [?r1 80 5307]
-            [?r1 80 5310]
-            [?r1 80 5313]
-            [?r1 80 5317]
-            [?r1 80 5322]
-            [?r1 80 5325]],
            :constrained-pattern-count 3654})
 
 (deftest test-new-search-strategy
