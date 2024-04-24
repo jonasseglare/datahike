@@ -33,18 +33,6 @@
 (defn now []
   (Date.))
 
-(defn demo-find-retracted []
-  (let [cfg (assoc-in cfg-template [:store :id] "test-base-history")
-        conn (setup-db cfg)]
-    (d/transact conn [{:db/id [:name "Alice"] :age 30}])
-    (d/transact conn [[:db/retractEntity [:name "Alice"]]])
-    (= #{["Alice" 25]
-         ["Alice" 30]}
-       (d/q '[:find ?n ?a
-              :where [?r :age ?a _ false]
-              [?r :name ?n _ false]]
-            (d/history @conn)))))
-
 (deftest test-base-history
   (let [cfg (assoc-in cfg-template [:store :id] "test-base-history")
         conn (setup-db cfg)]
