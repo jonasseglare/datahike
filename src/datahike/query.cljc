@@ -1276,19 +1276,7 @@ in those cases.
                                       subst-filt-map]
   (substitution-expansion substitution-pattern-element-inds
                           filt-extractor
-                          subst-filt-map)
-  #_(fn [step]
-      (fn
-        ([] (step))
-        ([dst] (step dst))
-        ([dst [pattern datom-pred]]
-         (reduce (fn [dst [substitution-value-vector filt]]
-                   (step dst [(substitute pattern
-                                          substitution-pattern-element-inds
-                                          substitution-value-vector)
-                              (extend-predicate datom-pred filt-extractor filt)]))
-                 dst
-                 subst-filt-map)))))
+                          subst-filt-map))
 
 (def subst-filt-map1-acc (timeacc/unsafe-acc timeacc-root :subst-filt-map1-acc))
 (def subst-filt-map2-acc (timeacc/unsafe-acc timeacc-root :subst-filt-map2-acc))
@@ -1853,7 +1841,7 @@ in those cases.
   (->> (-collect context symbols)
        (map vec)))
 
-(def default-settings {:relprod-strategy expand-once})
+(def default-settings {})
 
 (def raw-q-acc (timeacc/unsafe-acc timeacc-root :raw-q-acc))
 
