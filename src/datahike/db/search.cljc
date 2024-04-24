@@ -8,12 +8,7 @@
    [datahike.index :as di]
    [datahike.lru :refer [lru-datom-cache-factory]]
    [datahike.tools :refer [raise match-vector]]
-   [datahike.tools :refer [timeacc-root]]
-   [timeacc.core :as timeacc]
-
    [environ.core :refer [env]])
-  #?(:cljs (:require-macros [datahike.datom :refer [datom]]
-                            [datahike.tools :refer [case-tree raise]]))
   #?(:clj (:import [datahike.datom Datom])))
 
 (def db-caches (cw/lru-cache-factory {} :threshold (:datahike-max-db-caches env 5)))
