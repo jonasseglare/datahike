@@ -538,25 +538,6 @@
       (fn [tuple]
         (#?(:cljs da/aget :clj get) tuple idx)))))
 
-;; Not faster
-#_(defmacro unrolled-tuple-key-fn [unroll-limit]
-    (let [getters (gensym)
-          tuple (gensym)
-          f (gensym)]
-      `(fn [~getters]
-         (case (count ~getters)
-           0 (fn [~tuple] nil)
-           1 (let [~f (first ~getters)]
-               (fn [~tuple] (~f ~tuple)))
-           ~@(mapcat (fn [n]
-                       [n (let [fns (repeatedly n gensym)]
-                            `(let [~(vec fns) ~getters]
-                               (fn [~tuple]
-                                 ~(mapv (fn [f] `(~f ~tuple)) fns))))])
-                     (range 2 unroll-limit))
-           (fn [~tuple] (mapv (fn [~f] (~f ~tuple)) ~getters))))))
-
-#_(def tuple-key-fn (unrolled-tuple-key-fn 8))
 (defn tuple-key-fn [getters]
     (if (== (count getters) 1)
       (first getters)

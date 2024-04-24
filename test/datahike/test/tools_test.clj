@@ -69,18 +69,3 @@
          (wrap-range-tree [1])))
   (is (= [:inds [0 2] :mask [0 nil 1]]
          (wrap-range-tree [0 2]))))
-
-(deftest unrolled-reduction-test
-  (dotimes [i 10]
-    (let [collection (range i)]
-      (is (= (let [f (dt/unrolled-reduction 5 collection)]
-               (f + 1000))
-             (reduce + 1000 (range i)))))))
-
-(deftest unrolled-set-predicate-test
-  (dotimes [i 10]
-    (dotimes [j 10]
-      (let [coll (set (range i))
-            pred (dt/unrolled-set-predicate 5 coll)]
-        (is (= (boolean (contains? coll j))
-               (boolean (pred j))))))))

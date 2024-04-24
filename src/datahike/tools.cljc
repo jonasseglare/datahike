@@ -14,20 +14,6 @@
   #?(:clj  (clojure.lang.Util/hashCombine x y)
      :cljs (hash-combine x y)))
 
-#?(:clj
-   (defn- -case-tree [queries variants]
-     (if queries
-       (let [v1 (take (/ (count variants) 2) variants)
-             v2 (drop (/ (count variants) 2) variants)]
-         (list 'if (first queries)
-               (-case-tree (next queries) v1)
-               (-case-tree (next queries) v2)))
-       (first variants))))
-
-#?(:clj
-   (defmacro case-tree [qs vs]
-     (-case-tree qs vs)))
-
 (defn -match-vector-class [x]
   (case x
     _ :negative
@@ -255,34 +241,3 @@
                               (inc at)
                               acc-inds
                               mask))))))
-
-
-;;;;;; TODO: remove, didn't improve
-(defmacro unrolled-reduction [unroll-limit collection]
-  (let [step (gensym)
-        dst (gensym)
-        arr (gensym)]
-    `(case (count ~collection)
-       ~@(mapcat (fn [i]
-                   [i (let [syms (repeatedly i gensym)]
-                        `(let [~(vec syms) ~collection]
-                           (fn [~step ~dst]
-                             (-> ~dst
-                                 ~@(map (fn [sym] `(~step ~sym)) syms)))))])
-                 (range unroll-limit))
-       (let [~arr (object-array ~collection)]
-         (fn [~step ~dst]
-           (reduce ~step ~dst ~arr))))))
-
-(defmacro unrolled-set-predicate [unroll-limit elements]
-  (let [x (gensym)]
-    `(case (count ~elements)
-       ~@(mapcat (fn [i]
-                   [i (let [syms (repeatedly i gensym)]
-                        `(let [~(vec syms) (seq ~elements)]
-                           (fn [~x]
-                             (or ~@(map (fn [y] `(= ~x ~y)) syms)))))])
-                 (range unroll-limit))
-       (let [~elements (set ~elements)]
-         (fn [~x]
-           (contains? ~elements ~x))))))
