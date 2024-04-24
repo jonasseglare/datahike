@@ -14,6 +14,7 @@
    [datahike.pull-api :as dpa]
    [datahike.query-stats :as dqs]
    [datahike.middleware.utils :as middleware-utils]
+   [datahike.tools :as dt]
    [datalog.parser :refer [parse]]
    [datalog.parser.impl :as dpi]
    [datalog.parser.impl.proto :as dpip]
