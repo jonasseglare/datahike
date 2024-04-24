@@ -26,7 +26,6 @@
 (use-fixtures :once (partial with-db config (into test-schema test-data)))
 
 (defn unify-stats [stats]
-  (def the-stats stats)
   (cw/postwalk
    #(cond-> %
       (and (map? %) (contains? % :t))                  (assoc :t :measurement)
