@@ -42,7 +42,7 @@
       (and (symbol? %) (re-find #"__auto__" (name %))) (-> name (str/replace #"__auto__\d*" "_tmp") symbol))
    stats))
 
-#_(deftest test-not
+(deftest test-not
   (is (= {:consts {}
           :query  '{:find  [[?a ...]]
                     :where [[?e :age ?a]
