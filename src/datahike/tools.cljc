@@ -1,10 +1,13 @@
 (ns ^:no-doc datahike.tools
+  (:require [timeacc.core :as timeacc])
   (:require
    [superv.async :refer [throw-if-exception-]]
    #?(:clj [clojure.java.io :as io])
    [taoensso.timbre :as log])
   #?(:clj (:import [java.util Properties UUID Date]
                    [java.net InetAddress])))
+
+(defonce timeacc-root (timeacc/root))
 
 (defn combine-hashes [x y]
   #?(:clj  (clojure.lang.Util/hashCombine x y)
