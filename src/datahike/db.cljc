@@ -354,7 +354,9 @@
 
   dbi/ISearch
   (-search [db pattern]
-           (dbs/temporal-search origin-db pattern))
+    (dbs/temporal-search origin-db pattern))
+  (-batch-search [db pattern-mask batch-fn final-xform]
+    (into [] final-xform (dbs/temporal-search origin-db pattern-mask batch-fn)))
 
   dbi/IIndexAccess
   (-datoms [db index-type cs] (dbu/temporal-datoms origin-db index-type cs))
