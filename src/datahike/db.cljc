@@ -371,38 +371,37 @@
   #?(:cljs (instance? js/Date d)
      :clj (instance? Date d)))
 
-(defn get-current-values [db history-datoms]
-  (->> history-datoms
-       (group-by (fn [^Datom datom] [(.-e datom) (.-a datom)]))
-       (mapcat
-        (fn [[[_ a] datoms]]
-          (if (dbu/multival? db a)
-            (->> datoms
-                 (sort-by datom-tx)
-                 (reduce (fn [current-datoms ^Datom datom]
-                           (if (datom-added datom)
-                             (assoc current-datoms (.-v datom) datom)
-                             (dissoc current-datoms (.-v datom))))
-                         {})
-                 vals)
-            (let [last-ea-tx (apply max (map datom-tx datoms))
-                  current-ea-datom (first (filter #(and (datom-added %) (= last-ea-tx (datom-tx %)))
-                                                  datoms))]
-              (if current-ea-datom
-                [current-ea-datom]
-                [])))))))
+(defn filter-as-of-datoms
+  ([datoms time-point db] (filter-as-of-datoms datoms time-point db identity))
+  ([datoms time-point db final-xform]
+   (let [as-of-pred (fn [^Datom d]
+                      (if (date? time-point)
+                        (.before ^Date (.-v d) ^Date time-point)
+                        (<= (dd/datom-tx d) time-point)))
 
-(defn filter-as-of-datoms [datoms time-point db]
-  (let [as-of-pred (fn [^Datom d]
-                     (if (date? time-point)
-                       (.before ^Date (.-v d) ^Date time-point)
-                       (<= (dd/datom-tx d) time-point)))
-
-        filtered-tx-ids (dbu/filter-txInstant datoms as-of-pred db)
-        filtered-datoms (->> datoms
-                             (filter (fn [^Datom d] (contains? filtered-tx-ids (datom-tx d))))
-                             (get-current-values db))]
-    filtered-datoms))
+         filtered-tx-ids (dbu/filter-txInstant datoms as-of-pred db)
+         filtered-datoms (->> datoms
+                              (filter (fn [^Datom d] (contains? filtered-tx-ids (datom-tx d))))
+                              (group-by (fn [^Datom datom] [(.-e datom) (.-a datom)]))
+                              (into [] (comp (mapcat
+                                              (fn [[[_ a] datoms]]
+                                                (if (dbu/multival? db a)
+                                                  (->> datoms
+                                                       (sort-by datom-tx)
+                                                       (reduce (fn [current-datoms ^Datom datom]
+                                                                 (if (datom-added datom)
+                                                                   (assoc current-datoms (.-v datom) datom)
+                                                                   (dissoc current-datoms (.-v datom))))
+                                                               {})
+                                                       vals)
+                                                  (let [last-ea-tx (apply max (map datom-tx datoms))
+                                                        current-ea-datom (first (filter #(and (datom-added %) (= last-ea-tx (datom-tx %)))
+                                                                                        datoms))]
+                                                    (if current-ea-datom
+                                                      [current-ea-datom]
+                                                      [])))))
+                                             final-xform)))]
+     filtered-datoms)))
 
 (defrecord-updatable AsOfDB [origin-db time-point]
   #?@(:cljs
