@@ -25,13 +25,17 @@
    [me.tonsky.persistent-sorted-set.arrays :as da]
    [taoensso.timbre :as log])
   (:refer-clojure :exclude [seqable?])
+  
 
-  #?(:clj (:import [clojure.lang Reflector Seqable]
+  #?(:clj (:import [clojure.lang Reflector Seqable PersistentVector]
                    [datalog.parser.type Aggregate BindColl BindIgnore BindScalar BindTuple Constant
                     FindColl FindRel FindScalar FindTuple PlainSymbol Pull
                     RulesVar SrcVar Variable]
                    [java.lang.reflect Method]
-                   [java.util Date Map HashSet ArrayList])))
+                   [java.util Date Map HashSet ArrayList HashMap HashSet AbstractMap$SimpleEntry
+                    Iterator])))
+
+(set! *warn-on-reflection* true)
 
 ;; ----------------------------------------------------------------------------
 
@@ -140,7 +144,7 @@
            (= (count form) (count pattern))
            (every? (fn [[pattern-el form-el]] (looks-like? pattern-el form-el))
                    (map vector pattern form))))
-    :else                                                   ;; (predicate? pattern)
+    :else ;; (predicate? pattern)
     (pattern form)))
 
 (defn source? [sym]
@@ -155,7 +159,10 @@
   (or (keyword? form) (string? form)))
 
 (defn lookup-ref? [form]
-  (looks-like? [attr? '_] form))
+  ;; Using looks-like? here is quite inefficient.
+  (and (vector? form)
+       (= 2 (count form))
+       (attr? (first form))))
 
 (defn entid? [x]  ;; See `dbu/entid for all forms that are accepted
   (or (attr? x)
@@ -531,6 +538,7 @@
                   :clj (to-array (map #(% tuple) getters))))))))
 
 (defn hash-attrs [key-fn tuples]
+  ;; Equivalent to group-by except that it uses a list instead of a vector.
   (loop [tuples tuples
          hash-table (transient {})]
     (if-some [tuple (first tuples)]
@@ -787,13 +795,13 @@
                   (prod-rel (assoc production :tuples []) (empty-rel binding)))
         idx->const (reduce-kv (fn [m k v]
                                 (if-let [c (k (:consts context))]
-                                  (assoc m v c)     ;; different value at v for each tuple
+                                  (assoc m v c) ;; different value at v for each tuple
                                   m))
                               {}
                               (:attrs new-rel))]
     (if (empty? (:tuples new-rel))
       (update context :rels collapse-rels new-rel)
-      (-> context                                        ;; filter output binding
+      (-> context ;; filter output binding
           (update :rels collapse-rels
                   (update new-rel :tuples #(filter (fn [tuple]
                                                      (every? (fn [[ind c]]
@@ -946,8 +954,10 @@
 
 (defn resolve-pattern-lookup-entity-id [source e error-code]
   (cond
+    (dbu/numeric-entid? e) e
     (or (lookup-ref? e) (attr? e)) (dbu/entid-strict source e error-code)
-    (entid? e) e
+    ;(entid? e) e
+    (keyword? e) e
     (symbol? e) e
     :else (or error-code (dt/raise "Invalid entid" {:error :entity-id/syntax :entity-id e}))))
 
@@ -1006,7 +1016,7 @@ in those cases.
 "
   [source pattern]
   (let [result (resolve-pattern-lookup-refs source pattern ::error)]
-    (when (not-any? #(= % ::error) result)
+    (when (good-lookup-refs? result)
       result)))
 
 (defn dynamic-lookup-attrs [source pattern]
@@ -1523,22 +1533,22 @@ in those cases.
    (-resolve-clause* context clause clause))
   ([context clause orig-clause]
    (condp looks-like? clause
-     [[symbol? '*]]                                       ;; predicate [(pred ?a ?b ?c)]
+     [[symbol? '*]] ;; predicate [(pred ?a ?b ?c)]
      (do (check-all-bound context (identity (filter free-var? (first clause))) orig-clause)
          (filter-by-pred context clause))
 
-     [[symbol? '*] '_]                                    ;; function [(fn ?a ?b) ?res]
+     [[symbol? '*] '_] ;; function [(fn ?a ?b) ?res]
      (bind-by-fn context clause)
 
-     [source? '*]                                         ;; source + anything
+     [source? '*] ;; source + anything
      (let [[source-sym & rest] clause]
        (binding [*implicit-source* (get (:sources context) source-sym)]
          (-resolve-clause context rest clause)))
 
-     '[or *]                                              ;; (or ...)
+     '[or *] ;; (or ...)
      (let [[_ & branches] clause
            context' (assoc context :stats [])
-           contexts (map #(resolve-clause context' %) branches)
+           contexts (mapv #(resolve-clause context' %) branches)
            sum-rel (->> contexts
                         (map #(reduce hash-join (:rels %)))
                         (reduce sum-rel))]
@@ -1546,13 +1556,13 @@ in those cases.
          (:stats context) (assoc :tmp-stats {:type :or
                                              :branches (mapv :stats contexts)})))
 
-     '[or-join [[*] *] *]                                 ;; (or-join [[req-vars] vars] ...)
+     '[or-join [[*] *] *] ;; (or-join [[req-vars] vars] ...)
      (let [[_ [req-vars & vars] & branches] clause]
        (check-all-bound context req-vars orig-clause)
        (recur context (list* 'or-join (concat req-vars vars) branches) clause))
 
-     '[or-join [*] *]                                     ;; (or-join [vars] ...)
-       ;; TODO required vars
+     '[or-join [*] *] ;; (or-join [vars] ...)
+     ;; TODO required vars
      (let [[_ vars & branches] clause
            vars (set vars)
            join-context (-> context
@@ -1569,7 +1579,7 @@ in those cases.
          (:stats context) (assoc :tmp-stats {:type :or-join
                                              :branches (mapv #(-> % :stats first) contexts)})))
 
-     '[and *]                                             ;; (and ...)
+     '[and *] ;; (and ...)
      (let [[_ & clauses] clause]
        (if (:stats context)
          (let [and-context (-> context
@@ -1581,7 +1591,7 @@ in those cases.
                   :stats (:stats context)))
          (resolve-context context clauses)))
 
-     '[not *]                                             ;; (not ...)
+     '[not *] ;; (not ...)
      (let [[_ & clauses] clause
            negation-vars (collect-vars clauses)
            _ (check-some-bound context negation-vars orig-clause)
@@ -1596,7 +1606,7 @@ in those cases.
          (:stats context) (assoc :tmp-stats {:type :not
                                              :branches (:stats negation-context)})))
 
-     '[not-join [*] *]                                    ;; (not-join [vars] ...)
+     '[not-join [*] *] ;; (not-join [vars] ...)
      (let [[_ vars & clauses] clause
            _ (check-all-bound context vars orig-clause)
            join-rel (reduce hash-join (:rels context))
@@ -1612,7 +1622,7 @@ in those cases.
          (:stats context) (assoc :tmp-stats {:type :not
                                              :branches (:stats negation-context)})))
 
-     '[*]                                                 ;; pattern
+     '[*] ;; pattern
      (let [source *implicit-source*
            pattern0 (replace (:consts context) clause)
            pattern1 (resolve-pattern-lookup-refs source pattern0)]
@@ -1623,7 +1633,8 @@ in those cases.
    (-resolve-clause context clause clause))
   ([context clause orig-clause]
    (dqs/update-ctx-with-stats context orig-clause
-                              (fn [context] (-resolve-clause* context clause orig-clause)))))
+                              (fn [context]
+                                (-resolve-clause* context clause orig-clause)))))
 
 (defn resolve-clause [context clause]
   (if (rule? context clause)
@@ -1709,13 +1720,17 @@ in those cases.
 
 (extend-protocol IPostProcess
   FindRel
-  (-post-process [_ tuples] (if (seq? tuples) (vec tuples) tuples))
+  (-post-process [_ tuples]
+    (if (seq? tuples) (vec tuples) tuples))
   FindColl
-  (-post-process [_ tuples] (into [] (map first) tuples))
+  (-post-process [_ tuples]
+    (into [] (map first) tuples))
   FindScalar
-  (-post-process [_ tuples] (ffirst tuples))
+  (-post-process [_ tuples]
+    (ffirst tuples))
   FindTuple
-  (-post-process [_ tuples] (first tuples)))
+  (-post-process [_ tuples]
+    (first tuples)))
 
 (defn- pull [find-elements context resultset]
   (let [resolved (for [find find-elements]
@@ -1740,12 +1755,6 @@ in those cases.
     (let [qp (parse q)]
       (vswap! query-cache assoc q qp)
       qp)))
-
-(defn paginate [offset limit resultset]
-  (let [subseq (drop (or offset 0) (distinct resultset))]
-    (if (or (nil? limit) (neg? limit))
-      subseq
-      (take limit subseq))))
 
 (defn convert-to-return-maps [{:keys [mapping-type mapping-keys]} resultset]
   (let [mapping-keys (map #(get % :mapping-key) mapping-keys)
@@ -1774,14 +1783,21 @@ in those cases.
                             (Context. [] {} {} {} settings))
                           (resolve-ins qin args))
         ;; TODO utilize parser
+
         all-vars      (concat (dpi/find-vars qfind) (map :symbol qwith))
         context-out   (-q context-in (:where query))
         resultset     (collect context-out all-vars)
         find-elements (dpip/find-elements qfind)
         result-arity  (count find-elements)]
-    (cond->> resultset
-      (or offset limit)                             (paginate offset limit)
-      true                                          set
+    (cond->> (into #{}
+                   (comp (distinct)
+                         (if offset
+                           (drop offset)
+                           identity)
+                         (if (or (nil? limit) (neg? limit))
+                           identity
+                           (take limit)))
+                   resultset)
       (:with query)                                 (mapv #(subvec % 0 result-arity))
       (some #(instance? Aggregate %) find-elements) (aggregate find-elements context-in)
       (some #(instance? Pull %) find-elements)      (pull find-elements context-in)
