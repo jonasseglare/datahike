@@ -1618,10 +1618,8 @@ in those cases.
      '[*]                                                 ;; pattern
      (let [source *implicit-source*
            pattern0 (replace (:consts context) clause)
-           pattern1 (resolve-pattern-lookup-refs source pattern0)
-           constrained-patterns (expand-constrained-patterns source context pattern1)
-           context-constrained (lookup-patterns context clause pattern1 constrained-patterns)]
-       context-constrained))))
+           pattern1 (resolve-pattern-lookup-refs source pattern0)]
+       (lookup-batch-search source context clause pattern1)))))
 
 (defn -resolve-clause
   ([context clause]
