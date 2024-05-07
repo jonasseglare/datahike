@@ -94,8 +94,6 @@
         lower-datom (datom-expr eavt-symbols eavt-strats 'e0 'tx0)
         upper-datom (datom-expr eavt-symbols eavt-strats 'emax 'txmax)
 
-        slicer-sym (gensym)
-        
         ;; Either get all datoms or a subset where some values in the
         ;; datom are fixed.
         lookup-expr (if has-substitution
@@ -105,12 +103,6 @@
                                   ~index-key)
                       `(di/-all ~index-expr))
         
-        #_#_slicer-lookup-expr (if has-substitution
-                             `(~slicer-sym
-                               ~lower-datom
-                               ~upper-datom)
-                             `(di/-all ~index-expr))
-
         ;; Symbol type-hinted as Datom.
         dexpr (type-hint-datom (gensym))
 
@@ -240,8 +232,6 @@
                    [])))
   ([db pattern batch-fn]
    (if-let [[db-index strategy-vec _ backend-fn] (temporal-search-strategy db pattern)]
-     #_(let [result (batch-fn strategy-vec (backend-fn db-index))]
-       (filter-by-added pattern result))
      (batch-fn strategy-vec (backend-fn db-index)
                (filter-by-added pattern))
      [])))
