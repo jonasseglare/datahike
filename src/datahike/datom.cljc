@@ -247,6 +247,9 @@
       (if (nil? o2) nil
           (compare o1 o2))))
 
+(defn type-hint-datom [x]
+  (vary-meta x assoc :tag `Datom))
+
 (defn cmp-val [val]
   (case val
     :e (fn [^Datom d1 ^Datom d2] (#?(:clj Long/compare :cljs -) (.-e d1) (.-e d2)))

@@ -191,7 +191,9 @@
 
   dbi/ISearch
   (-search [db pattern]
-           (dbs/search-current-indices db pattern))
+    (dbs/search-current-indices db pattern))
+  (-batch-search [db pattern-mask batch-fn final-xform]
+    (into [] final-xform (dbs/search-current-indices db pattern-mask batch-fn)))
 
   dbi/IIndexAccess
   (-datoms [db index-type cs]
@@ -284,7 +286,11 @@
 
   dbi/ISearch
   (-search [db pattern]
-           (filter (.-pred db) (dbi/-search unfiltered-db pattern)))
+    (filter (.-pred db) (dbi/-search unfiltered-db pattern)))
+  (-batch-search [db pattern-mask batch-fn final-xform]
+    (dbi/-batch-search unfiltered-db pattern-mask batch-fn
+                       (comp (filter (.-pred db))
+                             final-xform)))
 
   dbi/IIndexAccess
   (-datoms [db index cs]
@@ -445,8 +451,11 @@
 
   dbi/ISearch
   (-search [db pattern]
-           (-> (dbs/temporal-search origin-db pattern)
-               (filter-as-of-datoms time-point origin-db)))
+    (-> (dbs/temporal-search origin-db pattern)
+        (filter-as-of-datoms time-point origin-db)))
+  (-batch-search [db pattern batch-fn final-xform]
+    (-> (dbs/temporal-search origin-db pattern batch-fn)
+        (filter-as-of-datoms time-point origin-db final-xform)))
 
   dbi/IIndexAccess
   (-datoms [db index-type cs]
@@ -524,8 +533,11 @@
 
   dbi/ISearch
   (-search [db pattern]
-           (-> (dbs/temporal-search origin-db pattern)
-               (filter-since time-point origin-db)))
+    (-> (dbs/temporal-search origin-db pattern)
+        (filter-since time-point origin-db)))
+  (-batch-search [db pattern batch-fn final-xform]
+    (-> (dbs/temporal-search origin-db pattern batch-fn)
+        (filter-since time-point origin-db final-xform)))
 
   dbi/IIndexAccess
   (dbi/-datoms [db index-type cs]
