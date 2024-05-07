@@ -475,15 +475,19 @@
 
 ;; SinceDB
 
-(defn- filter-since [datoms time-point db]
-  (let [since-pred (fn [^Datom d]
-                     (if (date? time-point)
-                       (.after ^Date (.-v d) ^Date time-point)
-                       (>= (.-tx d) time-point)))
-        filtered-tx-ids (dbu/filter-txInstant datoms since-pred db)]
-    (->> datoms
-         (filter datom-added)
-         (filter (fn [^Datom d] (contains? filtered-tx-ids (datom-tx d)))))))
+(defn- filter-since
+  ([datoms time-point db] (filter-since datoms time-point db identity))
+  ([datoms time-point db final-xform]
+   (let [since-pred (fn [^Datom d]
+                      (if (date? time-point)
+                        (.after ^Date (.-v d) ^Date time-point)
+                        (>= (.-tx d) time-point)))
+         filtered-tx-ids (dbu/filter-txInstant datoms since-pred db)]
+     (into []
+           (comp (filter datom-added)
+                 (filter (fn [^Datom d] (contains? filtered-tx-ids (datom-tx d))))
+                 final-xform)
+           datoms))))
 
 (defrecord-updatable SinceDB [origin-db time-point]
   #?@(:cljs
