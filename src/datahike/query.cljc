@@ -1249,23 +1249,6 @@ in those cases.
                           filt-extractor
                           subst-filt-map))
 
-(defmacro make-vec-lookup-ref-replacer [range-length]
-  (let [inds (gensym)
-        replacer (gensym)
-        tuple (gensym)]
-    `(fn tree-fn# [~replacer ~inds]
-       ~(dt/range-subset-tree
-         range-length inds
-         (fn replacer-fn# [pinds _mask]
-           `(fn [~tuple]
-              (try
-                ~(mapv (fn [index i] `(~replacer ~index (nth ~tuple ~i)))
-                       pinds
-                       (range))
-                (catch Exception e# nil))))))))
-
-(def vec-lookup-ref-replacer (make-vec-lookup-ref-replacer 5))
-
 (defn replace-refs [replacer tuple inds]
   (try
     (mapv (fn [index i] (replacer index (nth tuple i)))
