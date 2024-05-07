@@ -1249,22 +1249,13 @@ in those cases.
                           filt-extractor
                           subst-filt-map))
 
-(defmacro make-vec-lookup-ref-replacer [range-length]
-  (let [inds (gensym)
-        replacer (gensym)
-        tuple (gensym)]
-    `(fn tree-fn# [~replacer ~inds]
-       ~(dt/range-subset-tree
-         range-length inds
-         (fn replacer-fn# [pinds _mask]
-           `(fn [~tuple]
-              (try
-                ~(mapv (fn [index i] `(~replacer ~index (nth ~tuple ~i)))
-                       pinds
-                       (range))
-                (catch Exception e# nil))))))))
+(defn replace-refs [replacer tuple inds]
+  (try
+    (mapv (fn [index i] (replacer index (nth tuple i)))
+          inds
+          (range))
+    (catch Exception _ nil)))
 
-(def vec-lookup-ref-replacer (make-vec-lookup-ref-replacer 5))
 
 (defmacro basic-index-selector [max-length]
   (let [inds (gensym)
@@ -1297,7 +1288,6 @@ in those cases.
         
         substitution-pattern-element-inds (map :pattern-element-index subst)
         lrr-ex (lookup-ref-replacer search-context nil)
-        vrepl (vec-lookup-ref-replacer lrr-ex substitution-pattern-element-inds)
 
         select-pattern-substitution-inds (make-basic-index-selector
                                           pattern-substitution-inds)
@@ -1308,9 +1298,9 @@ in those cases.
                          (doseq [tuple tuples
                                  :let [feature (feature-extractor tuple)]
                                  :when (good-lookup-refs? feature)
-                                 :let [k (-> tuple
-                                             select-pattern-substitution-inds
-                                             vrepl)]
+                                 :let [k (replace-refs lrr-ex
+                                                       (select-inds tuple pattern-substitution-inds)
+                                                       substitution-pattern-element-inds)]
                                  :when k]
                            (.add dst (AbstractMap$SimpleEntry. k feature)))
                          dst)
