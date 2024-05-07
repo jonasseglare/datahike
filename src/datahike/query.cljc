@@ -1266,6 +1266,13 @@ in those cases.
 
 (def vec-lookup-ref-replacer (make-vec-lookup-ref-replacer 5))
 
+(defn replace-refs [replacer tuple inds]
+  (try
+    (mapv (fn [index i] (replacer index (nth tuple i)))
+          inds
+          (range))
+    (catch Exception _ nil)))
+
 
 (defn single-substitution-xform [search-context relation-index subst-map filt-map]
   (let [ ;; Everything from here ....
@@ -1281,7 +1288,6 @@ in those cases.
         
         substitution-pattern-element-inds (map :pattern-element-index subst)
         lrr-ex (lookup-ref-replacer search-context nil)
-        vrepl (vec-lookup-ref-replacer lrr-ex substitution-pattern-element-inds)
 
         ;; ..... to here is fast!!!!
         ;; Roughly 0.0632 seconds
@@ -1289,7 +1295,9 @@ in those cases.
                          (doseq [tuple tuples
                                  :let [feature (feature-extractor tuple)]
                                  :when (good-lookup-refs? feature)
-                                 :let [k (vrepl (select-inds tuple pattern-substitution-inds))]
+                                 :let [k (replace-refs lrr-ex
+                                                       (select-inds tuple pattern-substitution-inds)
+                                                       substitution-pattern-element-inds)]
                                  :when k]
                            (.add dst (AbstractMap$SimpleEntry. k feature)))
                          dst)
