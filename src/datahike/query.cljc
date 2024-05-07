@@ -1299,7 +1299,7 @@ in those cases.
                                  :let [feature (feature-extractor tuple)]
                                  :when (good-lookup-refs? feature)
                                  :let [k (replace-refs lrr-ex
-                                                       (select-inds tuple pattern-substitution-inds)
+                                                       (select-pattern-substitution-inds tuple)
                                                        substitution-pattern-element-inds)]
                                  :when k]
                            (.add dst (AbstractMap$SimpleEntry. k feature)))
