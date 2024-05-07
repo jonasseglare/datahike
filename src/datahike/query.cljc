@@ -647,10 +647,8 @@
 (defn relation-from-datoms [context orig-pattern datoms]
   (or (map-consts context orig-pattern datoms)
       (let [vm (var-mapping orig-pattern (range))]
-        (Relation. vm datoms
-                   #_(into []
-                         relation-from-datoms-xform
-                         datoms)))))
+        (Relation. vm datoms))))
+
 (defn matches-pattern? [pattern tuple]
   (loop [tuple tuple
          pattern pattern]
