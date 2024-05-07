@@ -1299,18 +1299,13 @@ in those cases.
         lrr-ex (lookup-ref-replacer search-context nil)
         vrepl (vec-lookup-ref-replacer lrr-ex substitution-pattern-element-inds)
 
-        select-pattern-substitution-inds (make-basic-index-selector
-                                          pattern-substitution-inds)
-        
         ;; ..... to here is fast!!!!
         ;; Roughly 0.0632 seconds
         subst-filt-map (let [dst (ArrayList.)]
                          (doseq [tuple tuples
                                  :let [feature (feature-extractor tuple)]
                                  :when (good-lookup-refs? feature)
-                                 :let [k (-> tuple
-                                             select-pattern-substitution-inds
-                                             vrepl)]
+                                 :let [k (vrepl (select-inds tuple pattern-substitution-inds))]
                                  :when k]
                            (.add dst (AbstractMap$SimpleEntry. k feature)))
                          dst)
