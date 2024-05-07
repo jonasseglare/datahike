@@ -31,7 +31,7 @@
                     FindColl FindRel FindScalar FindTuple PlainSymbol Pull
                     RulesVar SrcVar Variable]
                    [java.lang.reflect Method]
-                   [java.util Date Map])))
+                   [java.util Date Map HashSet ArrayList])))
 
 ;; ----------------------------------------------------------------------------
 

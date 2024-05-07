@@ -105,7 +105,7 @@
                                   ~index-key)
                       `(di/-all ~index-expr))
         
-        slicer-lookup-expr (if has-substitution
+        #_#_slicer-lookup-expr (if has-substitution
                              `(~slicer-sym
                                ~lower-datom
                                ~upper-datom)
@@ -130,11 +130,9 @@
            `(filter (fn [~dexpr] (and ~@equalities)) ~lookup-expr)
            lookup-expr))
 
-      ;; Used by the batch implementation
       (fn [~index-expr]
-        (let [~slicer-sym (di/-slicer ~index-expr ~index-key)]
-          (fn [~@eavt-symbols ~added]
-            ~slicer-lookup-expr)))]))
+        (fn [~@eavt-symbols ~added]
+          ~lookup-expr))]))
 
 (defmacro lookup-strategy [index-key & eavt-strats]
   {:pre [(keyword? index-key)]}
