@@ -1249,20 +1249,6 @@ in those cases.
                           filt-extractor
                           subst-filt-map))
 
-(defmacro make-index-selector [range-length]
-  (let [inds (gensym)
-        tuple (gensym)]
-    `(fn [~inds]
-       ~(dt/range-subset-tree
-         range-length inds
-         (fn [pinds _mask]
-           `(fn [~tuple]
-              ~(mapv (fn [src-index]
-                       `(nth ~tuple ~src-index))
-                     pinds)))))))
-
-(def index-selector (make-index-selector 5))
-
 (defmacro make-vec-lookup-ref-replacer [range-length]
   (let [inds (gensym)
         replacer (gensym)
@@ -1326,9 +1312,7 @@ in those cases.
                                              select-pattern-substitution-inds
                                              vrepl)]
                                  :when k]
-                           (.add dst (AbstractMap$SimpleEntry.
-                                      (vrepl k)
-                                      feature)))
+                           (.add dst (AbstractMap$SimpleEntry. k feature)))
                          dst)
 
         ;; Neglible time
