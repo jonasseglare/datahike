@@ -752,11 +752,6 @@
                                                    [5 :p 7]]))]
     (is (= #{[1 :k 4] [5 :xyz 6]} (set result)))))
 
-(deftest test-index-selector
-  (let [make-sel (dq/make-index-selector 5)
-        sel (make-sel [1 3])]
-    (is (= [:b :d] (sel [:a :b :c :d :e])))))
-
 (defn concept-id [index]
   (let [s (format "%010d" index)]
     (str (subs s 0 4) "_" (subs s 4 7) "_" (subs s 7 10))))
@@ -967,7 +962,3 @@ we query all (parent, child) pairs."
                (set result)))))))
 
 
-(deftest basic-index-selector-test
-  (let [f (dq/basic-index-selector 5)]
-    (is (= [10 7] ((f [1 3]) [9 10 4 7 1234])))
-    (is (= [7 10] ((f [3 1]) [9 10 4 7 1234])))))

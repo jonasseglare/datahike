@@ -1249,20 +1249,6 @@ in those cases.
                           filt-extractor
                           subst-filt-map))
 
-(defmacro make-index-selector [range-length]
-  (let [inds (gensym)
-        tuple (gensym)]
-    `(fn [~inds]
-       ~(dt/range-subset-tree
-         range-length inds
-         (fn [pinds _mask]
-           `(fn [~tuple]
-              ~(mapv (fn [src-index]
-                       `(nth ~tuple ~src-index))
-                     pinds)))))))
-
-(def index-selector (make-index-selector 5))
-
 (defmacro make-vec-lookup-ref-replacer [range-length]
   (let [inds (gensym)
         replacer (gensym)
@@ -1280,22 +1266,6 @@ in those cases.
 
 (def vec-lookup-ref-replacer (make-vec-lookup-ref-replacer 5))
 
-(defmacro basic-index-selector [max-length]
-  (let [inds (gensym)
-        
-        obj (gensym)]
-    `(fn [~inds]
-       (case (count ~inds)
-         ~@(mapcat (fn [length]
-                     (let [index-symbols (vec (repeatedly length gensym))]
-                       [length `(let [~index-symbols ~inds]
-                                  (fn [~obj]
-                                    ~(mapv
-                                      (fn [sym] `(nth ~obj ~sym))
-                                      index-symbols)))]))
-                   (range (inc max-length)))))))
-
-(def make-basic-index-selector (basic-index-selector 5))
 
 (defn single-substitution-xform [search-context relation-index subst-map filt-map]
   (let [ ;; Everything from here ....
@@ -1313,22 +1283,15 @@ in those cases.
         lrr-ex (lookup-ref-replacer search-context nil)
         vrepl (vec-lookup-ref-replacer lrr-ex substitution-pattern-element-inds)
 
-        select-pattern-substitution-inds (make-basic-index-selector
-                                          pattern-substitution-inds)
-        
         ;; ..... to here is fast!!!!
         ;; Roughly 0.0632 seconds
         subst-filt-map (let [dst (ArrayList.)]
                          (doseq [tuple tuples
                                  :let [feature (feature-extractor tuple)]
                                  :when (good-lookup-refs? feature)
-                                 :let [k (-> tuple
-                                             select-pattern-substitution-inds
-                                             vrepl)]
+                                 :let [k (vrepl (select-inds tuple pattern-substitution-inds))]
                                  :when k]
-                           (.add dst (AbstractMap$SimpleEntry.
-                                      (vrepl k)
-                                      feature)))
+                           (.add dst (AbstractMap$SimpleEntry. k feature)))
                          dst)
 
         ;; Neglible time
