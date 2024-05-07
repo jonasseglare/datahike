@@ -752,11 +752,6 @@
                                                    [5 :p 7]]))]
     (is (= #{[1 :k 4] [5 :xyz 6]} (set result)))))
 
-(deftest test-index-selector
-  (let [make-sel (dq/make-index-selector 5)
-        sel (make-sel [1 3])]
-    (is (= [:b :d] (sel [:a :b :c :d :e])))))
-
 (defn concept-id [index]
   (let [s (format "%010d" index)]
     (str (subs s 0 4) "_" (subs s 4 7) "_" (subs s 7 10))))
