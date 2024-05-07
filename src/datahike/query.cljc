@@ -973,6 +973,11 @@
        added added)
      pattern)))
 
+(defn good-lookup-refs? [pattern]
+  (if (coll? pattern)
+    (not-any? #(= % ::error) pattern)
+    (not= ::error pattern)))
+
 (defn resolve-pattern-lookup-refs-or-nil
   "This function works just like `resolve-pattern-lookup-refs` but if there is an error it returns `nil` instead of throwing an exception. This is used to reject patterns with variables substituted for invalid values.
 
