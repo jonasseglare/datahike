@@ -600,9 +600,14 @@
     (is (= #{0} filt-inds1))))
 
 
+(defn pack6 [step]
+  (fn
+    ([] (step))
+    ([dst] (step dst))
+    ([dst e a v tx added? filt]
+     (step dst [[e a v tx added?] filt]))))
 
-
-#_(deftest test-substitution-plan
+(deftest test-substitution-plan
   (let [-pattern1 '[?w ?x ?y]
         context '{:rels [{:attrs {?x 0
                                   ?y 1}
@@ -637,9 +642,9 @@
         result (into []
                      (comp dq/unpack6
                            subst-xform
-                           dq/pack6)
+                           pack6)
                      init-coll)
-        [[_ p0] [_ p1] [_ p2]] result]
+        [[_ p0] [_ p1] [_ p2] [_ p3]] result]
     (is (= #{0} subst-inds))
     (is (= #{} filt-inds))
     (is (= {'?x {:relation-index 0 :tuple-element-index 0}
@@ -648,14 +653,15 @@
            bsm))
     (is (= [[nil 1 nil nil nil]
             [nil 3 nil nil nil]
+            [nil 3 nil nil nil]
             [nil 5 nil nil nil]] (map first result)))
     (is (p0 [1 2 2]))
     (is (not (p0 [1 2 3])))
     (is (p1 [1 2 4]))
-    (is (p1 [1 2 5]))
+    (is (p2 [1 2 5]))
     (is (not (p1 [1 2 6])))
-    (is (p2 [1 2 6]))
-    (is (not (p2 [1 2 5])))))
+    (is (p3 [1 2 6]))
+    (is (not (p3 [1 2 5])))))
 
 (deftest test-index-feature-extractor
   (let [e (dq/index-feature-extractor [1] true)]
@@ -668,13 +674,6 @@
     (is (nil? (e [119 3])))
     (is (nil? (e [120 4 9 3]))))
   (is (nil? (dq/index-feature-extractor [] false))))
-
-(defn pack6 [step]
-  (fn
-    ([] (step))
-    ([dst] (step dst))
-    ([dst e a v tx added? filt]
-     (step dst [[e a v tx added?] filt]))))
 
 (deftest test-filtering-plan
   (let [pattern1 '[?w ?x ?y]
