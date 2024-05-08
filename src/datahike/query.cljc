@@ -646,8 +646,9 @@
 
 (defn relation-from-datoms [context orig-pattern datoms]
   (or (map-consts context orig-pattern datoms)
-      (let [vm (var-mapping orig-pattern (range))]
-        (Relation. vm datoms))))
+      (Relation. (var-mapping orig-pattern
+                              (range))
+                 datoms)))
 
 (defn matches-pattern? [pattern tuple]
   (loop [tuple tuple
@@ -1358,12 +1359,10 @@
                                         [k feature])))))
                                tuples)
 
-        ;; Neglible time
         filt-extractor (index-feature-extractor
                         (map :pattern-element-index filt)
                         false
                         lrr)]
-    ;; Neglible time
     (instantiate-substitution-xform substitution-pattern-element-inds
                                     filt-extractor
                                     subst-filt-pairs)))
