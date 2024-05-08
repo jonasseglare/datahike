@@ -740,7 +740,7 @@
             datoms)))
 
 
-#_(deftest test-full-lookup-pipeline
+(deftest test-full-lookup-pipeline
   (let [pattern1 '[?x ?w ?y]
         context '{:rels [{:attrs {?x 0}
                           :tuples [[1] [3] [5]]}
@@ -753,10 +753,12 @@
         sfn (dq/search-batch-fn {:bsm bsm
                                  :clean-pattern clean-pattern
                                  :rels rels})
-        result (sfn strategy-vec (mock-backend-fn [[0 :abc 5]
-                                                   [5 :xyz 6]
-                                                   [1 :k 4]
-                                                   [5 :p 7]]))]
+        result (sfn strategy-vec
+                    (mock-backend-fn [[0 :abc 5]
+                                      [5 :xyz 6]
+                                      [1 :k 4]
+                                      [5 :p 7]])
+                    identity)]
     (is (= #{[1 :k 4] [5 :xyz 6]} (set result)))))
 
 (defn concept-id [index]
