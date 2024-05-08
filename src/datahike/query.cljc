@@ -1249,6 +1249,8 @@
                           filt-extractor
                           subst-filt-pairs))
 
+;; The performance improvement of using this macro has been measured,
+;; see comment in single-substition-xform.
 (defmacro make-vec-lookup-ref-replacer [range-length]
   (let [inds (gensym)
         replacer (gensym)
@@ -1266,6 +1268,8 @@
 
 (def vec-lookup-ref-replacer (make-vec-lookup-ref-replacer 5))
 
+;; The performance improvement of using this macro has been measured,
+;; see comment in single-substition-xform.
 (defmacro basic-index-selector [max-length]
   (let [inds (gensym)
         
@@ -1488,9 +1492,9 @@
           result (into []
 
                        ;; From the output of `unpack6`
-                       ;; to the input of `(backend-xform ...)`
+                       ;; to the input of `backend-xform`
                        ;; the transducers are higher-arity. That is,
-                       ;; Instead of calling `(step acc [[e a v tx added?] pred])`,
+                       ;; instead of calling `(step acc [[e a v tx added?] pred])`,
                        ;; they call `(step acc e a v tx added? pred)`. This avoids
                        ;; the allocation of short-lived vectors and speeds up the
                        ;; process by about 0.4 seconds in
