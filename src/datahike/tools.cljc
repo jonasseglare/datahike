@@ -202,6 +202,7 @@
        ~(generate [] pairs))))
 
 (defn range-subset-tree
+  "This function generates code for a decision tree that for an input expression `input` that has to represent a sequence of growing integers that is a subset of the integers in the sequence `(range length-length)`. Every leaf in the decision tree corresponds to one of the 2^range-length possible subsequences and the `branch-visitor-fn` is called at every leaf with the first argument being the subsequence and the second argument being a mask."
   ([range-length input branch-visitor-fn]
    (if (symbol? input)
      (range-subset-tree range-length
