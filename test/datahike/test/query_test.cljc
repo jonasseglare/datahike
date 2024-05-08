@@ -669,6 +669,13 @@
     (is (nil? (e [120 4 9 3]))))
   (is (nil? (dq/index-feature-extractor [] false))))
 
+(defn pack6 [step]
+  (fn
+    ([] (step))
+    ([dst] (step dst))
+    ([dst e a v tx added? filt]
+     (step dst [[e a v tx added?] filt]))))
+
 (deftest test-filtering-plan
   (let [pattern1 '[?w ?x ?y]
         context '{:rels [{:attrs {?x 0}
@@ -703,7 +710,7 @@
         subst-result (into []
                            (comp dq/unpack6
                                  subst-xform
-                                 dq/pack6)
+                                 pack6)
                            init-coll)
         [[_ p0]] subst-result]
     (is (nil? p0))
