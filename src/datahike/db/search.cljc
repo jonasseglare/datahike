@@ -112,19 +112,15 @@
                                  (when (= :filter t-strat)
                                    `(= ~t-sym (datom-tx ~dexpr)))])
         added (gensym)]
-    `[~index-key
-
-      ~(vec eavt-strats)
-      
-      ;; Used by the old implementation
-      (fn [~index-expr ~eavt-symbols]
-        ~(if (seq equalities)
-           `(filter (fn [~dexpr] (and ~@equalities)) ~lookup-expr)
-           lookup-expr))
-
-      (fn [~index-expr]
-        (fn [~@eavt-symbols ~added]
-          ~lookup-expr))]))
+    `{:index-key ~index-key
+      :strategy-vec ~(vec eavt-strats)
+      :lookup-fn (fn [~index-expr ~eavt-symbols]
+                   ~(if (seq equalities)
+                      `(filter (fn [~dexpr] (and ~@equalities)) ~lookup-expr)
+                      lookup-expr))
+      :backend-fn (fn [~index-expr]
+                    (fn [~@eavt-symbols ~added]
+                      ~lookup-expr))}))
 
 (defmacro lookup-strategy [index-key & eavt-strats]
   {:pre [(keyword? index-key)]}
@@ -176,36 +172,36 @@
 
 (defn current-search-strategy [db pattern]
   (let [[_ a _ _] pattern]
-    (when-let [[index-key strategy-vec strategy-fn backend-fn]
-               (get-search-strategy pattern
-                                    (dbu/indexing? db a)
-                                    false)]
-      [(get db index-key) strategy-vec strategy-fn backend-fn])))
+    (when-let [strategy (get-search-strategy pattern
+                                             (dbu/indexing? db a)
+                                             false)]
+      (update strategy :index-key #(get db %)))))
 
 (defn temporal-search-strategy [db pattern]
   (let [[_ a _ _ _] pattern]
-    (when-let [[index-key strategy-vec strategy-fn backend-fn] (get-search-strategy
-                                                         pattern
-                                                         (dbu/indexing? db a)
-                                                         true)]
-      [(case index-key
-         :eavt (:temporal-eavt db)
-         :aevt (:temporal-aevt db)
-         :avet (:temporal-avet db)
-         nil) strategy-vec strategy-fn backend-fn])))
+    (when-let [strategy (get-search-strategy
+                         pattern
+                         (dbu/indexing? db a)
+                         true)]
+      (update strategy :index-key #(case %
+                                     :eavt (:temporal-eavt db)
+                                     :aevt (:temporal-aevt db)
+                                     :avet (:temporal-avet db)
+                                     nil)))))
 
 (defn search-current-indices
   ([db pattern]
    (memoize-for
     db [:search pattern]
-    #(if-let [[db-index _ strategy-fn _] (current-search-strategy db pattern)]
-       (strategy-fn db-index pattern)
+    #(if-let [{:keys [index-key lookup-fn]} (current-search-strategy db pattern)]
+       (lookup-fn index-key pattern)
        [])))
 
   ;; For batches
   ([db pattern batch-fn]
-   (if-let [[db-index strategy-vec _ backend-fn] (current-search-strategy db pattern)]
-     (batch-fn strategy-vec (backend-fn db-index) identity)
+   (if-let [{:keys [index-key strategy-vec backend-fn]}
+            (current-search-strategy db pattern)]
+     (batch-fn strategy-vec (backend-fn index-key) identity)
      [])))
 
 (defn added? [[_ _ _ _ added]]
@@ -226,13 +222,15 @@
 (defn search-temporal-indices
   ([db pattern]
    (memoize-for db [:temporal-search pattern]
-                #(if-let [[db-index _ strategy-fn _] (temporal-search-strategy db pattern)]
-                   (let [result (strategy-fn db-index pattern)]
+                #(if-let [{:keys [index-key lookup-fn]}
+                          (temporal-search-strategy db pattern)]
+                   (let [result (lookup-fn index-key pattern)]
                      (filter-by-added pattern result))
                    [])))
   ([db pattern batch-fn]
-   (if-let [[db-index strategy-vec _ backend-fn] (temporal-search-strategy db pattern)]
-     (batch-fn strategy-vec (backend-fn db-index)
+   (if-let [{:keys [index-key strategy-vec backend-fn]}
+            (temporal-search-strategy db pattern)]
+     (batch-fn strategy-vec (backend-fn index-key)
                (filter-by-added pattern))
      [])))
 
