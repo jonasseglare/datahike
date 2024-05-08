@@ -627,7 +627,7 @@
                     :strategy-vec strategy
                     :rels rels}
                    subst-inds)
-        [init-coll subst-xform] (dq/substitution-xform
+        [init-coll subst-xform] (dq/initialization-and-substitution-xform
                                  {:bsm bsm
                                   :clean-pattern clean-pattern
                                   :strategy-vec strategy
@@ -693,7 +693,7 @@
                     :clean-pattern clean-pattern
                     :strategy-vec strategy}
                    subst-inds)
-        [init-coll subst-xform] (dq/substitution-xform
+        [init-coll subst-xform] (dq/initialization-and-substitution-xform
                                  {:bsm bsm
                                   :clean-pattern clean-pattern
                                   :strategy-vec strategy
