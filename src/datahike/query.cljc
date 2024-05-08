@@ -1120,11 +1120,6 @@
               (remove subst-inds))
         (search-index-mapping context :filter)))
 
-(defn select-inds [src inds]
-  (def the-src src)
-  (def the-inds inds)
-  (mapv #(nth src %) inds))
-
 (defn index-feature-extractor
   "Given a set of indices referring to elements in a sequential container such as a datom or vector, construct a function that returns a value computed from such a sequential container such that two different values returned from that function are equal if and only if their corresponding values at those indices are equal. Optionally takes a function that can remap the selected elements."
   ([inds include-empty?]
@@ -1143,13 +1138,6 @@
          ([] inds)
          ([x]
           (mapv #(wrap-comparable (replacer % (nth x %))) inds)))))))
-
-(defn substitute [pattern inds vals]
-  (if (empty? inds)
-    pattern
-    (recur (assoc pattern (first inds) (first vals))
-           (rest inds)
-           (rest vals))))
 
 (defn extend-predicate1 [predicate feature-extractor ref-feature]
   (if (nil? feature-extractor)
@@ -1475,21 +1463,6 @@
     ([dst] (step dst))
     ([dst [[e a v tx added?] filt]]
      (step dst e a v tx added? filt))))
-
-(defn pack6 [step]
-  (fn
-    ([] (step))
-    ([dst] (step dst))
-    ([dst e a v tx added? filt]
-     (step dst [[e a v tx added?] filt]))))
-
-(defn datom->array [[e a v tx added?]]
-  (doto (object-array 5)
-    (aset 0 e)
-    (aset 1 a)
-    (aset 2 v)
-    (aset 3 tx)
-    (aset 4 added?)))
 
 (defn search-batch-fn [search-context]
   (fn [strategy-vec backend-fn datom-xform]
