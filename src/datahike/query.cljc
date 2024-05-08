@@ -954,7 +954,7 @@
   (cond
     (dbu/numeric-entid? e) e
     (or (lookup-ref? e) (attr? e)) (dbu/entid-strict source e error-code)
-    ;(entid? e) e
+                                        ;(entid? e) e
     (keyword? e) e
     (symbol? e) e
     :else (or error-code (dt/raise "Invalid entid" {:error :entity-id/syntax :entity-id e}))))
@@ -986,32 +986,32 @@
 (defn resolve-pattern-lookup-refs-or-nil
   "This function works just like `resolve-pattern-lookup-refs` but if there is an error it returns `nil` instead of throwing an exception. This is used to reject patterns with variables substituted for invalid values.
 
-For instance, take the query
+  For instance, take the query
 
-(d/q '[:find ?e
+  (d/q '[:find ?e
       :in $ [?e ...]
       :where [?e :friend 3]]
      db [1 2 3 \"A\"])
 
-in the test `datahike.test.lookup-refs-test/test-lookup-refs-query`.
+  in the test `datahike.test.lookup-refs-test/test-lookup-refs-query`.
 
-According to this query, the variable `?e` can be either `1`, `2`, `3` or `\"A\"`
-but \"A\" is not a valid entity.
+  According to this query, the variable `?e` can be either `1`, `2`, `3` or `\"A\"`
+  but \"A\" is not a valid entity.
 
-The query engine will evaluate the pattern `[?e :friend 3]`. For the strategies
-`identity` and `select-simple`, no substitution will be performed in this pattern.
-Instead, they will ask for all tuples from the database and then filter them, so
-the fact that `?e` can be bound to an impossible entity id `\"A\"` is not a problem.
+  The query engine will evaluate the pattern `[?e :friend 3]`. For the strategies
+  `identity` and `select-simple`, no substitution will be performed in this pattern.
+  Instead, they will ask for all tuples from the database and then filter them, so
+  the fact that `?e` can be bound to an impossible entity id `\"A\"` is not a problem.
 
-But with the strategy `select-all`, the substituted pattern will become 
+  But with the strategy `select-all`, the substituted pattern will become 
 
-[\"A\" :friend 3]
+  [\"A\" :friend 3]
 
-and consequently, the `result` below will take the value `[::error :friend 3]`.
-The unit test is currently written to simply ignore illegal illegal entity ids
-such as \"A\" and therefore, we handle that by letting this function return nil
-in those cases.
-"
+  and consequently, the `result` below will take the value `[::error :friend 3]`.
+  The unit test is currently written to simply ignore illegal illegal entity ids
+  such as \"A\" and therefore, we handle that by letting this function return nil
+  in those cases.
+  "
   [source pattern]
   (let [result (resolve-pattern-lookup-refs source pattern ::error)]
     (when (good-lookup-refs? result)
@@ -1211,7 +1211,7 @@ in those cases.
 
 (defmacro substitution-expansion [substitution-pattern-element-inds
                                   filt-extractor
-                                  subst-filt-map]
+                                  subst-filt-pairs]
   (let [pattern-symbols (repeatedly 5 gensym)
         substitution-value-vector (gensym "substitution-value-vector")
         datom-pred (gensym)
@@ -1237,17 +1237,17 @@ in those cases.
                                              pattern-symbols)
                                       ~pred-expr))
                              dst#
-                             ~subst-filt-map)))))]
+                             ~subst-filt-pairs)))))]
          `(if (nil? ~filt-extractor)
             ~(branch-expr datom-pred)
             ~(branch-expr `(extend-predicate1 ~datom-pred ~filt-extractor ~filt))))))))
 
 (defn instantiate-substitution-xform [substitution-pattern-element-inds
                                       filt-extractor
-                                      subst-filt-map]
+                                      subst-filt-pairs]
   (substitution-expansion substitution-pattern-element-inds
                           filt-extractor
-                          subst-filt-map))
+                          subst-filt-pairs))
 
 (defmacro make-vec-lookup-ref-replacer [range-length]
   (let [inds (gensym)
@@ -1308,18 +1308,24 @@ in those cases.
         ;; https://gitlab.com/arbetsformedlingen/taxonomy-dev/backend/experimental/datahike-benchmark/
         select-pattern-substitution-inds (make-basic-index-selector
                                           pattern-substitution-inds)
-        
-        subst-filt-map (into []
-                             (keep
-                              (fn [tuple]
-                                (let [feature (feature-extractor tuple)]
-                                  (when (good-lookup-refs? feature)
-                                    (when-let [k
-                                               (-> tuple
-                                                   select-pattern-substitution-inds
-                                                   vrepl)]
-                                      [k feature])))))
-                             tuples)
+
+        ;; Using a transducer here (with a transient vector under the hood)
+        ;; is about ½ second faster than a doseq-loop that accumulates to
+        ;; an ArrayList in the benchmark
+        ;; https://gitlab.com/arbetsformedlingen/taxonomy-dev/backend/experimental/datahike-benchmark/
+        ;; In other words, there is not use writing imperative code here
+        ;; with Java mutable collections.
+        subst-filt-pairs (into []
+                               (keep
+                                (fn [tuple]
+                                  (let [feature (feature-extractor tuple)]
+                                    (when (good-lookup-refs? feature)
+                                      (when-let [k
+                                                 (-> tuple
+                                                     select-pattern-substitution-inds
+                                                     vrepl)]
+                                        [k feature])))))
+                               tuples)
 
         ;; Neglible time
         filt-extractor (index-feature-extractor
@@ -1329,7 +1335,7 @@ in those cases.
     ;; Neglible time
     (instantiate-substitution-xform substitution-pattern-element-inds
                                     filt-extractor
-                                    subst-filt-map)))
+                                    subst-filt-pairs)))
 
 (defn search-context? [x]
   (assert (map? x))
