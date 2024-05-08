@@ -1126,6 +1126,7 @@
   (mapv #(nth src %) inds))
 
 (defn index-feature-extractor
+  "Given a set of indices referring to elements in a sequential container such as a datom or vector, construct a function that returns a value computed from such a sequential container such that two different values returned from that function are equal if and only if their corresponding values at those indices are equal. Optionally takes a function that can remap the selected elements."
   ([inds include-empty?]
    (index-feature-extractor inds include-empty? (fn [_ x] x)))
   ([inds include-empty? replacer]
@@ -1382,19 +1383,27 @@
                            :else x)))
           pattern)))
 
-(defn substitution-xform [search-context rel-inds]
+(defn initialization-and-substitution-xform
+  "Returns a transducer that performs all subsitutions possible given the relations with indices `rel-inds`."
+  [search-context rel-inds]
   {:pre [(map? search-context)
          (set? rel-inds)]}
-  (let [subst-map (compute-per-rel-map search-context rel-inds :substitute)
+  (let [;; subst-map and filt-map have keys that are relation indices
+        ;; and values that are sequences of maps.
+        subst-map (compute-per-rel-map search-context rel-inds :substitute)
         filt-map (compute-per-rel-map search-context rel-inds :filter)
+        
         subst-xforms (into []
                            (map #(single-substitution-xform
                                   search-context %
                                   subst-map
                                   filt-map))
                            rel-inds)
-        init-coll [[(clean-pattern-before-substitution
+        init-coll [[;; This is the initial pattern
+                    (clean-pattern-before-substitution
                      (:clean-pattern search-context) subst-map)
+
+                    ;; This is the initial predicate (nil because there is no predicate)
                     nil]]]
     [init-coll (apply comp subst-xforms)]))
 
@@ -1491,7 +1500,9 @@
           search-context (merge search-context {:subst-inds subst-inds
                                                 :filt-inds filt-inds})
           
-          [init-coll subst-xform] (substitution-xform search-context subst-inds)
+          [init-coll subst-xform] (initialization-and-substitution-xform
+                                   search-context subst-inds)
+          
           filt-predicate (datom-filter-predicate search-context filt-inds)
           filt-predicate (extend-predicate-for-pattern-constants
                           filt-predicate search-context)
