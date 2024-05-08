@@ -1215,17 +1215,37 @@
         substitution-value-vector (gensym "substitution-value-vector")
         datom-pred (gensym)
         filt (gensym)]
+
+
+    ;; This code generates a tree of `if`-forms for all ordered subsets of
+    ;; the sequence `(range 5)` that `substitution-pattern-element-inds`.
+    ;; can take. At each leaf of the tree, code is generated for that particular
+    ;; subset.
     (dt/range-subset-tree
      5
      substitution-pattern-element-inds
+
+     ;; This function is called at each leaf of the tree.
+     ;; `pmast` is a boolean sequence
      (fn [_pinds pmask]
+
+       ;; `branch-expr` is a function that generates the actual
+       ;; code given a predicate expression.
        (let [branch-expr
              (fn [pred-expr]
+
+               ;; This is the code for the transducer.
                `(fn [step#]
                   (fn
                     ([] (step#))
                     ([dst-one#] (step# dst-one#))
+
+                    ;; This is a higher-arity step function.
                     ([dst# ~@pattern-symbols ~datom-pred]
+
+                     ;; This generates the code that substitutes some of the
+                     ;; incomping values by values from the relation and calls
+                     ;; the next step function in the transducer chain.
                      (reduce (fn [dst-inner# [~substitution-value-vector ~filt]]
                                (step# dst-inner#
                                       ~@(map (fn [i sym]
@@ -1237,6 +1257,10 @@
                                       ~pred-expr))
                              dst#
                              ~subst-filt-pairs)))))]
+
+         ;; Generate different code depending on whether or not there is a
+         ;; `filt-extractor`, meaning that the resulting datoms have to be
+         ;; filtered.
          `(if (nil? ~filt-extractor)
             ~(branch-expr datom-pred)
             ~(branch-expr `(extend-predicate1 ~datom-pred ~filt-extractor ~filt))))))))
@@ -1244,6 +1268,8 @@
 (defn instantiate-substitution-xform [substitution-pattern-element-inds
                                       filt-extractor
                                       subst-filt-pairs]
+
+  ;; Returns a transducer based on the indices in `substitution-pattern-element-inds`
   (substitution-expansion substitution-pattern-element-inds
                           filt-extractor
                           subst-filt-pairs))
