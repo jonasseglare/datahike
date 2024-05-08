@@ -1479,15 +1479,28 @@
           filt-predicate (datom-filter-predicate search-context filt-inds)
           filt-predicate (extend-predicate-for-pattern-constants
                           filt-predicate search-context)
-          
+
+          ;; This transduction will take the initial pattern,
+          ;; perform all variable substitutions for all combinations
+          ;; of relations and then look up the datoms in the index.
+          ;; Finally, the datoms will be filtered for the variables
+          ;; that were not substituted.
           result (into []
+
+                       ;; From the output of `unpack6`
+                       ;; to the input of `(backend-xform ...)`
+                       ;; the transducers are higher-arity. That is,
+                       ;; Instead of calling `(step acc [[e a v tx added?] pred])`,
+                       ;; they call `(step acc e a v tx added? pred)`. This avoids
+                       ;; the allocation of short-lived vectors and speeds up the
+                       ;; process by about 0.4 seconds in
+                       ;; https://gitlab.com/arbetsformedlingen/taxonomy-dev/backend/experimental/datahike-benchmark/
+                       
                        (comp unpack6
                              subst-xform
                              (backend-xform backend-fn)
                              (filter-from-predicate filt-predicate)
-                             datom-xform
-                             ;;(map datom->array)
-                             )
+                             datom-xform)
                        init-coll)]
       result)))
 
