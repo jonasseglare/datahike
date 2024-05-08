@@ -1069,13 +1069,17 @@
 
 (def rel-product-unit (Relation. {} [[]]))
 
-(defn bound-symbol-map [rels]
+(defn bound-symbol-map
+  "Given a sequential collection of relations, return a map where every key is a symbol and every value is a map with the keys `:relation-index` and `:tuple-element-index`."
+  [rels]
   (into {} (for [[rel-index rel] (map-indexed vector rels)
                  [sym tup-index] (:attrs rel)]
              [sym {:relation-index rel-index
                    :tuple-element-index tup-index}])))
 
-(defn normalize-pattern [[e a v tx added?]]
+(defn normalize-pattern
+  "Takes a pattern and returns a new pattern with exactly five elements, filling in any missing ones with nil."
+  [[e a v tx added?]]
   [e a v tx added?])
 
 (defn replace-unbound-symbols-by-nil [bsm pattern]
@@ -1084,8 +1088,10 @@
             %)
          pattern)))
 
-(defn search-index-mapping [{:keys [strategy-vec clean-pattern bsm]}
-                            selected-strategy-symbol]
+(defn search-index-mapping
+  "Returns a sequence of maps with index-information for a subset of e, a, v, tx. The `strategy-vec` argument is a vector of four elements corresponding to e, a, v, tx respectively. Every such element can be either `:substitute`, `:filter` or `nil` depending on how the corresponding element in the pattern should be used. The `clean-pattern` is argument is a vector with the elements corresponding to e, a, v, tx. The argument `selected-strategy-symbol` can be either `:substitute`, `:filter` or `nil` and is used to filter e, a, v, tx based on the value of `:strategy-vec`."
+  [{:keys [strategy-vec clean-pattern bsm]}
+   selected-strategy-symbol]
   {:pre [(= 4 (count strategy-vec))]}
   (let [pattern (normalize-pattern clean-pattern)]
     (map-indexed
@@ -1099,12 +1105,16 @@
            :when m]
        (assoc m :pattern-element-index pattern-element-index)))))
 
-(defn substitution-relation-indices [context]
+(defn substitution-relation-indices
+  "Returns the set of indices of relations that have symbols that are substituted for actual values in the pattern before index lookup."
+  [context]
   (into #{}
         (map :relation-index)
         (search-index-mapping context :substitute)))
 
-(defn filtering-relation-indices [context subst-inds]
+(defn filtering-relation-indices
+  "Returns the set of indices of relations that have symbols that will be used for filtering the datoms returned from the inex lookup."
+  [context subst-inds]
   (into #{}
         (comp (map :relation-index)
               (remove subst-inds))
@@ -1287,7 +1297,9 @@
 
 (def make-basic-index-selector (basic-index-selector 5))
 
-(defn single-substitution-xform [search-context relation-index subst-map filt-map]
+(defn single-substitution-xform
+  "Returns a transducer that substitutes the symbols for a single relation."
+  [search-context relation-index subst-map filt-map]
   (let [ ;; Everything from here ....
         lrr (lookup-ref-replacer search-context)
         tuples (:tuples (nth (:rels search-context) relation-index))
