@@ -1406,19 +1406,19 @@
         subst-map (compute-per-rel-map search-context rel-inds :substitute)
         filt-map (compute-per-rel-map search-context rel-inds :filter)
         
-        subst-xforms (into []
-                           (map #(single-substitution-xform
-                                  search-context %
-                                  subst-map
-                                  filt-map))
-                           rel-inds)
+        full-subst-xform (apply comp
+                                (map #(single-substitution-xform
+                                       search-context %
+                                       subst-map
+                                       filt-map)
+                                     rel-inds))
         init-coll [[;; This is the initial pattern
                     (clean-pattern-before-substitution
                      (:clean-pattern search-context) subst-map)
 
                     ;; This is the initial predicate (nil because there is no predicate)
                     nil]]]
-    [init-coll (apply comp subst-xforms)]))
+    [init-coll full-subst-xform]))
 
 (defn datom-filter-predicate [search-context rel-inds]
   (let [filt-map (compute-per-rel-map search-context rel-inds :filter)
