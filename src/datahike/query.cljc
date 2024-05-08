@@ -1297,13 +1297,18 @@ in those cases.
         
         substitution-pattern-element-inds (map :pattern-element-index subst)
         lrr-ex (lookup-ref-replacer search-context nil)
+
+        ;; Precomputing this function moves some work out of the loop
+        ;; and contributes to about 1½ seconds reduction in
+        ;; https://gitlab.com/arbetsformedlingen/taxonomy-dev/backend/experimental/datahike-benchmark/
         vrepl (vec-lookup-ref-replacer lrr-ex substitution-pattern-element-inds)
 
+        ;; Precomputing this function moves some work out of the loop
+        ;; and contributes to about 2 seconds reduction in
+        ;; https://gitlab.com/arbetsformedlingen/taxonomy-dev/backend/experimental/datahike-benchmark/
         select-pattern-substitution-inds (make-basic-index-selector
                                           pattern-substitution-inds)
         
-        ;; ..... to here is fast!!!!
-        ;; Roughly 0.0632 seconds
         subst-filt-map (let [dst (ArrayList.)]
                          (doseq [tuple tuples
                                  :let [feature (feature-extractor tuple)]
