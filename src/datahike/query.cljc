@@ -1226,16 +1226,16 @@
                   (fn
                     ([] (step#))
                     ([dst-one#] (step# dst-one#))
-                    ([dst# ~@pattern-symbols ~datom-pred]
+                    ([dst# [[~@pattern-symbols] ~datom-pred]]
                      (reduce (fn [dst-inner# [~substitution-value-vector ~filt]]
                                (step# dst-inner#
-                                      ~@(map (fn [i sym]
-                                               (if (nil? i)
-                                                 sym
-                                                 `(nth ~substitution-value-vector ~i)))
-                                             pmask
-                                             pattern-symbols)
-                                      ~pred-expr))
+                                      [[~@(map (fn [i sym]
+                                                 (if (nil? i)
+                                                   sym
+                                                   `(nth ~substitution-value-vector ~i)))
+                                               pmask
+                                               pattern-symbols)]
+                                       ~pred-expr]))
                              dst#
                              ~subst-filt-pairs)))))]
          `(if (nil? ~filt-extractor)
@@ -1284,8 +1284,7 @@
 (def make-basic-index-selector (basic-index-selector 5))
 
 (defn single-substitution-xform [search-context relation-index subst-map filt-map]
-  (let [ ;; Everything from here ....
-        lrr (lookup-ref-replacer search-context)
+  (let [lrr (lookup-ref-replacer search-context)
         tuples (:tuples (nth (:rels search-context) relation-index))
         subst (subst-map relation-index)
         filt (filt-map relation-index)
@@ -1327,12 +1326,10 @@
                                         [k feature])))))
                                tuples)
 
-        ;; Neglible time
         filt-extractor (index-feature-extractor
                         (map :pattern-element-index filt)
                         false
                         lrr)]
-    ;; Neglible time
     (instantiate-substitution-xform substitution-pattern-element-inds
                                     filt-extractor
                                     subst-filt-pairs)))
@@ -1412,7 +1409,7 @@
     (fn
       ([] (step))
       ([dst] (step dst))
-      ([dst e a v tx added? datom-predicate]
+      ([dst [[e a v tx added?] datom-predicate]]
        (let [inner-step (if datom-predicate
                           (fn [dst datom]
                             (if (datom-predicate datom)
@@ -1481,7 +1478,7 @@
                           filt-predicate search-context)
           
           result (into []
-                       (comp unpack6
+                       (comp ;unpack6
                              subst-xform
                              (backend-xform backend-fn)
                              (filter-from-predicate filt-predicate)
