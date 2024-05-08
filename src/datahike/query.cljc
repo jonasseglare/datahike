@@ -1309,16 +1309,17 @@ in those cases.
         select-pattern-substitution-inds (make-basic-index-selector
                                           pattern-substitution-inds)
         
-        subst-filt-map (let [dst (ArrayList.)]
-                         (doseq [tuple tuples
-                                 :let [feature (feature-extractor tuple)]
-                                 :when (good-lookup-refs? feature)
-                                 :let [k (-> tuple
-                                             select-pattern-substitution-inds
-                                             vrepl)]
-                                 :when k]
-                           (.add dst (AbstractMap$SimpleEntry. k feature)))
-                         dst)
+        subst-filt-map (into []
+                             (keep
+                              (fn [tuple]
+                                (let [feature (feature-extractor tuple)]
+                                  (when (good-lookup-refs? feature)
+                                    (when-let [k
+                                               (-> tuple
+                                                   select-pattern-substitution-inds
+                                                   vrepl)]
+                                      [k feature])))))
+                             tuples)
 
         ;; Neglible time
         filt-extractor (index-feature-extractor
