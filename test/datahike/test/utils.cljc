@@ -57,3 +57,16 @@
 
 (defn conn-id []
   (str (get-time)))
+
+(defn set-element-permutations [coll]
+  (loop [[[part remaining] & stack] [[[] (set coll)]]
+         result []]
+    (cond
+      (nil? part) result
+      (empty? remaining) (recur stack (conj result part))
+      :else (recur (into stack
+                         (map (fn [x]
+                                [(conj part x)
+                                 (disj remaining x)]))
+                         remaining)
+                   result))))
