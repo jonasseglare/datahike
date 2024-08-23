@@ -137,6 +137,10 @@
       (update :aevt di/-persistent!)
       (update :avet di/-persistent!)))
 
+(defn- date? [d]
+  #?(:cljs (instance? js/Date d)
+     :clj (instance? Date d)))
+
 (defn- as-of-pred [time-point]
   (if (date? time-point)
     (fn [^Datom d] (.before ^Date (.-v d) ^Date time-point))
@@ -152,6 +156,27 @@
     (nil? a) b
     (nil? b) a
     :else #(and (a %) (b %))))
+
+(defn get-current-values [db history-datoms]
+  (->> history-datoms
+       (group-by (fn [^Datom datom] [(.-e datom) (.-a datom)]))
+       (mapcat
+        (fn [[[_ a] datoms]]
+          (if (dbu/multival? db a)
+            (->> datoms
+                 (sort-by datom-tx)
+                 (reduce (fn [current-datoms ^Datom datom]
+                           (if (datom-added datom)
+                             (assoc current-datoms (.-v datom) datom)
+                             (dissoc current-datoms (.-v datom))))
+                         {})
+                 vals)
+            (let [last-ea-tx (apply max (map datom-tx datoms))
+                  current-ea-datom (first (filter #(and (datom-added %) (= last-ea-tx (datom-tx %)))
+                                                  datoms))]
+              (if current-ea-datom
+                [current-ea-datom]
+                [])))))))
 
 (defn filter-datoms-temporally [datoms db {:keys [historical? temporal-pred]}]
   {:pre [(boolean? historical?)]}
@@ -455,32 +480,6 @@
 
   (-index-range [db attr start end context] (deeper-index-range origin-db db attr start end context)))
 
-;; AsOfDB
-
-(defn- date? [d]
-  #?(:cljs (instance? js/Date d)
-     :clj (instance? Date d)))
-
-(defn get-current-values [db history-datoms]
-  (->> history-datoms
-       (group-by (fn [^Datom datom] [(.-e datom) (.-a datom)]))
-       (mapcat
-        (fn [[[_ a] datoms]]
-          (if (dbu/multival? db a)
-            (->> datoms
-                 (sort-by datom-tx)
-                 (reduce (fn [current-datoms ^Datom datom]
-                           (if (datom-added datom)
-                             (assoc current-datoms (.-v datom) datom)
-                             (dissoc current-datoms (.-v datom))))
-                         {})
-                 vals)
-            (let [last-ea-tx (apply max (map datom-tx datoms))
-                  current-ea-datom (first (filter #(and (datom-added %) (= last-ea-tx (datom-tx %)))
-                                                  datoms))]
-              (if current-ea-datom
-                [current-ea-datom]
-                [])))))))
 
 (defrecord-updatable AsOfDB [origin-db time-point]
   #?@(:cljs
