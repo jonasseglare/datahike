@@ -253,7 +253,9 @@
                          :historical? false
 
                          ;; What index to use.
-                         :temporal? false})
+                         :temporal? false
+
+                         :temporal-pred nil})
   (-search [db pattern context]
            (contextual-search db pattern context))
 
@@ -445,19 +447,39 @@
                 [current-ea-datom]
                 [])))))))
 
+(defn- as-of-pred [time-point]
+  (if (date? time-point)
+    (fn [^Datom d] (.before ^Date (.-v d) ^Date time-point))
+    (fn [^Datom d] (<= (dd/datom-tx d) time-point))))
+
+(defn- since-pred [time-point]
+  (if (date? time-point)
+    (fn [^Datom d] (.after ^Date (.-v d) ^Date time-point))
+    (fn [^Datom d] (>= (.-tx d) time-point))))
+
 (defn filter-as-of-datoms [datoms time-point db {:keys [historical?]}]
   {:pre [(boolean? historical?)]}
-  (let [as-of-pred (fn [^Datom d]
-                     (if (date? time-point)
-                       (.before ^Date (.-v d) ^Date time-point)
-                       (<= (dd/datom-tx d) time-point)))
-
-        filtered-tx-ids (dbu/filter-txInstant datoms as-of-pred db)
+  (let [filtered-tx-ids (dbu/filter-txInstant datoms (as-of-pred time-point) db)
         filtered-datoms (into []
                               (filter (fn [^Datom d]
                                         (contains? filtered-tx-ids
                                                    (datom-tx d))))
                               datoms)]
+    (if historical?
+      filtered-datoms
+      (get-current-values db filtered-datoms))))
+
+;; SinceDB
+
+(defn- filter-since [datoms time-point db {:keys [historical?]}]
+  {:pre [(boolean? historical?)]}
+  (let [filtered-tx-ids (dbu/filter-txInstant datoms (since-pred time-point) db)
+        filtered-datoms (into []
+                              (filter (fn [^Datom d]
+                                        (contains? filtered-tx-ids
+                                                   (datom-tx d))))
+                              datoms)]
+
     (if historical?
       filtered-datoms
       (get-current-values db filtered-datoms))))
@@ -530,24 +552,6 @@
   (-index-range [db attr start end context]
                 (-> (deeper-index-range origin-db db attr start end context)
                     (filter-as-of-datoms time-point origin-db context))))
-
-;; SinceDB
-
-(defn- filter-since [datoms time-point db {:keys [historical?]}]
-  {:pre [(boolean? historical?)]}
-  (let [since-pred (fn [^Datom d]
-                     (if (date? time-point)
-                       (.after ^Date (.-v d) ^Date time-point)
-                       (>= (.-tx d) time-point)))
-        filtered-tx-ids (dbu/filter-txInstant datoms since-pred db)
-        filtered-datoms (into []
-                              (filter (fn [^Datom d]
-                                        (contains? filtered-tx-ids (datom-tx d))))
-                              datoms)]
-
-    (if historical?
-      filtered-datoms
-      (get-current-values db filtered-datoms))))
 
 (defrecord-updatable SinceDB [origin-db time-point]
   #?@(:cljs
