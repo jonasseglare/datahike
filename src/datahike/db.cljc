@@ -193,11 +193,9 @@
     datoms))
 
 (defn post-process-datoms [datoms db context]
-  (let [datoms (filter-datoms-temporally datoms db context)]
-    (when datoms
-      (into []
-            (:final-xform context)
-            datoms))))
+  (into []
+        (:final-xform context)
+        (filter-datoms-temporally datoms db context)))
 
 (defn contextual-search-fn [{:keys [temporal?]}]
   (case temporal?
