@@ -154,26 +154,29 @@
 (defn and-pred [a b]
   #(and (a %) (b %)))
 
-(defn get-current-values [db history-datoms]
+(defn current-datoms-from-groups [db]
+  (mapcat
+   (fn [[[_ a] datoms]]
+     (if (dbu/multival? db a)
+       (->> datoms
+            (sort-by datom-tx)
+            (reduce (fn [current-datoms ^Datom datom]
+                      (if (datom-added datom)
+                        (assoc current-datoms (.-v datom) datom)
+                        (dissoc current-datoms (.-v datom))))
+                    {})
+            vals)
+       (let [last-ea-tx (apply max (map datom-tx datoms))
+             current-ea-datom (first (filter #(and (datom-added %) (= last-ea-tx (datom-tx %)))
+                                             datoms))]
+         (if current-ea-datom
+           [current-ea-datom]
+           []))))))
+
+(defn get-current-values [db final-xform history-datoms]
   (->> history-datoms
        (group-by (fn [^Datom datom] [(.-e datom) (.-a datom)]))
-       (mapcat
-        (fn [[[_ a] datoms]]
-          (if (dbu/multival? db a)
-            (->> datoms
-                 (sort-by datom-tx)
-                 (reduce (fn [current-datoms ^Datom datom]
-                           (if (datom-added datom)
-                             (assoc current-datoms (.-v datom) datom)
-                             (dissoc current-datoms (.-v datom))))
-                         {})
-                 vals)
-            (let [last-ea-tx (apply max (map datom-tx datoms))
-                  current-ea-datom (first (filter #(and (datom-added %) (= last-ea-tx (datom-tx %)))
-                                                  datoms))]
-              (if current-ea-datom
-                [current-ea-datom]
-                [])))))))
+       (into [] (comp (current-datoms-from-groups db) final-xform))))
 
 (defn temporal-datom-filter [db temporal-pred datoms]
   (let [filtered-tx-ids (dbu/filter-txInstant datoms temporal-pred db)]
@@ -191,10 +194,20 @@
                                    temporal?
                                    historical?
                                    final-xform]}]
-  (cond->> datoms
-    (not= any? temporal-pred) (filter-datoms-temporally db temporal-pred)
-    (and temporal? (not historical?)) (get-current-values db)
-    (not= :step (final-xform :step)) (into [] final-xform)))
+  (let [filter-temporally? (not= any? temporal-pred)]
+    (if (and temporal? (not historical?))
+      (cond->> datoms
+        filter-temporally? (filter-datoms-temporally db temporal-pred)
+        true (get-current-values db final-xform))
+
+      ;; Whenever possible, compose the transducers
+      (let [xform (comp (if filter-temporally?
+                          (temporal-datom-filter db temporal-pred datoms)
+                          identity)
+                        final-xform)]
+        (if (= :step (xform :step))
+          datoms
+          (into [] xform datoms))))))
 
 (defn contextual-search-fn [{:keys [temporal?]}]
   (case temporal?
