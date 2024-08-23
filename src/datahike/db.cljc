@@ -193,8 +193,9 @@
     datoms))
 
 (defn post-process-datoms [datoms db context]
-  (-> datoms
-      (filter-datoms-temporally db context)))
+  (into []
+        (:final-xform context)
+        (filter-datoms-temporally datoms db context)))
 
 (defn contextual-search-fn [{:keys [temporal?]}]
   (case temporal?
@@ -319,7 +320,9 @@
                          ;; What index to use.
                          :temporal? false
 
-                         :temporal-pred nil})
+                         :temporal-pred nil
+
+                         :final-xform identity})
   (-search [db pattern context]
            (contextual-search db pattern context))
 
@@ -396,29 +399,28 @@
   (-ident-for [db a-ref] (dbi/-ident-for unfiltered-db a-ref))
 
   dbi/ISearch
-  (-search-context [db] (dbi/-search-context unfiltered-db))
+  (-search-context [db] (update (dbi/-search-context unfiltered-db)
+                                :final-xform
+                                comp (filter (.-pred db))))
   (-search [db pattern context]
-           (filter (.-pred db) (dbi/-search unfiltered-db pattern context)))
+           (dbi/-search unfiltered-db pattern context))
 
   dbi/IIndexAccess
   (-datoms [db index cs context]
-           (filter (.-pred db) (dbi/-datoms unfiltered-db index cs context)))
+           (dbi/-datoms unfiltered-db index cs context))
 
   (-seek-datoms [db index cs context]
-                (filter (.-pred db)
-                        (dbi/-seek-datoms unfiltered-db index cs context)))
+                (dbi/-seek-datoms unfiltered-db index cs context))
 
   (-rseek-datoms [db index cs context]
-                 (filter (.-pred db)
-                         (dbi/-rseek-datoms unfiltered-db index cs context)))
+                 (dbi/-rseek-datoms unfiltered-db index cs context))
 
   (-index-range [db attr start end context]
-                (filter (.-pred db)
-                        (deeper-index-range unfiltered-db
-                                            db
-                                            attr
-                                            start end
-                                            context))))
+                (deeper-index-range unfiltered-db
+                                    db
+                                    attr
+                                    start end
+                                    context)))
 
 ;; HistoricalDB
 
