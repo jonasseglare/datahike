@@ -192,10 +192,16 @@
         (get-current-values db filtered-datoms)))
     datoms))
 
+(defn into-vec-or-nil [xform src]
+  (let [dst (into [] xform src)]
+    (if (and (empty? dst) (empty? src))
+      src
+      dst)))
+
 (defn post-process-datoms [datoms db context]
-  (into []
-        (:final-xform context)
-        (filter-datoms-temporally datoms db context)))
+  (into-vec-or-nil
+   (:final-xform context)
+   (filter-datoms-temporally datoms db context)))
 
 (defn contextual-search-fn [{:keys [temporal?]}]
   (case temporal?
