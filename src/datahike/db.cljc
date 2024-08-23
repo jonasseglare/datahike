@@ -178,30 +178,23 @@
                 [current-ea-datom]
                 [])))))))
 
-(defn filter-datoms-temporally [datoms db {:keys [historical? temporal-pred]}]
-  {:pre [(boolean? historical?)]}
-  (if temporal-pred
-    (let [filtered-tx-ids (dbu/filter-txInstant datoms temporal-pred db)
-          filtered-datoms (into []
-                                (filter (fn [^Datom d]
-                                          (contains? filtered-tx-ids
-                                                     (datom-tx d))))
-                                datoms)]
-      (if historical?
-        filtered-datoms
-        (get-current-values db filtered-datoms)))
-    datoms))
+(defn filter-datoms-temporally [db temporal-pred datoms]
+  (let [filtered-tx-ids (dbu/filter-txInstant datoms temporal-pred db)]
+    (into []
+          (filter (fn [^Datom d]
+                    (contains? filtered-tx-ids
+                               (datom-tx d))))
+          datoms)))
 
-(defn into-vec-or-nil [xform src]
-  (let [dst (into [] xform src)]
-    (if (and (empty? dst) (empty? src))
-      src
-      dst)))
-
-(defn post-process-datoms [datoms db context]
-  (into-vec-or-nil
-   (:final-xform context)
-   (filter-datoms-temporally datoms db context)))
+(defn post-process-datoms [datoms db
+                           {:keys [temporal-pred
+                                   temporal?
+                                   historical?
+                                   final-xform]}]
+  (cond->> datoms
+    temporal-pred (filter-datoms-temporally db temporal-pred)
+    (and temporal? (not historical?)) (get-current-values db)
+    (not= :step (final-xform :step)) (into [] final-xform)))
 
 (defn contextual-search-fn [{:keys [temporal?]}]
   (case temporal?
