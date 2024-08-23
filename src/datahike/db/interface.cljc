@@ -8,7 +8,7 @@
                    ;; What index to use.
                    :temporal? false
 
-                   :temporal-pred nil
+                   :temporal-pred any?
 
                    :final-xform identity})
 

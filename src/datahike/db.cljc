@@ -152,10 +152,7 @@
     (fn [^Datom d] (>= (.-tx d) time-point))))
 
 (defn and-pred [a b]
-  (cond
-    (nil? a) b
-    (nil? b) a
-    :else #(and (a %) (b %))))
+  #(and (a %) (b %)))
 
 (defn get-current-values [db history-datoms]
   (->> history-datoms
@@ -195,7 +192,7 @@
                                    historical?
                                    final-xform]}]
   (cond->> datoms
-    temporal-pred (filter-datoms-temporally db temporal-pred)
+    (not= any? temporal-pred) (filter-datoms-temporally db temporal-pred)
     (and temporal? (not historical?)) (get-current-values db)
     (not= :step (final-xform :step)) (into [] final-xform)))
 
