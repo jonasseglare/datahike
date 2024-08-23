@@ -181,7 +181,7 @@
 (defn filter-datoms-temporally [datoms db {:keys [historical? temporal-pred]}]
   {:pre [(boolean? historical?)]}
   (if temporal-pred
-    (let [filtered-tx-ids (dbu/filter-txInstant datoms (as-of-pred time-point) db)
+    (let [filtered-tx-ids (dbu/filter-txInstant datoms temporal-pred db)
           filtered-datoms (into []
                                 (filter (fn [^Datom d]
                                           (contains? filtered-tx-ids
@@ -231,7 +231,7 @@
                   rseq))
       (filter-datoms-temporally db context)))
 
-(defn contextual-index-range [db avet attr start end {:keys [temporal? current-db]}]
+(defn contextual-index-range [db avet attr start end {:keys [temporal? current-db] :as context}]
   {:pre [(or (not temporal?) current-db)]}
   (-> (case temporal?
         true (dbs/temporal-index-range db current-db attr start end)
