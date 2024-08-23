@@ -151,9 +151,6 @@
     (fn [^Datom d] (.after ^Date (.-v d) ^Date time-point))
     (fn [^Datom d] (>= (.-tx d) time-point))))
 
-(defn and-pred [a b]
-  #(and (a %) (b %)))
-
 (defn- current-datoms-from-groups [db]
   (mapcat
    (fn [[[_ a] datoms]]
@@ -173,9 +170,12 @@
            [current-ea-datom]
            []))))))
 
-(defn- temporal-datom-filter [db temporal-pred datoms]
-  (let [filtered-tx-ids (dbu/filter-txInstant datoms temporal-pred db)]
-    (filter (fn [^Datom d] (contains? filtered-tx-ids (datom-tx d))))))
+(defn- temporal-datom-filter [db temporal-preds datoms]
+  (if (empty? temporal-preds)
+    identity
+    (let [filtered-tx-ids (dbu/filter-txInstant
+                           datoms (apply every-pred temporal-preds) db)]
+      (filter (fn [^Datom d] (contains? filtered-tx-ids (datom-tx d)))))))
 
 (defn- into-vec-if-xform
   "This function only constructs a new vector using `xform` and `src` if `xform` actually does something. Otherwise, it returns `src`. That way, unnecessary conversions will not be performed and the source collection will remain unchanged."
@@ -187,13 +187,11 @@
 (defn- post-process-datoms
   "Depending on context, this function *may* (i) filter datoms by time, (ii) filter datoms by predicate and (iii) assemble datoms representing the current state given historical datoms."
   [datoms db
-   {:keys [temporal-pred
+   {:keys [temporal-preds
            temporal?
            historical?
            final-xform]}]
-  (let [temporal-xform (if (= any? temporal-pred)
-                         identity
-                         (temporal-datom-filter db temporal-pred datoms))
+  (let [temporal-xform (temporal-datom-filter db temporal-preds datoms)
         assemble-current-datoms? (and temporal? (not historical?))]
     (if assemble-current-datoms?
       (->> datoms
@@ -532,7 +530,7 @@
   dbi/ISearch
   (-search-context [db] (-> (dbi/-search-context origin-db)
                             (assoc :temporal? true)
-                            (update :temporal-pred and-pred (as-of-pred time-point))))
+                            (update :temporal-preds conj (as-of-pred time-point))))
   (-search [db pattern context]
            (dbi/-search origin-db pattern context))
 
@@ -597,7 +595,7 @@
   dbi/ISearch
   (-search-context [db] (-> (dbi/-search-context origin-db)
                             (assoc :temporal? true)
-                            (update :temporal-pred and-pred (since-pred time-point))))
+                            (update :temporal-preds conj (since-pred time-point))))
   (-search [db pattern context]
            (dbi/-search origin-db pattern context))
 
