@@ -2,6 +2,16 @@
 
 ;; Database Protocols
 
+(def base-context { ;; Don't merge datom operations when true.
+                   :historical? false
+
+                   ;; What index to use.
+                   :temporal? false
+
+                   :temporal-pred nil
+
+                   :final-xform identity})
+
 (defprotocol ISearch
   (-search-context [data])
   (-search [data pattern context]))

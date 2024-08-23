@@ -193,9 +193,11 @@
     datoms))
 
 (defn post-process-datoms [datoms db context]
-  (into []
-        (:final-xform context)
-        (filter-datoms-temporally datoms db context)))
+  (let [datoms (filter-datoms-temporally datoms db context)]
+    (when datoms
+      (into []
+            (:final-xform context)
+            datoms))))
 
 (defn contextual-search-fn [{:keys [temporal?]}]
   (case temporal?
@@ -314,15 +316,7 @@
                 a-ref))
 
   dbi/ISearch
-  (-search-context [db] {;; Don't merge datom operations when true.
-                         :historical? false
-
-                         ;; What index to use.
-                         :temporal? false
-
-                         :temporal-pred nil
-
-                         :final-xform identity})
+  (-search-context [db] dbi/base-context)
   (-search [db pattern context]
            (contextual-search db pattern context))
 

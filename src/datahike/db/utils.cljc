@@ -217,7 +217,10 @@
           (comp
            (map datom-tx)
            (distinct)
-           (mapcat (fn [tx] (dbi/-datoms db :eavt [tx] {:temporal? true :historical? false})))
+           (mapcat (fn [tx] (dbi/-datoms db :eavt [tx]
+                                         (merge dbi/base-context
+                                                {:temporal? true
+                                                 :historical? false}))))
            (keep (fn [^Datom d]
                    (when (and (= txInstant (.-a d)) (pred d))
                      (.-e d)))))
