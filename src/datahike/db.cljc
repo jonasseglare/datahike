@@ -154,7 +154,7 @@
 (defn and-pred [a b]
   #(and (a %) (b %)))
 
-(defn current-datoms-from-groups [db]
+(defn- current-datoms-from-groups [db]
   (mapcat
    (fn [[[_ a] datoms]]
      (if (dbu/multival? db a)
@@ -173,20 +173,11 @@
            [current-ea-datom]
            []))))))
 
-(defn get-current-values [db final-xform history-datoms]
-  (->> history-datoms
-       ))
-
-(defn temporal-datom-filter [db temporal-pred datoms]
+(defn- temporal-datom-filter [db temporal-pred datoms]
   (let [filtered-tx-ids (dbu/filter-txInstant datoms temporal-pred db)]
     (filter (fn [^Datom d]
               (contains? filtered-tx-ids
                          (datom-tx d))))))
-
-(defn filter-datoms-temporally [db temporal-pred datoms]
-  (into []
-        (temporal-datom-filter db temporal-pred datoms)
-        datoms))
 
 (defn- into-vec-if-xform
   "This function only constructs a new vector using `xform` and `src` if `xform` actually does something. Otherwise, it returns `src`. That way, unnecessary conversions will not be performed and the source collection will remain unchanged."
@@ -195,11 +186,13 @@
     src
     (into [] xform src)))
 
-(defn post-process-datoms [datoms db
-                           {:keys [temporal-pred
-                                   temporal?
-                                   historical?
-                                   final-xform]}]
+(defn- post-process-datoms
+  "Depending on context, this function *may* (i) filter datoms by time, (ii) filter datoms by predicate and (iii) assemble datoms representing the current state given historical datoms."
+  [datoms db
+   {:keys [temporal-pred
+           temporal?
+           historical?
+           final-xform]}]
   (let [temporal-xform (if (= any? temporal-pred)
                          identity
                          (temporal-datom-filter db temporal-pred datoms))
