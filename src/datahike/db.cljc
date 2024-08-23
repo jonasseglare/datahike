@@ -192,6 +192,10 @@
         (get-current-values db filtered-datoms)))
     datoms))
 
+(defn post-process-datoms [datoms db context]
+  (-> datoms
+      (filter-datoms-temporally db context)))
+
 (defn contextual-search-fn [{:keys [temporal?]}]
   (case temporal?
     true dbs/temporal-search
@@ -199,7 +203,7 @@
 
 (defn contextual-search [db pattern context]
   (-> ((contextual-search-fn context) db pattern)
-      (filter-datoms-temporally db context)))
+      (post-process-datoms db context)))
 
 (defn contextual-datoms [db index-type cs context]
   (-> (case (:temporal? context)
@@ -209,7 +213,7 @@
                (dbu/components->pattern db index-type cs e0 tx0)
                (dbu/components->pattern db index-type cs emax txmax)
                index-type))
-      (filter-datoms-temporally db context)))
+      (post-process-datoms db context)))
 
 (defn contextual-seek-datoms [db index-type cs context]
   (-> (case (:temporal? context)
@@ -218,7 +222,7 @@
                          (dbu/components->pattern db index-type cs e0 tx0)
                          (datom emax nil nil txmax)
                          index-type))
-      (filter-datoms-temporally db context)))
+      (post-process-datoms db context)))
 
 (defn contextual-rseek-datoms [db index-type cs context]
   (-> (case (:temporal? context)
@@ -229,7 +233,7 @@
                              index-type)
                   vec
                   rseq))
-      (filter-datoms-temporally db context)))
+      (post-process-datoms db context)))
 
 (defn contextual-index-range [db avet attr start end {:keys [temporal? current-db] :as context}]
   {:pre [(or (not temporal?) current-db)]}
@@ -246,7 +250,7 @@
                    (dbu/resolve-datom db nil attr start nil e0 tx0)
                    (dbu/resolve-datom db nil attr end nil emax txmax)
                    :avet)))
-      (filter-datoms-temporally db context)))
+      (post-process-datoms db context)))
 
 (defn deeper-index-range [origin-db db attr start end context]
   (dbi/-index-range origin-db
