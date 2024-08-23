@@ -175,8 +175,7 @@
 
 (defn get-current-values [db final-xform history-datoms]
   (->> history-datoms
-       (group-by (fn [^Datom datom] [(.-e datom) (.-a datom)]))
-       (into [] (comp (current-datoms-from-groups db) final-xform))))
+       ))
 
 (defn temporal-datom-filter [db temporal-pred datoms]
   (let [filtered-tx-ids (dbu/filter-txInstant datoms temporal-pred db)]
@@ -189,25 +188,30 @@
         (temporal-datom-filter db temporal-pred datoms)
         datoms))
 
+(defn- into-vec-if-xform
+  "This function only constructs a new vector using `xform` and `src` if `xform` actually does something. Otherwise, it returns `src`. That way, unnecessary conversions will not be performed and the source collection will remain unchanged."
+  [xform src]
+  (if (= :step (xform :step))
+    src
+    (into [] xform src)))
+
 (defn post-process-datoms [datoms db
                            {:keys [temporal-pred
                                    temporal?
                                    historical?
                                    final-xform]}]
-  (let [filter-temporally? (not= any? temporal-pred)]
-    (if (and temporal? (not historical?))
-      (cond->> datoms
-        filter-temporally? (filter-datoms-temporally db temporal-pred)
-        true (get-current-values db final-xform))
+  (let [temporal-xform (if (= any? temporal-pred)
+                         identity
+                         (temporal-datom-filter db temporal-pred datoms))
+        assemble-current-datoms? (and temporal? (not historical?))]
+    (if assemble-current-datoms?
+      (->> datoms
+           (into-vec-if-xform temporal-xform)
+           (group-by (fn [^Datom datom] [(.-e datom) (.-a datom)]))
+           (into [] (comp (current-datoms-from-groups db) final-xform)))
 
       ;; Whenever possible, compose the transducers
-      (let [xform (comp (if filter-temporally?
-                          (temporal-datom-filter db temporal-pred datoms)
-                          identity)
-                        final-xform)]
-        (if (= :step (xform :step))
-          datoms
-          (into [] xform datoms))))))
+      (into-vec-if-xform (comp temporal-xform final-xform) datoms))))
 
 (defn contextual-search-fn [{:keys [temporal?]}]
   (case temporal?
