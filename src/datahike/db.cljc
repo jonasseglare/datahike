@@ -175,9 +175,7 @@
 
 (defn- temporal-datom-filter [db temporal-pred datoms]
   (let [filtered-tx-ids (dbu/filter-txInstant datoms temporal-pred db)]
-    (filter (fn [^Datom d]
-              (contains? filtered-tx-ids
-                         (datom-tx d))))))
+    (filter (fn [^Datom d] (contains? filtered-tx-ids (datom-tx d))))))
 
 (defn- into-vec-if-xform
   "This function only constructs a new vector using `xform` and `src` if `xform` actually does something. Otherwise, it returns `src`. That way, unnecessary conversions will not be performed and the source collection will remain unchanged."
@@ -202,8 +200,6 @@
            (into-vec-if-xform temporal-xform)
            (group-by (fn [^Datom datom] [(.-e datom) (.-a datom)]))
            (into [] (comp (current-datoms-from-groups db) final-xform)))
-
-      ;; Whenever possible, compose the transducers
       (into-vec-if-xform (comp temporal-xform final-xform) datoms))))
 
 (defn contextual-search-fn [{:keys [temporal?]}]
