@@ -178,13 +178,16 @@
                 [current-ea-datom]
                 [])))))))
 
-(defn filter-datoms-temporally [db temporal-pred datoms]
+(defn temporal-datom-filter [db temporal-pred datoms]
   (let [filtered-tx-ids (dbu/filter-txInstant datoms temporal-pred db)]
-    (into []
-          (filter (fn [^Datom d]
-                    (contains? filtered-tx-ids
-                               (datom-tx d))))
-          datoms)))
+    (filter (fn [^Datom d]
+              (contains? filtered-tx-ids
+                         (datom-tx d))))))
+
+(defn filter-datoms-temporally [db temporal-pred datoms]
+  (into []
+        (temporal-datom-filter db temporal-pred datoms)
+        datoms))
 
 (defn post-process-datoms [datoms db
                            {:keys [temporal-pred
