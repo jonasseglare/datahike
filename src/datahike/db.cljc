@@ -137,56 +137,124 @@
       (update :aevt di/-persistent!)
       (update :avet di/-persistent!)))
 
+(defn- date? [d]
+  #?(:cljs (instance? js/Date d)
+     :clj (instance? Date d)))
+
+(defn- as-of-pred [time-point]
+  (if (date? time-point)
+    (fn [^Datom d] (.before ^Date (.-v d) ^Date time-point))
+    (fn [^Datom d] (<= (dd/datom-tx d) time-point))))
+
+(defn- since-pred [time-point]
+  (if (date? time-point)
+    (fn [^Datom d] (.after ^Date (.-v d) ^Date time-point))
+    (fn [^Datom d] (>= (.-tx d) time-point))))
+
+(defn- current-datoms-from-groups [db]
+  (mapcat
+   (fn [[[_ a] datoms]]
+     (if (dbu/multival? db a)
+       (->> datoms
+            (sort-by datom-tx)
+            (reduce (fn [current-datoms ^Datom datom]
+                      (if (datom-added datom)
+                        (assoc current-datoms (.-v datom) datom)
+                        (dissoc current-datoms (.-v datom))))
+                    {})
+            vals)
+       (let [last-ea-tx (apply max (map datom-tx datoms))
+             current-ea-datom (first (filter #(and (datom-added %) (= last-ea-tx (datom-tx %)))
+                                             datoms))]
+         (if current-ea-datom
+           [current-ea-datom]
+           []))))))
+
+(defn- temporal-datom-filter [db temporal-preds datoms]
+  (if (empty? temporal-preds)
+    identity
+    (let [filtered-tx-ids (dbu/filter-txInstant
+                           datoms (apply every-pred temporal-preds) db)]
+      (filter (fn [^Datom d] (contains? filtered-tx-ids (datom-tx d)))))))
+
+(defn- into-vec-if-xform
+  "This function only constructs a new vector using `xform` and `src` if `xform` actually does something. Otherwise, it returns `src`. That way, unnecessary conversions will not be performed and the source collection will remain unchanged."
+  [xform src]
+  (if (= :step (xform :step))
+    src
+    (into [] xform src)))
+
+(defn- post-process-datoms
+  "Depending on context, this function *may* (i) filter datoms by time, (ii) filter datoms by predicate and (iii) assemble datoms representing the current state given historical datoms."
+  [datoms db
+   {:keys [temporal-preds
+           temporal?
+           historical?
+           final-xform]}]
+  (let [temporal-xform (temporal-datom-filter db temporal-preds datoms)
+        assemble-current-datoms? (and temporal? (not historical?))]
+    (if assemble-current-datoms?
+      (->> datoms
+           (into-vec-if-xform temporal-xform)
+           (group-by (fn [^Datom datom] [(.-e datom) (.-a datom)]))
+           (into [] (comp (current-datoms-from-groups db) final-xform)))
+      (into-vec-if-xform (comp temporal-xform final-xform) datoms))))
+
 (defn contextual-search-fn [{:keys [temporal?]}]
   (case temporal?
     true dbs/temporal-search
     false dbs/search-current-indices))
 
 (defn contextual-search [db pattern context]
-  ((contextual-search-fn context) db pattern))
+  (-> ((contextual-search-fn context) db pattern)
+      (post-process-datoms db context)))
 
-(defn contextual-datoms [db index-type cs {:keys [temporal?]}]
-  (case temporal?
-    true (dbu/temporal-datoms db index-type cs)
-    false (di/-slice
-           (get db index-type)
-           (dbu/components->pattern db index-type cs e0 tx0)
-           (dbu/components->pattern db index-type cs emax txmax)
-           index-type)))
+(defn contextual-datoms [db index-type cs context]
+  (-> (case (:temporal? context)
+        true (dbu/temporal-datoms db index-type cs)
+        false (di/-slice
+               (get db index-type)
+               (dbu/components->pattern db index-type cs e0 tx0)
+               (dbu/components->pattern db index-type cs emax txmax)
+               index-type))
+      (post-process-datoms db context)))
 
-(defn contextual-seek-datoms [db index-type cs {:keys [temporal?]}]
-  (case temporal?
-    true (dbs/temporal-seek-datoms db index-type cs)
-    false (di/-slice (get db index-type)
-                     (dbu/components->pattern db index-type cs e0 tx0)
-                     (datom emax nil nil txmax)
-                     index-type)))
-
-(defn contextual-rseek-datoms [db index-type cs {:keys [temporal?]}]
-  (case temporal?
-    true (dbs/temporal-rseek-datoms db index-type cs)
-    false (-> (di/-slice (get db index-type)
+(defn contextual-seek-datoms [db index-type cs context]
+  (-> (case (:temporal? context)
+        true (dbs/temporal-seek-datoms db index-type cs)
+        false (di/-slice (get db index-type)
                          (dbu/components->pattern db index-type cs e0 tx0)
                          (datom emax nil nil txmax)
-                         index-type)
-              vec
-              rseq)))
+                         index-type))
+      (post-process-datoms db context)))
 
-(defn contextual-index-range [db avet attr start end {:keys [temporal? current-db]}]
+(defn contextual-rseek-datoms [db index-type cs context]
+  (-> (case (:temporal? context)
+        true (dbs/temporal-rseek-datoms db index-type cs)
+        false (-> (di/-slice (get db index-type)
+                             (dbu/components->pattern db index-type cs e0 tx0)
+                             (datom emax nil nil txmax)
+                             index-type)
+                  vec
+                  rseq))
+      (post-process-datoms db context)))
+
+(defn contextual-index-range [db avet attr start end {:keys [temporal? current-db] :as context}]
   {:pre [(or (not temporal?) current-db)]}
-  (case temporal?
-    true (dbs/temporal-index-range db current-db attr start end)
-    false (do (when-not (dbu/indexing? db attr)
-                (raise "Attribute"
-                       attr "should be marked as :db/index true" {}))
+  (-> (case temporal?
+        true (dbs/temporal-index-range db current-db attr start end)
+        false (do (when-not (dbu/indexing? db attr)
+                    (raise "Attribute"
+                           attr "should be marked as :db/index true" {}))
 
-              (dbu/validate-attr
-               attr (list '-index-range 'db attr start end) db)
-              (di/-slice
-               avet
-               (dbu/resolve-datom db nil attr start nil e0 tx0)
-               (dbu/resolve-datom db nil attr end nil emax txmax)
-               :avet))))
+                  (dbu/validate-attr
+                   attr (list '-index-range 'db attr start end) db)
+                  (di/-slice
+                   avet
+                   (dbu/resolve-datom db nil attr start nil e0 tx0)
+                   (dbu/resolve-datom db nil attr end nil emax txmax)
+                   :avet)))
+      (post-process-datoms db context)))
 
 (defn deeper-index-range [origin-db db attr start end context]
   (dbi/-index-range origin-db
@@ -249,11 +317,7 @@
                 a-ref))
 
   dbi/ISearch
-  (-search-context [db] {;; Don't merge datom operations when true.
-                         :historical? false
-
-                         ;; What index to use.
-                         :temporal? false})
+  (-search-context [db] dbi/base-context)
   (-search [db pattern context]
            (contextual-search db pattern context))
 
@@ -330,29 +394,28 @@
   (-ident-for [db a-ref] (dbi/-ident-for unfiltered-db a-ref))
 
   dbi/ISearch
-  (-search-context [db] (dbi/-search-context unfiltered-db))
+  (-search-context [db] (update (dbi/-search-context unfiltered-db)
+                                :final-xform
+                                comp (filter (.-pred db))))
   (-search [db pattern context]
-           (filter (.-pred db) (dbi/-search unfiltered-db pattern context)))
+           (dbi/-search unfiltered-db pattern context))
 
   dbi/IIndexAccess
   (-datoms [db index cs context]
-           (filter (.-pred db) (dbi/-datoms unfiltered-db index cs context)))
+           (dbi/-datoms unfiltered-db index cs context))
 
   (-seek-datoms [db index cs context]
-                (filter (.-pred db)
-                        (dbi/-seek-datoms unfiltered-db index cs context)))
+                (dbi/-seek-datoms unfiltered-db index cs context))
 
   (-rseek-datoms [db index cs context]
-                 (filter (.-pred db)
-                         (dbi/-rseek-datoms unfiltered-db index cs context)))
+                 (dbi/-rseek-datoms unfiltered-db index cs context))
 
   (-index-range [db attr start end context]
-                (filter (.-pred db)
-                        (deeper-index-range unfiltered-db
-                                            db
-                                            attr
-                                            start end
-                                            context))))
+                (deeper-index-range unfiltered-db
+                                    db
+                                    attr
+                                    start end
+                                    context)))
 
 ;; HistoricalDB
 
@@ -418,49 +481,6 @@
 
   (-index-range [db attr start end context] (deeper-index-range origin-db db attr start end context)))
 
-;; AsOfDB
-
-(defn- date? [d]
-  #?(:cljs (instance? js/Date d)
-     :clj (instance? Date d)))
-
-(defn get-current-values [db history-datoms]
-  (->> history-datoms
-       (group-by (fn [^Datom datom] [(.-e datom) (.-a datom)]))
-       (mapcat
-        (fn [[[_ a] datoms]]
-          (if (dbu/multival? db a)
-            (->> datoms
-                 (sort-by datom-tx)
-                 (reduce (fn [current-datoms ^Datom datom]
-                           (if (datom-added datom)
-                             (assoc current-datoms (.-v datom) datom)
-                             (dissoc current-datoms (.-v datom))))
-                         {})
-                 vals)
-            (let [last-ea-tx (apply max (map datom-tx datoms))
-                  current-ea-datom (first (filter #(and (datom-added %) (= last-ea-tx (datom-tx %)))
-                                                  datoms))]
-              (if current-ea-datom
-                [current-ea-datom]
-                [])))))))
-
-(defn filter-as-of-datoms [datoms time-point db {:keys [historical?]}]
-  {:pre [(boolean? historical?)]}
-  (let [as-of-pred (fn [^Datom d]
-                     (if (date? time-point)
-                       (.before ^Date (.-v d) ^Date time-point)
-                       (<= (dd/datom-tx d) time-point)))
-
-        filtered-tx-ids (dbu/filter-txInstant datoms as-of-pred db)
-        filtered-datoms (into []
-                              (filter (fn [^Datom d]
-                                        (contains? filtered-tx-ids
-                                                   (datom-tx d))))
-                              datoms)]
-    (if historical?
-      filtered-datoms
-      (get-current-values db filtered-datoms))))
 
 (defrecord-updatable AsOfDB [origin-db time-point]
   #?@(:cljs
@@ -508,46 +528,24 @@
   (-origin [db] origin-db)
 
   dbi/ISearch
-  (-search-context [db] (assoc (dbi/-search-context origin-db)
-                               :temporal? true))
+  (-search-context [db] (-> (dbi/-search-context origin-db)
+                            (assoc :temporal? true)
+                            (update :temporal-preds conj (as-of-pred time-point))))
   (-search [db pattern context]
-           (-> (dbi/-search origin-db pattern context)
-               (filter-as-of-datoms time-point origin-db context)))
+           (dbi/-search origin-db pattern context))
 
   dbi/IIndexAccess
   (-datoms [db index-type cs context]
-           (-> (dbi/-datoms origin-db index-type cs context)
-               (filter-as-of-datoms time-point origin-db context)))
+           (dbi/-datoms origin-db index-type cs context))
 
   (-seek-datoms [db index-type cs context]
-                (-> (dbi/-seek-datoms origin-db index-type cs context)
-                    (filter-as-of-datoms time-point origin-db context)))
+                (dbi/-seek-datoms origin-db index-type cs context))
 
   (-rseek-datoms [db index-type cs context]
-                 (-> (dbi/-rseek-datoms origin-db index-type cs context)
-                     (filter-as-of-datoms time-point origin-db context)))
+                 (dbi/-rseek-datoms origin-db index-type cs context))
 
   (-index-range [db attr start end context]
-                (-> (deeper-index-range origin-db db attr start end context)
-                    (filter-as-of-datoms time-point origin-db context))))
-
-;; SinceDB
-
-(defn- filter-since [datoms time-point db {:keys [historical?]}]
-  {:pre [(boolean? historical?)]}
-  (let [since-pred (fn [^Datom d]
-                     (if (date? time-point)
-                       (.after ^Date (.-v d) ^Date time-point)
-                       (>= (.-tx d) time-point)))
-        filtered-tx-ids (dbu/filter-txInstant datoms since-pred db)
-        filtered-datoms (into []
-                              (filter (fn [^Datom d]
-                                        (contains? filtered-tx-ids (datom-tx d))))
-                              datoms)]
-
-    (if historical?
-      filtered-datoms
-      (get-current-values db filtered-datoms))))
+                (deeper-index-range origin-db db attr start end context)))
 
 (defrecord-updatable SinceDB [origin-db time-point]
   #?@(:cljs
@@ -595,32 +593,28 @@
   (-origin [db] origin-db)
 
   dbi/ISearch
-  (-search-context [db] (assoc (dbi/-search-context origin-db)
-                               :temporal? true))
+  (-search-context [db] (-> (dbi/-search-context origin-db)
+                            (assoc :temporal? true)
+                            (update :temporal-preds conj (since-pred time-point))))
   (-search [db pattern context]
-           (-> (dbi/-search origin-db pattern context)
-               (filter-since time-point origin-db context)))
+           (dbi/-search origin-db pattern context))
 
   dbi/IIndexAccess
   (dbi/-datoms [db index-type cs context]
-               (-> (dbi/-datoms origin-db index-type cs context)
-                   (filter-since time-point origin-db context)))
+               (dbi/-datoms origin-db index-type cs context))
 
   (dbi/-seek-datoms [db index-type cs context]
-                    (-> (dbi/-seek-datoms origin-db index-type cs context)
-                        (filter-since time-point origin-db context)))
+                    (dbi/-seek-datoms origin-db index-type cs context))
 
   (dbi/-rseek-datoms [db index-type cs context]
-                     (-> (dbi/-rseek-datoms origin-db index-type cs context)
-                         (filter-since time-point origin-db context)))
+                     (dbi/-rseek-datoms origin-db index-type cs context))
 
   (dbi/-index-range [db attr start end context]
-                    (-> (deeper-index-range origin-db
-                                            db
-                                            attr
-                                            start end
-                                            context)
-                        (filter-since time-point origin-db context))))
+                    (deeper-index-range origin-db
+                                        db
+                                        attr
+                                        start end
+                                        context)))
 
 (defn- equiv-db-index [x y]
   (loop [xs (seq x)

@@ -2,6 +2,11 @@
 
 ;; Database Protocols
 
+(def base-context {:historical? false
+                   :temporal? false
+                   :temporal-preds []
+                   :final-xform identity})
+
 (defprotocol ISearch
   (-search-context [data])
   (-search [data pattern context]))
