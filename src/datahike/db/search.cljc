@@ -250,6 +250,7 @@
         from (dbu/components->pattern db index-type cs e0 tx0)
         to (datom emax nil nil txmax)]
     (dbu/distinct-datoms db
+                         index-type
                          (di/-slice index from to index-type)
                          (di/-slice temporal-index from to index-type))))
 
@@ -260,6 +261,7 @@
         to (datom emax nil nil txmax)]
     (concat
      (-> (dbu/distinct-datoms db
+                              index-type
                               (di/-slice index from to index-type)
                               (di/-slice temporal-index from to index-type))
          vec
@@ -272,6 +274,7 @@
   (let [from (dbu/resolve-datom current-db nil attr start nil e0 tx0)
         to (dbu/resolve-datom current-db nil attr end nil emax txmax)]
     (dbu/distinct-datoms db
+                         :avet
                          (di/-slice (:avet db) from to :avet)
                          (di/-slice (:temporal-avet db) from to :avet))))
 
