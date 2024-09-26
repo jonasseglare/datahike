@@ -112,6 +112,7 @@
                                    `(= ~t-sym (datom-tx ~dexpr)))])
         added (gensym)]
     `{:index-key ~index-key
+      :original-index-key ~index-key
       :strategy-vec ~(vec eavt-strats)
       :lookup-fn (fn [~index-expr ~eavt-symbols]
                    ~(if (seq equalities)
@@ -200,6 +201,12 @@
      (batch-fn strategy-vec (backend-fn index-key) identity)
      [])))
 
+(defn get-index-type [db pattern]
+  (let [k0 (:index-key (temporal-search-strategy db pattern))
+        k1 (:index-key (current-search-strategy db pattern))]
+    (assert (= k0 k1))
+    k0))
+
 (defn added? [[_ _ _ _ added]]
   added)
 
@@ -236,11 +243,13 @@
   ([db pattern]
    (validate-pattern pattern false)
    (dbu/distinct-datoms db
+                        (get-index-type db pattern)
                         (search-current-indices db pattern)
                         (search-temporal-indices db pattern)))
   ([db pattern batch-fn]
    (validate-pattern pattern true)
    (dbu/distinct-datoms db
+                        (get-index-type db pattern)
                         (search-current-indices db pattern batch-fn)
                         (search-temporal-indices db pattern batch-fn))))
 
