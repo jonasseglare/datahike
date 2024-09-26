@@ -268,3 +268,23 @@
                               acc-inds
                               mask))))))
 
+(defn merge-distinct-sorted-seqs
+  "Takes a comparator function `cmp` and two sequences `seq-a` and `seq-b` that are both distinct and sorted by `cmp`. Then combines the elements from both sequences to form a new sorted sequence that is distinct."
+  [cmp seq-a seq-b]
+  (cond
+    (empty? seq-a) seq-b
+    (empty? seq-b) seq-a
+    :else
+    (let [a (first seq-a)
+          b (first seq-b)
+          i (cmp a b)]
+      (cond
+        (< i 0) (cons
+                 a (lazy-seq
+                    (merge-distinct-sorted-seqs cmp (rest seq-a) seq-b)))
+        (= i 0) (cons
+                 a (lazy-seq
+                    (merge-distinct-sorted-seqs cmp (rest seq-a) (rest seq-b))))
+        :else (cons
+               b (lazy-seq
+                  (merge-distinct-sorted-seqs cmp seq-a (rest seq-b))))))))
