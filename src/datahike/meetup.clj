@@ -1,6 +1,7 @@
 (ns datahike.meetup
   (:require [datahike.api :as datahike]
             [datahike.datom :as datom]
+            [datahike.meetup-helpers :as mh]
             [clojure.string :as str]))
 
 (defn init-db []
@@ -20,37 +21,16 @@
     (datahike/transact conn schema)
     conn))
 
-(defn print-table [datoms]
-  (let [datoms (->> datoms
-                    (sort-by (fn [[e _a _v tx _added?]]
-                               [tx e]))
-                    (into [["ENTITY-ID"
-                            "ATTRIBUTE"
-                            "VALUE"
-                            "TRANSACTION"
-                            "OP"]]
-                          (map (fn [[e a v tx added?]]
-                                 (mapv pr-str [e a v tx
-                                               (if added?
-                                                 '+
-                                                 '-)])))))
-        col-widths (->> (apply map vector datoms)
-                        (mapv #(transduce (map count) max 0 %)))]
-    (println "---- DATOMS")
-    (doseq [datom-group (partition-by #(nth % 3) datoms)]
-      (doseq [datom datom-group]
-        (println (str/join "    "
-                           (mapv (fn [s n] (format (str "%" n "s") s))
-                                 datom col-widths))))
-      (println))))
-
 (defn chronological-datoms [db]
   (->> (datahike/datoms db :eavt)
        ))
 
 (defn demo0 []
   (let [conn (init-db)]
-    (-> conn datahike/db chronological-datoms)))
+    (-> conn
+        datahike/db
+        (datahike/datoms :eavt)
+        mh/print-db-datoms)))
 
 (defn step1 [conn]
   (datahike/transact conn [[:db/add "x" :person/name "August"]])
@@ -59,7 +39,7 @@
 (defn demo1 []
   (let [conn (init-db)]
     (step1 conn)
-    (chronological-datoms conn)))
+    (-> conn datahike/db (datahike/datoms :eavt) )))
 
 (defn step2 [conn]
   (let [person-of-interest (some (fn [[e _a v]]
@@ -78,4 +58,10 @@
         datahike/db
         datahike/history
         chronological-datoms
-        print-table)))
+        mh/print-db-datoms)))
+
+
+
+
+
+
