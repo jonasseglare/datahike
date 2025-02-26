@@ -3,7 +3,8 @@
             [clojure.java.io :as io]
             [clojure.walk :refer [postwalk]]
             [clojure.string :as str]
-            [babashka.fs :as fs]))
+            [babashka.fs :as fs]
+            [clojure.spec.alpha :as spec]))
 
 (defn page-contents? [x]
   (and (sequential? x)
@@ -17,7 +18,8 @@
        (every? #(or (string? %) (page-symbol? %)) (keys x))
        (every? page-contents? (vals x))))
 
-(def style "
+(defn style [lambda]
+  (format "
 .wrapper {
    display: flex;
    flex-direction: row;
@@ -26,7 +28,15 @@
 .wrapper > div {
     border: 1px solid black;
     padding: 0.5em;
-    flex: 1;
+//    flex: 1;
+}
+
+.main-column {
+  flex-grow: %d
+}
+
+.detail-column {
+  flex-grow: %d
 }
 
 .details {
@@ -36,28 +46,35 @@
 .details:target {
     display: block;
 }
-")
+"
+          (->> lambda (* 100) Math/round int)
+          (->> lambda (- 1.0) (* 100) Math/round int)))
+
+(spec/def ::main-page any?)
+(spec/def ::sub-pages map?)
+(spec/def ::config map?)
+(spec/def ::split-report (spec/keys :req-un [::main-page ::sub-pages]
+                                    :opt-un  [::config]))
+
+(spec/def ::slide (spec/keys :req-un [::body
+                                      ::title]))
+(spec/def ::slides (spec/coll-of ::slide))
+(spec/def ::slideshow (spec/keys :req-un [::slides]
+                                 :opt-un [::config]))
 
 (def default-config {:title "Report"
                      :display-report false
                      :out-file "demo.html"
-                     :error-on-non-referred-details false})
+                     :error-on-non-referred-details false
+                     :col-lambda 0.5})
 
-(defn parsed-args? [x]
-  (and (map? x)
-       (map? (:config x))
-       (page-contents? (:main-page x))
-       (sub-pages? (:sub-pages x))))
+(defn complete-split-args [args]
+  {:pre [(spec/valid? ::split-report args)]}
+  (update args :config #(merge default-config %)))
 
-(defn parse-args [args]
-  {:post [(parsed-args? %)]}
-  (if (and (= 1 (count args)) (parsed-args? (first args)))
-    (first args)
-    (-> {:main-page []
-         :sub-pages {}
-         :config {}}
-        (merge (zipmap [:main-page :sub-pages :config] args))
-        (update :config #(merge default-config %)))))
+(defn complete-slideshow-args [args]
+  {:pre [(spec/valid? ::slideshow args)]}
+  (update args :config #(merge default-config %)))
 
 (defn a-href [x]
   (when (vector? x)
@@ -106,6 +123,24 @@
     (zipmap (map-page-symbols symbol-map "" ks)
             (map-page-symbols symbol-map "#" vs))))
 
+(defn wrap-body [body config]
+  (let [github-style (-> "css/github-markdown-light.css"
+                         io/resource
+                         slurp)]
+    [:html
+     [:head
+      [:style {:type "text/css"} github-style]
+      [:style {:type "text/css"} (style (:col-lambda config))]
+      [:title (:title config)]]
+     [:body body]]))
+
+(defn output-html [hiccup config]
+  (let [report-string (hiccup/html hiccup)
+        dst (:out-file config)]
+    (spit (fs/file dst) report-string)
+    (when (:display-report config)
+      (.open (java.awt.Desktop/getDesktop) (io/file dst)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
 ;;;; A P I
@@ -116,29 +151,22 @@
   {:pre [(string? pagekey)]}
   {:href (str "#" pagekey)})
 
-(defn hiccup-report
+(defn split-hiccup-report
   "Takes three arguments: `main-page sub-pages config`. The last two ones are optional."
-  [& args]
-  (let [{:keys [main-page sub-pages config]} (parse-args args)
+  [args]
+  (let [{:keys [main-page sub-pages config]} (complete-split-args args)
         symbol-map (atom {})
         main-page (map-page-symbols symbol-map "#" main-page)
         sub-pages (map-sub-pages-symbols symbol-map sub-pages)
         config (merge default-config config)
-        github-style (-> "css/github-markdown-light.css"
-                         io/resource
-                         slurp)]
-    [:html
-     [:head
-      [:style {:type "text/css"} github-style]
-      [:style {:type "text/css"} style]
-      [:title (:title config)]]
-     [:body
-      [:div {:class "wrapper"}
-       (into [:div {:class "markdown-body"}]
-             main-page)
-       (into [:div {:class "markdown-body"}]
-             (for [[k v] sub-pages]
-               (into [:div {:id k :class "details"}] v)))]]]))
+        ]
+    (wrap-body [:div {:class "wrapper"}
+                (into [:div {:class "markdown-body main-column"}]
+                      main-page)
+                (into [:div {:class "markdown-body detail-column"}]
+                      (for [[k v] sub-pages]
+                        (into [:div {:id k :class "details"}] v)))]
+               config)))
 
 (defn abbreviate-string [s max-len]
   (if (<= (count s) max-len)
@@ -189,26 +217,71 @@
                               header-title-key-pairs)))
            row-maps))))
 
-(defn html-report [& args]
-  (hiccup/html (apply hiccup-report args)))
 
-(defn render [& args]
-  (let [{:keys [sub-pages config] :as args} (parse-args args)
-        report-string (html-report args)
-        dst (:out-file config)
+
+
+(defn render-split [args]
+  (let [{:keys [sub-pages config]} (complete-split-args args)
         drefs (find-all-details-refs args)]
     (when-let [invalid-refs (seq (remove sub-pages drefs))]
       (throw (ex-info "Invalid page references" {:refs invalid-refs})))
     (when-let [non-referred-pages (and (:error-on-non-referred-details config)
                                        (seq (remove drefs (keys sub-pages))))]
       (throw (ex-info "Detail pages not referred to" {:keys non-referred-pages})))
-    (spit (fs/file dst) report-string)
-    (when (:display-report config)
-      (.open (java.awt.Desktop/getDesktop) (io/file dst)))))
+    (output-html (split-hiccup-report args) config)))
 
 (defn link-wrapper [href]
   (fn [& args]
     (into [:a {:href href}] args)))
+
+(defn slideshow-hiccup [args]
+  (let [{:keys [slides config]} (complete-slideshow-args args)
+        slide-key (fn [i] (format "slide%d" (inc i)))]
+    (wrap-body (into [:div
+                      (into [:span]
+                            (comp (map-indexed (fn [i slide]
+                                                 [[:a (details-href (slide-key i))
+                                                   (:title slide)]
+                                                  " "]))
+                                  cat)
+                            slides)]
+                     (map-indexed (fn [i slide]
+                                    [:div {:class "markdown-body details"
+                                           :id (slide-key i)}
+                                     (:body slide)]))
+                     slides)
+               config)))
+
+(defn render-slideshow [args]
+  (let [args (complete-slideshow-args args)]
+    (output-html (slideshow-hiccup args) (:config args))))
+
+(defn with-temp-output-fn [config f]
+  (let [out-file (fs/file (fs/create-temp-dir) "index.html")
+        config (assoc config :out-file out-file)]
+    (f config)
+    (str out-file)))
+
+(defmacro with-temp-output [[config-sym config] & body]
+  `(with-temp-output-fn ~config (fn [~config-sym] ~@body)))
+
+(defn demo-slideshow []
+  (with-temp-output [config {}]
+    (render-slideshow {:slides [{:title "Overview"
+                                 :body (list [:h1 "Slide 1"]
+                                             [:tt "This is good"])}
+                                {:title "About me"
+                                 :body [:h1 "Slide 2"]}]
+                       :config config})))
+
+
+
+(comment
+
+
+  (demo-slideshow)
+
+  )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
@@ -216,24 +289,24 @@
 ;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn demo []
-  (render
-   [[:h1 "Main header"]
-    [:table
-     [:tr [:th "Timestamp"] [:th "Result"] [:th "Keyword"]]
-     [:tr
-      [:td "2023-12-19"]
-      [:td [:a (details-href "result0")
-            "Result 0"]]
-      [:td [:tt "data"]]]
-     [:tr
-      [:td "2023-12-20"]
-      [:td [:a (details-href "result1")
-            "Result 1"]]
-      [:td "Mjao"]]]]
-   {"result0" [[:h1 "Result 0"]
-               [:h2 "Stack trace"]
-               [:pre "               RestFn.java: 1523  clojure.lang.RestFn/invoke
+(defn demo-split-report []
+  (render-split
+   {:main-page [[:h1 "Main header"]
+                [:table
+                 [:tr [:th "Timestamp"] [:th "Result"] [:th "Keyword"]]
+                 [:tr
+                  [:td "2023-12-19"]
+                  [:td [:a (details-href "result0")
+                        "Result 0"]]
+                  [:td [:tt "data"]]]
+                 [:tr
+                  [:td "2023-12-20"]
+                  [:td [:a (details-href "result1")
+                        "Result 1"]]
+                  [:td "Mjao"]]]]
+    :sub-pages {"result0" [[:h1 "Result 0"]
+                           [:h2 "Stack trace"]
+                           [:pre "               RestFn.java: 1523  clojure.lang.RestFn/invoke
     interruptible_eval.clj:   84  nrepl.middleware.interruptible-eval/evaluate
     interruptible_eval.clj:   56  nrepl.middleware.interruptible-eval/evaluate
     interruptible_eval.clj:  152  nrepl.middleware.interruptible-eval/interruptible-eval/fn/fn
@@ -243,12 +316,12 @@
                   AFn.java:   22  clojure.lang.AFn/run
                Thread.java: 1623  java.lang.Thread/run
 "]]
-    "result1" [[:h1 "Result 1"]
-               [:ul
-                [:li "Item 1"]
-                [:li "Item 2"]]]}
-   {:display-report true
-    :error-on-non-referred-details true}))
+                "result1" [[:h1 "Result 1"]
+                           [:ul
+                            [:li "Item 1"]
+                            [:li "Item 2"]]]}
+    :config {:display-report true
+             :error-on-non-referred-details true}}))
 
 (comment
 

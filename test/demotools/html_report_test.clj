@@ -1,7 +1,14 @@
 (ns demotools.html-report-test
   (:require [demotools.html-report :as r]
+            [hiccup.core :as hiccup]
             [clojure.test :refer [deftest is]]
             [clojure.string :as str]))
+
+(defn html-report [& args]
+  (let [[main sub config] args]
+    (hiccup/html (r/split-hiccup-report {:main-page (or main [])
+                                         :sub-pages (or sub {})
+                                         :config (merge r/default-config config)}))))
 
 (deftest test-html-report
   (is (= (r/extract-detail-ref [:a {:href "#asdf"}])
@@ -12,23 +19,19 @@
          (r/find-all-details-refs
           [[[[[[[[:a {:href "#asdf"}]]]]
               [[[[[[:a {:href "#mjao"}]]]]]]]]]])))
-  (is (not (r/parsed-args? [])))
-  (is (not (r/parsed-args? {})))
-  (is (r/parsed-args? (r/parse-args [])))
-  (is (r/parsed-args? (r/parse-args [(r/parse-args [])])))
   (is (str/starts-with?
-       (r/html-report ["Hej"] {"detail" ["Detail"]})
+       (html-report ["Hej"] {"detail" ["Detail"]})
        "<html>"))
   (is (str/starts-with?
-       (r/html-report ["Hej"] {"detail" ["Detail"]} {})
+       (html-report ["Hej"] {"detail" ["Detail"]} {})
        "<html>"))
   (is (str/starts-with?
-       (r/html-report ["Hej"])
+       (html-report ["Hej"])
        "<html>"))
   (is (str/starts-with?
-       (r/html-report)
+       (html-report)
        "<html>"))
-  (let [x (r/html-report ["Hej" [:a {:href '-pageK}]] {'-pageK ["Detail"]} {})]
+  (let [x (html-report ["Hej" [:a {:href '-pageK}]] {'-pageK ["Detail"]} {})]
     (is (str/starts-with? x "<html>"))
     (is (str/includes? x "id=\"page0\""))
     (is (str/includes? x "a href=\"#page0\""))))
