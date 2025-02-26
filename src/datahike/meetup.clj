@@ -4,6 +4,14 @@
             [datahike.meetup-helpers :as mh]
             [clojure.string :as str]))
 
+(comment
+
+  (mh/intro-slideshow)
+
+  )
+
+
+
 (defn init-db []
   (let [cfg {:store {:backend :mem
                      :id (str (gensym))}

@@ -1,5 +1,6 @@
 (ns demotools.html-report
   (:require [hiccup.core :as hiccup]
+            [hiccup.page :as hiccup-page]
             [clojure.java.io :as io]
             [clojure.walk :refer [postwalk]]
             [clojure.string :as str]
@@ -127,15 +128,14 @@
   (let [github-style (-> "css/github-markdown-light.css"
                          io/resource
                          slurp)]
-    [:html
-     [:head
-      [:style {:type "text/css"} github-style]
-      [:style {:type "text/css"} (style (:col-lambda config))]
-      [:title (:title config)]]
-     [:body body]]))
+    (list [:head
+           [:style {:type "text/css"} github-style]
+           [:style {:type "text/css"} (style (:col-lambda config))]
+           [:title (:title config)]]
+          [:body body])))
 
 (defn output-html [hiccup config]
-  (let [report-string (hiccup/html hiccup)
+  (let [report-string (hiccup-page/html5 hiccup)
         dst (:out-file config)]
     (spit (fs/file dst) report-string)
     (when (:display-report config)
@@ -258,11 +258,13 @@
         parent (fs/parent out-file)
         [base-name ext] (fs/split-ext (fs/file-name out-file))
         page-names (into [out-file]
-                         (map-indexed (fn [i _slide] (fs/file parent
-                                                             (format "%s_page%d.%s"
-                                                                     base-name
-                                                                     (inc i)
-                                                                     ext))))
+                         (map-indexed
+                          (fn [i _slide]
+                            (fs/file parent
+                                     (format "%s_page%d.%s"
+                                             base-name
+                                             (inc i)
+                                             ext))))
                          (rest slides))
         slides (map (fn [slide page-name] (assoc slide :page-file page-name))
                     slides
@@ -275,7 +277,9 @@
                       slides)]
     (doseq [slide slides]
       (output-html
-       (wrap-body (list nav-bar (:body slide)) config)
+       (wrap-body (list nav-bar [:span {:class "markdown-body"}
+                                 (:body slide)])
+                  config)
        (assoc config
               :out-file (:page-file slide)
               :display-report false)))))
@@ -295,13 +299,14 @@
 
 (defn demo-slideshow []
   (with-temp-output [config {}]
-    (render-multipage-slideshow {:slides [{:title "Overview"
-                                           :body (list [:h1 "Slide 1"]
-                                                       [:tt "This is good"]
-                                                       [:pre "And here we have a code block\nDon'nt we?"])}
-                                          {:title "About me"
-                                           :body [:h1 "Slide 2"]}]
-                                 :config config})))
+    (render-multipage-slideshow
+     {:slides [{:title "Overview"
+                :body (list [:h1 "Slide 1"]
+                            [:tt "This is good"]
+                            [:pre "And here we have a code block\nDon'nt we?"])}
+               {:title "About me"
+                :body [:h1 "Slide 2"]}]
+      :config config})))
 
 
 

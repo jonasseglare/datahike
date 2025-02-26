@@ -4,6 +4,54 @@
 
 ;; (set-face-attribute 'default nil :height 160)
 
+(defn render-slides [slides]
+  (html-report/with-temp-output [cfg {:display-report true}]
+    (html-report/render-multipage-slideshow
+     {:slides slides
+      :config cfg})))
+
+(defn intro-slideshow []
+  (render-slides
+   [{:title "Title page"
+     :body (list [:h1 "Datahike and its Query Engine"]
+                 [:p "Jonas Östlund"]
+                 [:p [:tt "https://github.com/jonasseglare"]])}
+    {:title "About Datahike"
+     :body (list [:h1 "What is Datahike?"]
+                 [:ul
+                  [:li "A " [:b "database"]]
+                  [:li "Implemented in" " " [:b "Clojure"]]
+                  [:li "Maintains the full " [:b "history"] " of all changes"]
+                  [:li [:b "Datalog"] " query engine"]])}
+    {:title "About Clojure"
+     :body (list [:h1 "What is Clojure?"]
+                 [:ul
+                  [:li "A" " " [:b "lisp"]]
+                  [:li "Runs on the " [:b "JVM"]]
+                  [:li "A mostly " [:b "functional"] " programming language"]
+                  [:li [:b "Dynamically typed"]]
+                  [:li "Other implementations:"
+                   [:ul
+                    [:li "ClojureScript (JavaScript)"]
+                    [:li "Babashka (JavaScript)"]
+                    [:li "...and others"]]]])}
+    {:title "Datoms"
+     :body (list [:h1 "Datoms"]
+                 (html-report/table-hiccup
+                  [["Entity" :entity]
+                   ["Attribute" :attribute]
+                   ["Value" :value]]
+                  [{:entity "abc"
+                    :attribute "asdf"
+                    :value "xyz"
+                    }]))}]))
+
+(comment
+
+  (intro-slideshow)
+
+  )
+
 
 (defn print-db-datoms [raw-datoms]
   (let [datoms (->> raw-datoms
