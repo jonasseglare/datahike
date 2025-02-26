@@ -252,6 +252,34 @@
                      slides)
                config)))
 
+(defn render-multipage-slideshow [args]
+  (let [{:keys [slides config]} (complete-slideshow-args args)
+        out-file (:out-file config)
+        parent (fs/parent out-file)
+        [base-name ext] (fs/split-ext (fs/file-name out-file))
+        page-names (into [out-file]
+                         (map-indexed (fn [i _slide] (fs/file parent
+                                                             (format "%s_page%d.%s"
+                                                                     base-name
+                                                                     (inc i)
+                                                                     ext))))
+                         (rest slides))
+        slides (map (fn [slide page-name] (assoc slide :page-file page-name))
+                    slides
+                    page-names)
+        nav-bar (into [:div]
+                      (mapcat (fn [slide]
+                                [[:a {:href (fs/file-name (:page-file slide))}
+                                  (:title slide)]
+                                 " "]))
+                      slides)]
+    (doseq [slide slides]
+      (output-html
+       (wrap-body (list nav-bar (:body slide)) config)
+       (assoc config
+              :out-file (:page-file slide)
+              :display-report false)))))
+
 (defn render-slideshow [args]
   (let [args (complete-slideshow-args args)]
     (output-html (slideshow-hiccup args) (:config args))))
@@ -267,12 +295,13 @@
 
 (defn demo-slideshow []
   (with-temp-output [config {}]
-    (render-slideshow {:slides [{:title "Overview"
-                                 :body (list [:h1 "Slide 1"]
-                                             [:tt "This is good"])}
-                                {:title "About me"
-                                 :body [:h1 "Slide 2"]}]
-                       :config config})))
+    (render-multipage-slideshow {:slides [{:title "Overview"
+                                           :body (list [:h1 "Slide 1"]
+                                                       [:tt "This is good"]
+                                                       [:pre "And here we have a code block\nDon'nt we?"])}
+                                          {:title "About me"
+                                           :body [:h1 "Slide 2"]}]
+                                 :config config})))
 
 
 
