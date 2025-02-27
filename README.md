@@ -10,6 +10,9 @@
 <a href="https://github.com/replikativ/datahike/tree/main"><img src="https://img.shields.io/github/last-commit/replikativ/datahike/main"/></a>
 </p>
 
+**MEETUP EXAMPLES HERE:** [`src/datahike/meetup_full_preparation.clj`](src/datahike/meetup_full_preparation.clj)
+
+
 [Datahike](https://datahike.io) is a durable [Datalog](https://en.wikipedia.org/wiki/Datalog) database
 powered by an efficient Datalog query engine. This project started as a port of
 [DataScript](https://github.com/tonsky/DataScript) to the
