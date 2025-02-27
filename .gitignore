@@ -36,3 +36,4 @@ dhi
 dhi.build_artifacts.txt
 trace.edn
 tmp.edn
+resources/taxonomy.nippy
