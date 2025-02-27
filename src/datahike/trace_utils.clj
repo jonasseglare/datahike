@@ -1,13 +1,53 @@
 (ns datahike.trace-utils
   (:require [clojure.java.io :as io]
             [taoensso.nippy :as nippy]
-            [jobtechdev.html-report :as r]
+            [demotools.html-report :as r]
             [datahike.api :as d]
             [clojure.walk :refer [postwalk]]
             [datahike.query :as dq]
             [clojure.string :as str]
-            [clojure.pprint :as pp]
-            [jobtech-cljutils.core :as ju]))
+            [clojure.pprint :as pp]))
+
+(defn check-mapped [x]
+  (assert (or (nil? x) (and (vector? x) (= 2 (count x)))))
+  x)
+
+(defn pop-n [stack n]
+  [(take n stack) (drop n stack)])
+
+(defn walk-and-map
+  "Traverses a datastructure `src` and optionally maps elements in the datastructure. `mapper` is a function that either takes no arguments and returns an initial state, or takes one element currently being visited and returns a vector of the new state and the mapped element. Note that it will not descent recursively into elements that it maps."
+  [src mapper]
+  {:pre [(fn? mapper)]}
+  (loop [stack (list [:input src])
+         result '()
+         mapper-state (mapper)]
+    (if (empty? stack)
+      (do (assert (= 1 (count result)))
+          [(first result) mapper-state])
+      (let [[[op x ks] & stack] stack
+            expand-coll (fn [coll-type ks elements]
+                          (into (conj stack [coll-type (count elements) ks])
+                                (map (fn [x] [:input x]))
+                                elements))]
+        (if (= :input op)
+          (if-let [[mapper-state mapped] (check-mapped (mapper mapper-state x))]
+            (recur stack (conj result mapped) mapper-state)
+            (cond
+              (map? x) (recur (expand-coll :map (keys x) (vals x)) result mapper-state)
+              (vector? x) (recur (expand-coll :vec nil x) result mapper-state)
+              (set? x) (recur (expand-coll :set nil x) result mapper-state)
+              (sequential? x) (recur (expand-coll :seq nil x) result mapper-state)
+              :else (recur stack (conj result x) mapper-state)))
+          (recur stack
+                 (let [[vs result] (pop-n result x)]
+                   (conj result
+                         (case op
+                           :map (zipmap ks vs)
+                           :set (set vs)
+                           :vec (vec vs)
+                           :seq (seq vs))))
+                 mapper-state))))))
 
 (defn default-data []
   (nippy/thaw-from-file (io/resource "taxonomy.nippy")))
@@ -80,7 +120,7 @@
   [& args]
   (let [trace (atom [])
         orig-resolve-clause* dq/-resolve-clause*
-        orig-lookup-pattern dq/lookup-pattern
+        
         tq (wrap-traced-fn trace
                            :q
                            d/q
@@ -89,11 +129,7 @@
                  [dq/-resolve-clause* (wrap-traced-fn trace
                                                       :resolve-clause
                                                       orig-resolve-clause*
-                                                      [:context :clause :orig-clause])
-                  dq/lookup-pattern (wrap-traced-fn trace
-                                                    :lookup-pattern
-                                                    orig-lookup-pattern
-                                                    [:context :source :pattern :orig-pattern])]
+                                                      [:context :clause :orig-clause])]
                  (apply tq args))]
     [result (-> trace deref (parse-trace {:dont-wrap [:q]}))]))
 
@@ -247,14 +283,14 @@
     (str/includes? (.getName cl) "datahike")))
 
 (defn strip-database [x]
-  (ju/walk-and-map x
-                   (fn
-                     ([] 0)
-                     ([counter x]
-                      (when (datahike-object? x)
-                        [(inc counter) 'MASKED])))))
+  (walk-and-map x
+                (fn
+                  ([] 0)
+                  ([counter x]
+                   (when (datahike-object? x)
+                     [(inc counter) 'MASKED])))))
 
-(defn write-trace-report [dst-file trace]
+#_(defn write-trace-report [dst-file trace]
   (let [[q-begin q-end] (filter #(= :q (trace-main-type (:type %))) trace)
         pages (keep render-page (page-items trace))
         rows (mapv :row pages)
