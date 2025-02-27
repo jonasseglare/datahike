@@ -51,8 +51,8 @@
                   [:li [:b "Dynamically typed"]]
                   [:li "A few core data abstractions: "
                    [:b "list, vector, set and map"]]
-                  [:li "Code is nested data structures"]
-                  [:li "The language is very stable (small but expressive core)"]
+                  [:li [:b "Code"] " is nested " [:b "data structures"]]
+                  [:li "The language is " [:b "very stable"]  " (small but expressive core)"]
                   [:li "Other implementations:"
                    [:ul
                     [:li "ClojureScript (JavaScript)"]
@@ -171,10 +171,6 @@
                                  datom col-widths))))
       (println))))
 
-(defn disp-trace [trace]
-  (r/with-temp-output [cfg {:display-report true}]
-    ))
-
 (defn disp-traced-q [& args]
   (let [[result trace] (apply tu/traced-q args)]
     (tu/disp-trace-report trace)
@@ -182,7 +178,31 @@
 
 (defn final-slides []
   (render-slides
-   [{:title "Conclusion"
+   [{:title "Performance Evaluation"
+     :body (list [:h1 "Performance evaluation"]
+                 [:p "Measure the total time of 148 different queries"]
+                 [:table
+                  [:tr
+                   [:th "Target"]
+                   [:th "Abs time (s)"]
+                   [:th "Rel time"]]
+                  [:tr
+                   [:td "Datahike 0.6.1555 (December 2023)"]
+                   [:td "387.2"]
+                   [:td "3104%"]]
+                  [:tr
+                   [:td "Datahike 0.6.1557 (January 2024)"]
+                   [:td "43.4"]
+                   [:td "348%"]]
+                  [:tr
+                   [:td "Datahike 0.6.1594 (November 2024)"]
+                   [:td "12.5"]
+                   [:td "100%"]]
+                  [:tr
+                   [:td "Datomic"]
+                   [:td "2.4"]
+                   [:td "20%"]]])}
+    {:title "Conclusion"
      :body (list [:h1 "Conclusion"]
                  [:ul
                   [:li "Useful for graphlike data"]
