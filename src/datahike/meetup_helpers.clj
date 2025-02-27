@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [datahike.api :as datahike]
             [datahike.query :as dhq]
+            [datahike.trace-utils :as tu]
             [demotools.html-report :as r]))
 
 ;; (set-face-attribute 'default nil :height 160)
@@ -170,6 +171,14 @@
                                  datom col-widths))))
       (println))))
 
+(defn disp-trace [trace]
+  (r/with-temp-output [cfg {:display-report true}]
+    ))
+
+(defn disp-traced-q [& args]
+  (let [[result trace] (apply tu/traced-q args)]
+    (tu/disp-trace-report trace)
+    result))
 
 (defn final-slides []
   (render-slides

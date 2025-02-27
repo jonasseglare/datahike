@@ -207,15 +207,19 @@
 (defn context-hiccup
   ([context] (context-hiccup context :h2))
   ([{:keys [rels consts]} header-level]
-   (list [header-level "Rels"]
-         (relation-tables-hiccup rels)
-         [header-level "Consts"]
-         (r/table-hiccup
-          [["Symbol" :symbol] ["Value" :value]]
-          (->> consts
-               (sort-by key)
-               (map (fn [[k v]] {:symbol [:code (pr-str k)]
-                                 :value [:code (pr-str v)]})))))))
+   (list (if (empty? rels)
+           [header-level "No rels"]
+           (list [header-level "Rels"]
+                 (relation-tables-hiccup rels)))
+         (if (empty? consts)
+           [header-level "No consts"]
+           (list [header-level "Consts"]
+                 (r/table-hiccup
+                  [["Symbol" :symbol] ["Value" :value]]
+                  (->> consts
+                       (sort-by key)
+                       (map (fn [[k v]] {:symbol [:code (pr-str k)]
+                                         :value [:code (pr-str v)]})))))))))
 
 (defn render-page [page-item]
   (let [type (:type page-item)
@@ -290,38 +294,39 @@
                    (when (datahike-object? x)
                      [(inc counter) 'MASKED])))))
 
-#_(defn write-trace-report [dst-file trace]
-  (let [[q-begin q-end] (filter #(= :q (trace-main-type (:type %))) trace)
-        pages (keep render-page (page-items trace))
-        rows (mapv :row pages)
-        lookup-count (transduce (keep :lookup-count) + rows)
-        result-size (transduce (keep :total-result-size) + rows)
-        final-row {:step "Overall"
-                   :lookup-count lookup-count
-                   :total-result-size result-size
-                   :elapsed-seconds (format "%.3f" (* 1.0e-9 (:elapsed-ns q-end)))}]
-    (r/render [[:h1 "Datahike Engine Trace"]
-               [:h2 "Algorithmic Steps"]
-               (r/table-hiccup [["Step" :step]
-                                ["Type" :type]
-                                ["Context size" :context-size]
+(defn disp-trace-report [trace]
+  (r/with-temp-output [cfg {:title "Datahike Query Engine Report"
+                            :display-report true
+                            :error-on-non-referred-details true}]
+    (let [[q-begin q-end] (filter #(= :q (trace-main-type (:type %))) trace)
+          pages (keep render-page (page-items trace))
+          rows (mapv :row pages)
+          lookup-count (transduce (keep :lookup-count) + rows)
+          result-size (transduce (keep :total-result-size) + rows)
+          final-row {:step "Overall"
+                     :lookup-count lookup-count
+                     :total-result-size result-size
+                     :elapsed-seconds (format "%.3f" (* 1.0e-9 (:elapsed-ns q-end)))}]
+      (r/render-split
+       {:main-page [[:h1 "Datahike Engine Trace"]
+                    [:h2 "Algorithmic Steps"]
+                    (r/table-hiccup [["Step" :step]
+                                     ["Type" :type]
+                                     ["Context size" :context-size]
                                         ;["Relations" :rels]
-                                ["Clause" :clause]
-                                ["Lookup count" :lookup-count]
-                                ["Total result size" :total-result-size]
-                                ["Duration (s)" :elapsed-seconds]]
-                               (conj rows final-row))
-               [:h2 "Input Query"]
-               [:pre (with-out-str (pp/pprint (strip-database (:args q-begin))))]
-               [:h2 "Output"]
-               [:pre (with-out-str (pp/pprint (:result q-end)))]]
-              (into {}
-                    (map (juxt :page-sym :page) #_(fn [{:keys [page-sym page]}] [page-sym page]))
-                    pages)
-              {:title "Datahike Query Engine Report"
-               :out-file dst-file
-               :display-report true
-               :error-on-non-referred-details true})))
+                                     ["Clause" :clause]
+                                     ;;["Lookup count" :lookup-count]
+                                     ;;["Total result size" :total-result-size]
+                                     ["Duration (s)" :elapsed-seconds]]
+                                    (conj rows final-row))
+                    [:h2 "Input Query"]
+                    [:pre (with-out-str (pp/pprint (strip-database (:args q-begin))))]
+                    [:h2 "Output"]
+                    [:pre (with-out-str (pp/pprint (:result q-end)))]]
+        :sub-pages (into {}
+                         (map (juxt :page-sym :page) #_(fn [{:keys [page-sym page]}] [page-sym page]))
+                         pages)
+        :config cfg}))))
 
 (comment
 

@@ -138,6 +138,30 @@
                ;; The database
                (datahike/db conn))))
 
+(defn demo5 []
+  (let [conn (prepare-db)]
+    (mh/disp-traced-q '[:find ?e ?id ?name ;; SQL Select
+                        :in $              ;; SQL From 
+                        :where             ;; SQL where
+
+                        ;; Clauses:
+                        [?e :person/name ?name]
+                        [?e :person/id ?id]]
+
+                      ;; The database
+                      (datahike/db conn))))
+
+;; Let's try to find a person by id
+
+(defn find-person-by-id [conn id]
+  (mh/disp-traced-q '[:find ?e
+                      :in $ ?id
+                      :where
+                      [?e :person/id ?id]]
+                    (datahike/db conn)
+                    id))
+
+
 
 (comment
 
