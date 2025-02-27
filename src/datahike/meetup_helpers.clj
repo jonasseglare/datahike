@@ -170,6 +170,22 @@
                                  datom col-widths))))
       (println))))
 
+
+(defn final-slides []
+  (render-slides
+   [{:title "Conclusion"
+     :body (list [:h1 "Conclusion"]
+                 [:ul
+                  [:li "Useful for graphlike data"]
+                  [:li "History tracking"]
+                  [:li "Open source"]
+                  [:li "All code: "] [:tt "https://github.com/jonasseglare/datahike/tree/meetup-dev"]])}
+    {:title "End"
+     :body (list [:h1 "End of talk"]
+                 [:p "Thanks you for organizing this meetup and letting me speak!"])}])
+  
+  )
+
 (comment
 
   
