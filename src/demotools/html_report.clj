@@ -275,14 +275,16 @@
                                   (:title slide)]
                                  " "]))
                       slides)]
-    (doseq [slide slides]
+    (doseq [[i slide] (map-indexed vector slides)]
       (output-html
        (wrap-body (list nav-bar [:span {:class "markdown-body"}
                                  (:body slide)])
                   config)
        (assoc config
               :out-file (:page-file slide)
-              :display-report false)))))
+              :display-report (if (zero? i)
+                                (:display-report config)
+                                false))))))
 
 (defn render-slideshow [args]
   (let [args (complete-slideshow-args args)]

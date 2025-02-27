@@ -6,7 +6,7 @@
 
 (defn render-slides [slides]
   (html-report/with-temp-output [cfg {:display-report true}]
-    (html-report/render-multipage-slideshow
+    (html-report/render-slideshow
      {:slides slides
       :config cfg})))
 
@@ -16,6 +16,19 @@
      :body (list [:h1 "Datahike and its Query Engine"]
                  [:p "Jonas Östlund"]
                  [:p [:tt "https://github.com/jonasseglare"]])}
+    {:title "Overview"
+     :body (list [:h1 "Overview"]
+                 [:ul
+                  [:li "Introduction on Datahike"]
+                  [:li "How Datahike stores data"]
+                  [:li "The Datahike query engine"]])}
+    {:title "About me"
+     :body (list [:h1 "About me"]
+                 [:ul
+                  [:li "Jonas Östlund"]
+                  [:li "Live in Liatorp"]
+                  [:li "Works at Arbetsförmedlingen in Växjö (with Clojure)"]
+                  [:li "Interested in functional programming, algorithms and nature."]])}
     {:title "About Datahike"
      :body (list [:h1 "What is Datahike?"]
                  [:ul
@@ -35,6 +48,17 @@
                     [:li "ClojureScript (JavaScript)"]
                     [:li "Babashka (JavaScript)"]
                     [:li "...and others"]]]])}
+    {:title "Timeline"
+     :body (list [:h1 "A brief timeline"]
+                 [:table
+                  [:tr [:th "Year"] [:th "Name"] [:th "Description"]]
+                  [:tr [:td "1972"] [:td "Prolog"] [:td "Logic programming language"]]
+                  [:tr [:td "1977"] [:td "Datalog"]
+                   [:td "Logic programming language, simpler than Prolog."]]
+                  [:tr [:td "2012"] [:td "Datomic"] [:td "A database with Datomic as a query language. Tracks history of database. Closed source."]]
+                  [:tr [:td "2014"] [:td "DataScript"] [:td "Open-source in-memory database similar to Datomic, but with fewer features. Works on frontend (ClojureScript)"]]
+                  [:tr [:td "2014"] [:td "Datahike"] [:td "Open-source database similar to Datomic, including history tracking"]]
+                  [:tr [:td "2020"] [:td "Datalevin"] [:td "Open-source database similar to Datomic but without history tracking"]]])}
     {:title "Datoms"
      :body (list [:h1 "Datoms"]
                  (html-report/table-hiccup
