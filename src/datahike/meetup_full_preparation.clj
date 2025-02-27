@@ -1,8 +1,6 @@
 (ns datahike.meetup-full-preparation
   (:require [datahike.api :as datahike]
-            [datahike.datom :as datom]
-            [datahike.meetup-helpers :as mh]
-            [clojure.string :as str]))
+            [datahike.meetup-helpers :as mh]))
 
 (comment
 
@@ -10,17 +8,27 @@
 
   )
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;
+;;;; P O P U L A T I N G   T H E   D A T A B A S E
+;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
+;; First we will create a function that will create a new database
 (defn init-db []
   (let [cfg {:store {:backend :mem
                      :id (str (gensym))}
              :keep-history? true
-             ;;:attribute-refs? true
              :schema-flexibility :write}
         _ (datahike/create-database cfg)
         conn (datahike/connect cfg)
-        schema [{:db/ident :person/name
+
+        ;; The schema describes how a database is stored
+        schema [{:db/ident :person/id
+                 :db/valueType :db.type/string
+                 :db/cardinality :db.cardinality/one}
+                {:db/ident :person/name
                  :db/valueType :db.type/string
                  :db/cardinality :db.cardinality/one}
                 {:db/ident :person/parent
@@ -29,34 +37,43 @@
     (datahike/transact conn schema)
     conn))
 
-(defn chronological-datoms [db]
-  (->> (datahike/datoms db :eavt)
-       ))
-
+;; Now, let's write a function to see what the database contains
 (defn demo0 []
   (let [conn (init-db)]
     (-> conn
         datahike/db
         (datahike/datoms :eavt)
-        mh/print-db-datoms)))
+        mh/display-datoms)))
 
+
+
+;; Add some data to the database
 (defn step1 [conn]
-  (datahike/transact conn [[:db/add "x" :person/name "August"]])
-  conn)
+  (datahike/transact conn [[:db/add "tmp" :person/name "August"]
+                           [:db/add "tmp" :person/id "001"]]))
 
 (defn demo1 []
   (let [conn (init-db)]
     (step1 conn)
-    (-> conn datahike/db (datahike/datoms :eavt) )))
+    (-> conn
+        datahike/db
+        (datahike/datoms :eavt)
+        mh/display-datoms)))
 
+
+(defn find-entity-id-by-person-id [conn person-id]
+  {:post [(number? %)]}
+  (some (fn [[e _a v]]
+          (when (= v person-id)
+            e))
+        (datahike/datoms (datahike/db conn)
+                         {:index :aevt
+                          :components [:person/id]})))
+
+;; Change the name
 (defn step2 [conn]
-  (let [person-of-interest (some (fn [[e _a v]]
-                                   (when (= v "August")
-                                     e))
-                                 (datahike/datoms (datahike/db conn)
-                                                  {:index :aevt
-                                                   :components [:person/name]}))]
-    (datahike/transact conn [[:db/add person-of-interest :person/name "Augustin"]])))
+  (let [entity-id (find-entity-id-by-person-id conn "001")]
+    (datahike/transact conn [[:db/add entity-id :person/name "Augustin"]])))
 
 (defn demo2 []
   (let [conn (init-db)]
@@ -65,11 +82,65 @@
     (-> conn
         datahike/db
         datahike/history
-        chronological-datoms
-        mh/print-db-datoms)))
+        (datahike/datoms :eavt)
+        mh/display-datoms)))
+
+;; Let's give August a parent
+
+(defn step3 [conn]
+  (let [entity-id (find-entity-id-by-person-id conn "001")]
+    (datahike/transact conn [[:db/add entity-id :person/parent "tmp"]
+                             [:db/add "tmp" :person/id "002"]
+                             [:db/add "tmp" :person/name "Jonas"]])))
+
+(defn demo3 []
+  (let [conn (init-db)]
+    (step1 conn)
+    (step2 conn)
+    (step3 conn)
+    (-> conn
+        datahike/db
+        datahike/history
+        (datahike/datoms :eavt)
+        mh/display-datoms)))
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;
+;;;; Q U E R Y I N G   T H E   D A T A B A S E
+;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn prepare-db []
+  (let [conn (init-db)]
+    (step1 conn)
+    (step2 conn)
+    (step3 conn)
+    conn))
+
+(comment
+
+  (def the-conn (prepare-db))
+
+  )
+
+;; Let's query all persons
+(defn demo4 []
+  (let [conn (prepare-db)]
+    (mh/disp-q '[:find ?e ?id ?name ;; SQL Select
+                 :in $              ;; SQL From 
+                 :where             ;; SQL where
+
+                 ;; Clauses:
+                 [?e :person/name ?name]
+                 [?e :person/id ?id]]
+
+               ;; The database
+               (datahike/db conn))))
 
 
+(comment
 
+  (mh/final-slides)
 
+  )

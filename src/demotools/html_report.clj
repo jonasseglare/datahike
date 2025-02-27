@@ -57,11 +57,14 @@
 (spec/def ::split-report (spec/keys :req-un [::main-page ::sub-pages]
                                     :opt-un  [::config]))
 
-(spec/def ::slide (spec/keys :req-un [::body
-                                      ::title]))
-(spec/def ::slides (spec/coll-of ::slide))
+(spec/def ::page (spec/keys :req-un [::body
+                                     ::title]))
+(spec/def ::slides (spec/coll-of ::page))
 (spec/def ::slideshow (spec/keys :req-un [::slides]
                                  :opt-un [::config]))
+
+(spec/def ::single-page (spec/keys :req-un [::body]
+                                   :opt-un [::config]))
 
 (def default-config {:title "Report"
                      :display-report false
@@ -69,13 +72,18 @@
                      :error-on-non-referred-details false
                      :col-lambda 0.5})
 
-(defn complete-split-args [args]
-  {:pre [(spec/valid? ::split-report args)]}
+(defn complete-args [spec args]
+  {:pre [(spec/valid? spec args)]}
   (update args :config #(merge default-config %)))
 
+(defn complete-single-page [args]
+  (complete-args ::single-page args))
+
+(defn complete-split-args [args]
+  (complete-args ::split-report args))
+
 (defn complete-slideshow-args [args]
-  {:pre [(spec/valid? ::slideshow args)]}
-  (update args :config #(merge default-config %)))
+  (complete-args ::slideshow args))
 
 (defn a-href [x]
   (when (vector? x)
@@ -299,31 +307,20 @@
 (defmacro with-temp-output [[config-sym config] & body]
   `(with-temp-output-fn ~config (fn [~config-sym] ~@body)))
 
-(defn demo-slideshow []
-  (with-temp-output [config {}]
-    (render-multipage-slideshow
-     {:slides [{:title "Overview"
-                :body (list [:h1 "Slide 1"]
-                            [:tt "This is good"]
-                            [:pre "And here we have a code block\nDon'nt we?"])}
-               {:title "About me"
-                :body [:h1 "Slide 2"]}]
-      :config config})))
-
-
-
-(comment
-
-
-  (demo-slideshow)
-
-  )
+(defn render-page [args]
+  (let [{:keys [body config]} (complete-single-page args)
+        config (merge default-config config)]
+    (output-html (wrap-body [:span {:class "markdown-body"} body] config) config)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
 ;;;; E X A M P L E
 ;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn demo-render-page []
+  (with-temp-output [config {:display-report true}]
+    (render-page {:body [:h1 "HEJ"] :config config})))
 
 (defn demo-split-report []
   (render-split
@@ -364,3 +361,24 @@
   (demo)
 
   )
+
+(defn demo-slideshow []
+  (with-temp-output [config {}]
+    (render-multipage-slideshow
+     {:slides [{:title "Overview"
+                :body (list [:h1 "Slide 1"]
+                            [:tt "This is good"]
+                            [:pre "And here we have a code block\nDon'nt we?"])}
+               {:title "About me"
+                :body [:h1 "Slide 2"]}]
+      :config config})))
+
+
+
+(comment
+
+
+  (demo-slideshow)
+
+  )
+

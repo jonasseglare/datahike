@@ -1,12 +1,14 @@
 (ns datahike.meetup-helpers
   (:require [clojure.string :as str]
-            [demotools.html-report :as html-report]))
+            [datahike.api :as datahike]
+            [datahike.query :as dhq]
+            [demotools.html-report :as r]))
 
 ;; (set-face-attribute 'default nil :height 160)
 
 (defn render-slides [slides]
-  (html-report/with-temp-output [cfg {:display-report true}]
-    (html-report/render-slideshow
+  (r/with-temp-output [cfg {:display-report true}]
+    (r/render-slideshow
      {:slides slides
       :config cfg})))
 
@@ -46,7 +48,9 @@
                   [:li "Runs on the " [:b "JVM"]]
                   [:li "A mostly " [:b "functional"] " programming language"]
                   [:li [:b "Dynamically typed"]]
-                  
+                  [:li "A few core data abstractions: "
+                   [:b "list, vector, set and map"]]
+                  [:li "Code is nested data structures"]
                   [:li "The language is very stable (small but expressive core)"]
                   [:li "Other implementations:"
                    [:ul
@@ -89,21 +93,73 @@
                    [:td [:tt "9082345908234"]]
                    [:td [:tt "true"]]]])}]))
 
+(defn preprocess-datoms [dst datom-f raw-datoms]
+  (->> raw-datoms
+       (sort-by (fn [[e _a _v tx _added?]]
+                  [tx (if (= e tx) 0 1) e]))
+       (into dst (map datom-f))))
+
+(defn display-datoms [raw-datoms]
+  (let [datoms (preprocess-datoms [] (fn [[e a v tx op]]
+                                       [[:tt (pr-str e)]
+                                        [:tt (pr-str a)]
+                                        [:tt (pr-str v)]
+                                        [:tt (pr-str tx)]
+                                        (if op
+                                          [:b [:tt (pr-str op)]]
+                                          [:tt (pr-str op)])])
+                                  raw-datoms)
+        body (into [:table [:tr
+                            [:th "Entity"]
+                            [:th "Attribute"]
+                            [:th "Value"]
+                            [:th "Transaction id"]
+                            [:th "Added?"]]]
+                   (comp (partition-by #(nth % 3))
+                         (mapcat (fn [datom-group]
+                                   (into [[:tr [:td][:td][:td][:td][:td]]]
+                                         (map-indexed (fn [i [e a v tx op]]
+                                                        [:tr
+                                                         [:td e]
+                                                         [:td a]
+                                                         [:td v]
+                                                         [:td (if (zero? i) tx "⋯")]
+                                                         [:td op]]))
+                                         datom-group))))
+                   datoms)]
+    (r/with-temp-output [cfg {:display-report true}]
+      (r/render-page {:body body :config cfg}))))
+
+(defn disp-q [query & inputs]
+  (let [normed (dhq/normalize-q-input query inputs)
+        header-symbols (-> normed :query :find)
+        results (apply datahike/q query inputs)
+        body (into [:table
+                    (into [:tr]
+                          (map (fn [sym]
+                                 [:th [:tt (pr-str sym)]]))
+                          header-symbols)]
+                   (map (fn [result]
+                          (into [:tr]
+                                (map (fn [x]
+                                       [:td [:tt (pr-str x)]]))
+                                result)))
+                   results)]
+    (r/with-temp-output [cfg {:display-report true}]
+      (r/render-page {:body body :config cfg}))))
 
 (defn print-db-datoms [raw-datoms]
-  (let [datoms (->> raw-datoms
-                    (sort-by (fn [[e _a _v tx _added?]]
-                               [tx e]))
-                    (into [["ENTITY-ID"
-                            "ATTRIBUTE"
-                            "VALUE"
-                            "TRANSACTION"
-                            "OP"]]
-                          (map (fn [[e a v tx added?]]
-                                 (mapv pr-str [e a v tx
-                                               (if added?
-                                                 '+
-                                                 '-)])))))
+  (let [datoms (preprocess-datoms [["ENTITY-ID"
+                                    "ATTRIBUTE"
+                                    "VALUE"
+                                    "TRANSACTION"
+                                    "OP"]]
+                                  (fn [[e a v tx added?]]
+                                    (mapv pr-str [e a v tx
+                                                  (if added?
+                                                    '+
+                                                    '-)]))
+                                  raw-datoms)
         col-widths (->> (apply map vector datoms)
                         (mapv #(transduce (map count) max 0 %)))]
     (println "---- DATOMS")
