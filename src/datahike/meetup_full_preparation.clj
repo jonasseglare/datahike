@@ -1,4 +1,4 @@
-(ns datahike.meetup
+(ns datahike.meetup-full-preparation
   (:require [datahike.api :as datahike]
             [datahike.datom :as datom]
             [datahike.meetup-helpers :as mh]

@@ -14,8 +14,8 @@
   (render-slides
    [{:title "Title page"
      :body (list [:h1 "Datahike and its Query Engine"]
-                 [:p "Jonas Östlund"]
-                 [:p [:tt "https://github.com/jonasseglare"]])}
+                 [:p "February 27, 2025"]
+                 [:p "Jonas Östlund"])}
     {:title "Overview"
      :body (list [:h1 "Overview"]
                  [:ul
@@ -26,16 +26,19 @@
      :body (list [:h1 "About me"]
                  [:ul
                   [:li "Jonas Östlund"]
-                  [:li "Live in Liatorp"]
+                  [:li "Live close to Liatorp"]
                   [:li "Works at Arbetsförmedlingen in Växjö (with Clojure)"]
-                  [:li "Interested in functional programming, algorithms and nature."]])}
+                  [:li "Interested in functional programming, algorithms, mathematics and nature."]])}
     {:title "About Datahike"
      :body (list [:h1 "What is Datahike?"]
                  [:ul
                   [:li "A " [:b "database"]]
+                  [:li [:b "Datalog"] " query engine"]
+                  [:li [:b "Open source"]]
+                  [:li "Developed by " [:b "LambdaForge"]
+                   " in Germany"]
                   [:li "Implemented in" " " [:b "Clojure"]]
-                  [:li "Maintains the full " [:b "history"] " of all changes"]
-                  [:li [:b "Datalog"] " query engine"]])}
+                  [:li "Maintains the full " [:b "history"] " of all changes"]])}
     {:title "About Clojure"
      :body (list [:h1 "What is Clojure?"]
                  [:ul
@@ -43,6 +46,8 @@
                   [:li "Runs on the " [:b "JVM"]]
                   [:li "A mostly " [:b "functional"] " programming language"]
                   [:li [:b "Dynamically typed"]]
+                  
+                  [:li "The language is very stable (small but expressive core)"]
                   [:li "Other implementations:"
                    [:ul
                     [:li "ClojureScript (JavaScript)"]
@@ -60,21 +65,29 @@
                   [:tr [:td "2014"] [:td "Datahike"] [:td "Open-source database similar to Datomic, including history tracking"]]
                   [:tr [:td "2020"] [:td "Datalevin"] [:td "Open-source database similar to Datomic but without history tracking"]]])}
     {:title "Datoms"
-     :body (list [:h1 "Datoms"]
-                 (html-report/table-hiccup
-                  [["Entity" :entity]
-                   ["Attribute" :attribute]
-                   ["Value" :value]]
-                  [{:entity "abc"
-                    :attribute "asdf"
-                    :value "xyz"
-                    }]))}]))
-
-(comment
-
-  (intro-slideshow)
-
-  )
+     :body (list [:h1 "How Datahike stores data"]
+                 [:p "Every change to the database is reflected by a datom being appended to a log."]
+                 [:p "A datom is a tuple of five elements"]
+                 [:ul
+                  [:li [:b "Entity: "] "Reference to the entity"]
+                  [:li [:b "Attribute: "] "Name of an attribute associated withthe entity"]
+                  [:li [:b "Value: "] "The value of the attribute"]
+                  [:li [:b "Transaction id: "] "Id of the transaction where the datom was added"]
+                  [:li [:b "Added?"] " A boolean value to describe whether the value was added or removed"]]
+                 [:p "Example of a datom"]
+                 [:table
+                  [:tr
+                   [:th "Entity"]
+                   [:th "Attribute"]
+                   [:th "Value"]
+                   [:th "Transaction id"]
+                   [:th "Added?"]]
+                  [:tr
+                   [:td [:tt "89243"]]
+                   [:td [:tt ":person/name"]]
+                   [:td [:tt "\"August\""]]
+                   [:td [:tt "9082345908234"]]
+                   [:td [:tt "true"]]]])}]))
 
 
 (defn print-db-datoms [raw-datoms]
