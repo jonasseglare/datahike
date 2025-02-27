@@ -195,8 +195,6 @@
 (defn clause-code [clause]
   [:code (r/abbreviate-string (pr-str clause) 40)])
 
-
-
 (defn clauses-hiccup [rows]
   (r/table-hiccup
    [["Label" :label]
