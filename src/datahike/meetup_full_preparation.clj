@@ -161,6 +161,15 @@
                     (datahike/db conn)
                     id))
 
+(defn find-parent-id [conn child-id]
+  (mh/disp-traced-q '[:find ?parent-id
+                      :in $ ?child-id
+                      :where
+                      [?child :person/id ?child-id]
+                      [?child :person/parent ?parent]
+                      [?parent :person/id ?parent-id]]
+                    (datahike/db conn)
+                    child-id))
 
 
 (comment
