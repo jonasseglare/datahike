@@ -61,10 +61,10 @@ prefix of another then it comes first."
   [x]
   #?(:cljs (.decode (js/TextDecoder. "utf8") x)
      :clj
-     (let [n (alength x)
+     (let [n (alength ^bytes x)
            dst (char-array n)]
        (dotimes [i n]
-         (aset dst i (char (aget x i))))
+         (aset dst i (char (aget ^bytes x i))))
        (String. dst))))
 
 (defrecord WrappedBytes [string-repr])
